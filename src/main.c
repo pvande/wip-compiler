@@ -51,11 +51,8 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  int num_files_to_process = argc - 1;
-  char** files_to_process = argv + 1;
-
-  for (int i = 0; i < num_files_to_process; i++) {
-    String* result = read_whole_file(files_to_process[i]);
+  for (int i = 1; i <= argc; i++) {
+    String* result = read_whole_file(argv[i]);
 
     if (result != NULL) {
       printf("%s", to_zero_terminated_string(result));

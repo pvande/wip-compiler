@@ -1,0 +1,40 @@
+// ** String ** //
+
+read_whole_file ::= (filename String) => (String*) {
+  file := fopen(filename, "rb")
+  #defer fclose(file)
+  return NULL unless file
+
+  stats : File.stats
+  fstat(file, &stats)
+
+  str : String = ${
+    length = stats.size
+    data   = malloc(stats.size * sizeof(byte))
+  }
+
+  fread(str.data, str.length, 1, file)
+
+  return str
+}
+
+
+// ** main ** //
+
+main ::= (argv String[]) => int {
+  if argv.length == 1 {
+    fprintf(stderr, "Usage: %s <filename>...\n", argv[0])
+    return 1
+  }
+
+  each arg, idx in argv {
+    next if idx == 0
+    String* result = read_whole_file(arg)
+
+    if (result != NULL) {
+      printf(result)
+    }
+  }
+
+  return 0
+}
