@@ -61,9 +61,20 @@ int main() {
   tokenize_test("1234");
   tokenize_test("12 34");
   tokenize_test("01234");
-  tokenize_test("0x1234");
-  tokenize_test("0b1234");
-  tokenize_test("0b12_34");
+  tokenize_test("0x12b34");
+  tokenize_test("0b1011");
+  tokenize_test("0b10_01");
+  tokenize_test("0b10_201"); // Two tokens, `0b10_` and `201`.
+
+  // String tests.
+  tokenize_test("\"\"");
+  tokenize_test("\"1\"");
+  tokenize_test("\"abc\"");
+  tokenize_test("\"\\\\\"");
+  tokenize_test(" \"\\\"\" ");
+  tokenize_test("\"\n\"");
+  tokenize_test("\"\n\\n\"");
+
   printf("--- DONE\n");
   return 0;
 }

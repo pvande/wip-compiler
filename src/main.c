@@ -7,7 +7,7 @@
 // ** String ** //
 
 typedef struct {
-  usize_t length;
+  size_t length;
   char* data;
 } String;
 
@@ -20,7 +20,7 @@ char* to_zero_terminated_string(String* str) {
   return buffer;
 }
 
-String* substring(String* str, usize_t pos, usize_t length) {
+String* substring(String* str, size_t pos, size_t length) {
   String* substr = malloc(sizeof(String));
 
   substr->length = length;
@@ -57,21 +57,25 @@ String* read_whole_file(const char* filename) {
 typedef enum {
   TOKEN_TYPE_WHITESPACE,
   TOKEN_TYPE_NEWLINE,
+  TOKEN_TYPE_COMMENT,
   TOKEN_TYPE_NUMBER_DECIMAL,
   TOKEN_TYPE_NUMBER_HEX,
   TOKEN_TYPE_NUMBER_BINARY,
+  TOKEN_TYPE_STRING,
+  TOKEN_TYPE_OPERATOR,
+  TOKEN_TYPE_IDENTIFIER,
 } TokenType;
 
 typedef struct {
   TokenType type;
   String* source;
   String* filename;
-  usize_t line;
-  usize_t pos;
+  size_t line;
+  size_t pos;
 } Token;
 
 typedef struct {
-  usize_t length;
+  size_t length;
   Token* tokens;
 } TokenList;
 
@@ -97,27 +101,45 @@ TokenList* tokenize_string(String* filename, String* input) {
   // the hopes that we can avoid ever having to reallocate mid-routine.  This is
   // likely *way* more memory than we actually need, but it's at least cheap and
   // fairly reliable.
-  usize_t input_length = input->length;
+  size_t input_length = input->length;
   Token* tokens = calloc(input_length, sizeof(Token));
-  usize_t token_idx = 0;
+  size_t token_idx = 0;
 
   TokenType token_type = 0;
-  usize_t token_start = 0; // Position in the file where the current token began.
-  usize_t file_pos = 0;    // Position in the file we're currently parsing.
+  size_t token_start = 0; // Position in the file where the current token began.
+  size_t file_pos = 0;    // Position in the file we're currently parsing.
 
-  usize_t line_no = 0;  // Line number we're parsing.
-  usize_t line_pos = 0; // Position within the line we're parsing.
+  size_t line_no = 0;  // Line number we're parsing.
+  size_t line_pos = 0; // Position within the line we're parsing.
 
   #define TOKEN_THIS  (input->data[file_pos])
   #define TOKEN_LAST  (input->data[file_pos - 1])
-  #define TOKEN_ADVANCE()  do { file_pos += 1; line_pos += 1; } while (0)
-  #define TOKEN_NEWLINE()  do { TOKEN_START(); TOKEN_SLURP_NEWLINES(); TOKEN_COMMIT(TOKEN_TYPE_NEWLINE); line_no += 1; line_pos = 0;  } while (0)
-  #define TOKEN_START()  (token_start = file_pos)
-  #define TOKEN_SLURP_WHITESPACE()  while (TOKEN_THIS == ' ' || TOKEN_THIS == '\t') { TOKEN_ADVANCE(); }
-  #define TOKEN_SLURP_NEWLINES()  while (TOKEN_THIS == '\n') { TOKEN_ADVANCE(); }
-  #define TOKEN_SLURP_NUMBER()  while (TOKEN_THIS == '0' || TOKEN_THIS == '1' || TOKEN_THIS == '2' || TOKEN_THIS == '3' || TOKEN_THIS == '4' || TOKEN_THIS == '5' || TOKEN_THIS == '6' || TOKEN_THIS == '7' || TOKEN_THIS == '8' || TOKEN_THIS == '9' || TOKEN_THIS == '_') { TOKEN_ADVANCE(); }
-  #define TOKEN_SOURCE()  (substring(input, token_start, file_pos - token_start))
-  #define TOKEN_COMMIT(TYPE)  (tokens[token_idx++] = (Token) { TYPE, TOKEN_SOURCE(), filename, line_no, line_pos - (file_pos - token_start) })
+  #define TOKEN_NEXT  (file_pos + 1 < input->length ? input->data[file_pos + 1] : '\0')
+  #define TOKEN_SOURCE  (substring(input, token_start, file_pos - token_start))
+
+  #define TOKEN_IS_WHITESPACE(T)    (T == ' ' || T == '\t')
+  #define TOKEN_IS_NEWLINE(T)       (T == '\n')
+  #define TOKEN_IS_BINARY_DIGIT(T)  (T == '_' || T == '0' || T == '1')
+  #define TOKEN_IS_DECIMAL_DIGIT(T) (T == '_' || (T >= '0' && T <= '9'))
+  #define TOKEN_IS_HEX_DIGIT(T)     (TOKEN_IS_DECIMAL_DIGIT(T) || (T >= 'a' && T <= 'z') || (T >= 'A' && T <= 'Z'))
+  #define TOKEN_IS_OPERATOR(T)      (T == '!' || T == '`' || (T >= '#' && T <= '/') || (T >= ':' && T <= '@') || (T >= '[' && T <= '^') || (T >= '{' && T <= '~'))
+  #define TOKEN_IS_IDENTIFIER(T)    (!(TOKEN_IS_WHITESPACE(T) || TOKEN_IS_NEWLINE(T) || TOKEN_IS_OPERATOR(T)))
+
+  #define TOKEN_ADVANCE()  do { file_pos += 1; line_pos += 1; if (file_pos >= input_length) break; } while (0)
+
+  #define TOKEN_SLURP_WHITESPACE()      while (TOKEN_IS_WHITESPACE(TOKEN_THIS)) { TOKEN_ADVANCE(); }
+  #define TOKEN_SLURP_NEWLINES()        while (TOKEN_IS_NEWLINE(TOKEN_THIS)) { TOKEN_ADVANCE(); }
+  #define TOKEN_SLURP_TO_EOL()          while (!TOKEN_IS_NEWLINE(TOKEN_THIS)) { TOKEN_ADVANCE(); }
+  #define TOKEN_SLURP_COMMENT()         while (TOKEN_IS_NEWLINE(TOKEN_THIS)) { TOKEN_ADVANCE(); }
+  #define TOKEN_SLURP_BINARY_NUMBER()   while (TOKEN_IS_BINARY_DIGIT(TOKEN_THIS)) { TOKEN_ADVANCE(); }
+  #define TOKEN_SLURP_DECIMAL_NUMBER()  while (TOKEN_IS_DECIMAL_DIGIT(TOKEN_THIS)) { TOKEN_ADVANCE(); }
+  #define TOKEN_SLURP_HEX_NUMBER()      while (TOKEN_IS_HEX_DIGIT(TOKEN_THIS)) { TOKEN_ADVANCE(); }
+  #define TOKEN_SLURP_OPERATOR()        while (TOKEN_IS_OPERATOR(TOKEN_THIS)) { TOKEN_ADVANCE(); }
+  #define TOKEN_SLURP_STRING()          do { do { TOKEN_ADVANCE(); } while (TOKEN_LAST == '\\' || TOKEN_THIS != '"'); TOKEN_ADVANCE(); } while (0)
+  #define TOKEN_SLURP_IDENT()           while (TOKEN_IS_IDENTIFIER(TOKEN_THIS)) { TOKEN_ADVANCE(); }
+
+  #define TOKEN_START()    (token_start = file_pos)
+  #define TOKEN_COMMIT(T)  (tokens[token_idx++] = (Token) { T, TOKEN_SOURCE, filename, line_no, line_pos - (file_pos - token_start) })
 
   while (file_pos < input_length) {
     switch (TOKEN_THIS) {
@@ -128,29 +150,65 @@ TokenList* tokenize_string(String* filename, String* input) {
         TOKEN_COMMIT(TOKEN_TYPE_WHITESPACE);
         break;
       case '\n':
-        TOKEN_NEWLINE();
+        TOKEN_START();
+        TOKEN_SLURP_NEWLINES();
+        TOKEN_COMMIT(TOKEN_TYPE_NEWLINE);
+        line_no += 1;
+        line_pos = 0;
+        break;
+      case '"':
+        TOKEN_START();
+        TOKEN_SLURP_STRING();
+        TOKEN_COMMIT(TOKEN_TYPE_STRING);
         break;
       case '0'...'9':
         token_type = TOKEN_TYPE_NUMBER_DECIMAL;
 
         TOKEN_START();
-        TOKEN_ADVANCE();
 
-        if (TOKEN_LAST == '0') {
-          if (TOKEN_THIS == 'x') {
+        if (TOKEN_THIS == '0') {
+          if (TOKEN_NEXT == 'x') {
             token_type = TOKEN_TYPE_NUMBER_HEX;
             TOKEN_ADVANCE();
-          } else if (TOKEN_THIS == 'b') {
+            TOKEN_ADVANCE();
+            TOKEN_SLURP_HEX_NUMBER();
+          } else if (TOKEN_NEXT == 'b') {
             token_type = TOKEN_TYPE_NUMBER_BINARY;
             TOKEN_ADVANCE();
+            TOKEN_ADVANCE();
+            TOKEN_SLURP_BINARY_NUMBER();
+          } else {
+            TOKEN_SLURP_DECIMAL_NUMBER();
           }
+        } else {
+          TOKEN_SLURP_DECIMAL_NUMBER();
         }
 
-        TOKEN_SLURP_NUMBER();
         TOKEN_COMMIT(token_type);
         break;
+      case '/':
+        if (TOKEN_NEXT == '/') {
+          TOKEN_START();
+          TOKEN_SLURP_TO_EOL();
+          TOKEN_COMMIT(TOKEN_TYPE_COMMENT);
+          break;
+        } else {
+          // Continue to process as an operator.
+        }
+      case '!':
+      case '`':
+      case '#'...'.':
+      case ':'...'@':
+      case '['...'^':
+      case '{'...'~':
+        TOKEN_START();
+        TOKEN_SLURP_OPERATOR();
+        TOKEN_COMMIT(TOKEN_TYPE_OPERATOR);
+        break;
       default:
-        TOKEN_ADVANCE();
+        TOKEN_START();
+        TOKEN_SLURP_IDENT();
+        TOKEN_COMMIT(TOKEN_TYPE_IDENTIFIER);
     }
   }
 
