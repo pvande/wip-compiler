@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -113,18 +114,18 @@ TokenList* tokenize_string(String* filename, String* input) {
   #define IS_OPERATOR(T)      (T == '!' || T == '`' || (T >= '#' && T <= '/') || (T >= ':' && T <= '@') || (T >= '[' && T <= '^') || (T >= '{' && T <= '~'))
   #define IS_IDENTIFIER(T)    (!(IS_WHITESPACE(T) || IS_NEWLINE(T) || IS_OPERATOR(T)))
 
-  #define ADVANCE()  do { file_pos += 1; line_pos += 1; if (file_pos >= input_length) break; } while (0)
+  #define ADVANCE(EXPECTED)   do { assert(EXPECTED == THIS); file_pos += 1; line_pos += 1; } while (0)
 
-  #define SLURP_WHITESPACE()      while (IS_WHITESPACE(THIS)) { ADVANCE(); }
-  #define SLURP_NEWLINES()        while (IS_NEWLINE(THIS)) { ADVANCE(); }
-  #define SLURP_TO_EOL()          while (!IS_NEWLINE(THIS)) { ADVANCE(); }
-  #define SLURP_COMMENT()         while (IS_NEWLINE(THIS)) { ADVANCE(); }
-  #define SLURP_BINARY_NUMBER()   while (IS_BINARY_DIGIT(THIS)) { ADVANCE(); }
-  #define SLURP_DECIMAL_NUMBER()  while (IS_DECIMAL_DIGIT(THIS)) { ADVANCE(); }
-  #define SLURP_HEX_NUMBER()      while (IS_HEX_DIGIT(THIS)) { ADVANCE(); }
-  #define SLURP_OPERATOR()        while (IS_OPERATOR(THIS)) { ADVANCE(); }
-  #define SLURP_STRING()          do { do { ADVANCE(); } while (LAST == '\\' || THIS != '"'); ADVANCE(); } while (0)
-  #define SLURP_IDENT()           while (IS_IDENTIFIER(THIS)) { ADVANCE(); }
+  #define SLURP(COND)             while (file_pos < input_length && COND) { ADVANCE(THIS); }
+  #define SLURP_WHITESPACE()      SLURP(IS_WHITESPACE(THIS))
+  #define SLURP_NEWLINES()        SLURP(IS_NEWLINE(THIS))
+  #define SLURP_TO_EOL()          SLURP(!IS_NEWLINE(THIS))
+  #define SLURP_COMMENT()         SLURP(IS_NEWLINE(THIS))
+  #define SLURP_BINARY_NUMBER()   SLURP(IS_BINARY_DIGIT(THIS))
+  #define SLURP_DECIMAL_NUMBER()  SLURP(IS_DECIMAL_DIGIT(THIS))
+  #define SLURP_HEX_NUMBER()      SLURP(IS_HEX_DIGIT(THIS))
+  #define SLURP_OPERATOR()        SLURP(IS_OPERATOR(THIS))
+  #define SLURP_IDENT()           SLURP(IS_IDENTIFIER(THIS))
 
   #define START()    (token_start = file_pos)
   #define COMMIT(T)  (tokens[token_idx++] = (Token) { T, SOURCE, filename, line_no, line_pos - LENGTH })
@@ -145,22 +146,23 @@ TokenList* tokenize_string(String* filename, String* input) {
         line_pos = 0;
         break;
       case '"':
-        SLURP_STRING();
+        ADVANCE('"');
+        do { SLURP(THIS != '"'); } while (LAST == '\\');
+        ADVANCE('"');
         COMMIT(TOKEN_TYPE_STRING);
         break;
       case '0'...'9':
         token_type = TOKEN_TYPE_NUMBER_DECIMAL;
 
         if (THIS == '0') {
-          if (NEXT == 'x') {
+          ADVANCE('0');
+          if (THIS == 'x') {
             token_type = TOKEN_TYPE_NUMBER_HEX;
-            ADVANCE();
-            ADVANCE();
+            ADVANCE('x');
             SLURP_HEX_NUMBER();
-          } else if (NEXT == 'b') {
+          } else if (THIS == 'b') {
             token_type = TOKEN_TYPE_NUMBER_BINARY;
-            ADVANCE();
-            ADVANCE();
+            ADVANCE('b');
             SLURP_BINARY_NUMBER();
           } else {
             SLURP_DECIMAL_NUMBER();
@@ -207,6 +209,7 @@ TokenList* tokenize_string(String* filename, String* input) {
   #undef IS_OPERATOR
   #undef IS_IDENTIFIER
   #undef ADVANCE
+  #undef SLURP
   #undef SLURP_WHITESPACE
   #undef SLURP_NEWLINES
   #undef SLURP_TO_EOL
@@ -215,7 +218,6 @@ TokenList* tokenize_string(String* filename, String* input) {
   #undef SLURP_DECIMAL_NUMBER
   #undef SLURP_HEX_NUMBER
   #undef SLURP_OPERATOR
-  #undef SLURP_STRING
   #undef SLURP_IDENT
   #undef START
   #undef COMMIT

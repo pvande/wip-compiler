@@ -45,35 +45,42 @@ void tokenize_test(char* str) {
 }
 
 int main() {
-  // Whitespace tests.
-  tokenize_test("");
-  tokenize_test(" ");
-  tokenize_test("   ");
-  tokenize_test("\t");
-  tokenize_test("\t ");
-  tokenize_test(" \t");
-  tokenize_test(" \t  ");
-  tokenize_test("\n");
-  tokenize_test(" \n");
-  tokenize_test(" \n\t \n\n ");
+  // // Whitespace tests.
+  // tokenize_test("");
+  // tokenize_test(" ");
+  // tokenize_test("   ");
+  // tokenize_test("\t");
+  // tokenize_test("\t ");
+  // tokenize_test(" \t");
+  // tokenize_test(" \t  ");
+  // tokenize_test("\n");
+  // tokenize_test(" \n");
+  // tokenize_test(" \n\t \n\n ");
+  //
+  // // Number tests.
+  // tokenize_test("1234");
+  // tokenize_test("12 34");
+  // tokenize_test("01234");
+  // tokenize_test("0x12b34");
+  // tokenize_test("0b1011");
+  // tokenize_test("0b10_01");
+  // tokenize_test("0b10_201"); // Two tokens, `0b10_` and `201`.
+  //
+  // // String tests.
+  // tokenize_test("\"\"");
+  // tokenize_test("\"1\"");
+  // tokenize_test("\"abc\"");
+  // tokenize_test("\"\\\\\"");
+  // tokenize_test(" \"\\\"\" ");
+  // tokenize_test("\"\n\"");
+  // tokenize_test("\"\n\\n\"");
+  tokenize_test("// Test");
 
-  // Number tests.
-  tokenize_test("1234");
-  tokenize_test("12 34");
-  tokenize_test("01234");
-  tokenize_test("0x12b34");
-  tokenize_test("0b1011");
-  tokenize_test("0b10_01");
-  tokenize_test("0b10_201"); // Two tokens, `0b10_` and `201`.
+  // tokenize_test("// ** String ** //\n\n  read_whole_file ::= (filename String) => (String*) {\n    file := fopen(filename, \"rb\")\n    #defer fclose(file)\n    return NULL unless file\n\n  stats : File.stats\n");
+  // tokenize_test("  fread(str.data, str.length, 1, file)\n");
+  // tokenize_test("  fread(str.data, str.length, ");
 
-  // String tests.
-  tokenize_test("\"\"");
-  tokenize_test("\"1\"");
-  tokenize_test("\"abc\"");
-  tokenize_test("\"\\\\\"");
-  tokenize_test(" \"\\\"\" ");
-  tokenize_test("\"\n\"");
-  tokenize_test("\"\n\\n\"");
+  // tokenize_test(to_zero_terminated_string(read_whole_file("src/echo.xxx")));
 
   printf("--- DONE\n");
   return 0;
