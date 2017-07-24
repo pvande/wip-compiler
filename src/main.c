@@ -115,7 +115,8 @@ TokenList* tokenize_string(String* filename, String* input) {
   #define TOKEN_THIS  (input->data[file_pos])
   #define TOKEN_LAST  (input->data[file_pos - 1])
   #define TOKEN_NEXT  (file_pos + 1 < input->length ? input->data[file_pos + 1] : '\0')
-  #define TOKEN_SOURCE  (substring(input, token_start, file_pos - token_start))
+  #define TOKEN_LENGTH  (file_pos - token_start)
+  #define TOKEN_SOURCE  (substring(input, token_start, TOKEN_LENGTH))
 
   #define TOKEN_IS_WHITESPACE(T)    (T == ' ' || T == '\t')
   #define TOKEN_IS_NEWLINE(T)       (T == '\n')
@@ -139,7 +140,7 @@ TokenList* tokenize_string(String* filename, String* input) {
   #define TOKEN_SLURP_IDENT()           while (TOKEN_IS_IDENTIFIER(TOKEN_THIS)) { TOKEN_ADVANCE(); }
 
   #define TOKEN_START()    (token_start = file_pos)
-  #define TOKEN_COMMIT(T)  (tokens[token_idx++] = (Token) { T, TOKEN_SOURCE, filename, line_no, line_pos - (file_pos - token_start) })
+  #define TOKEN_COMMIT(T)  (tokens[token_idx++] = (Token) { T, TOKEN_SOURCE, filename, line_no, line_pos - TOKEN_LENGTH })
 
   while (file_pos < input_length) {
     switch (TOKEN_THIS) {
