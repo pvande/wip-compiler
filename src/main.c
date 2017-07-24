@@ -80,19 +80,6 @@ typedef struct {
 } TokenList;
 
 
-// void parser_finish_token(ParserState* state) {
-//   state->tokens[state->token_idx] = (Token) {
-//     .source = substring(state->source, state->token_start, state->file_pos - state->token_start),
-//     .filename = state->filename,
-//     .line = state->line_no,
-//     .pos = state->line_pos,
-//   };
-//   state->token_idx += 1;
-//   state->mode = WAITING_FOR_NEXT_TOKEN;
-// }
-
-
-
 // @Precondition: filename data is never freed.
 // @Precondition: input data is never freed.
 // @Test: Is there a bug if the input string contains no tokens?
@@ -244,8 +231,6 @@ int main(int argc, char** argv) {
     String* result = read_whole_file(argv[i]);
 
     if (result != NULL) {
-      // printf("%s", to_zero_terminated_string(result));
-
       tokenize_string(&filename, result);
     }
   }
