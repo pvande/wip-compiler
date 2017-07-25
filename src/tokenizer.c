@@ -26,7 +26,6 @@ typedef struct {
 
 // @Precondition: filename data is never freed.
 // @Precondition: input data is never freed.
-// @Test: Is there a bug if the input string contains no tokens?
 TokenList* tokenize_string(String* filename, String* input) {
   // @Lazy: We're allocating as much memory as we could ever possibly need, in
   // the hopes that we can avoid ever having to reallocate mid-routine.  This is
