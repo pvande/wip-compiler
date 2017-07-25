@@ -91,22 +91,101 @@ void tokenizer_comment_tests() {
   ASSERT_EQ(list->tokens[0].source->length, 21, "of length 21");
 }
 
+void tokenizer_numeric_tests() {
+  TokenList* list;
+
+  TEST("A decimal number");
+  list = tokenize("123");
+  ASSERT_EQ(list->length, 1, "has one tokens");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_NUMBER_DECIMAL, "a decimal number token");
+  ASSERT_EQ(list->tokens[0].source->length, 3, "of length 3");
+
+  TEST("A decimal number with underscores");
+  list = tokenize("123_456_789");
+  ASSERT_EQ(list->length, 1, "has one token");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_NUMBER_DECIMAL, "a decimal number token");
+  ASSERT_EQ(list->tokens[0].source->length, 11, "of length 11");
+
+  TEST("A decimal number with leading zeroes");
+  list = tokenize("0000012345");
+  ASSERT_EQ(list->length, 1, "has one token");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_NUMBER_DECIMAL, "a decimal number token");
+  ASSERT_EQ(list->tokens[0].source->length, 10, "of length 10");
+
+
+  TEST("A hexidecimal number");
+  list = tokenize("0xDEADBEEF");
+  ASSERT_EQ(list->length, 1, "has one tokens");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_NUMBER_HEX, "a hex number token");
+  ASSERT_EQ(list->tokens[0].source->length, 10, "of length 10");
+
+  TEST("A hexidecimal number with underscores");
+  list = tokenize("0x123_FF_789");
+  ASSERT_EQ(list->length, 1, "has one token");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_NUMBER_HEX, "a hex number token");
+  ASSERT_EQ(list->tokens[0].source->length, 12, "of length 12");
+
+  TEST("A hexidecimal number with lowercased digits");
+  list = tokenize("0xabc_de_f89");
+  ASSERT_EQ(list->length, 1, "has one token");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_NUMBER_HEX, "a hex number token");
+  ASSERT_EQ(list->tokens[0].source->length, 12, "of length 12");
+
+
+  TEST("A binary number");
+  list = tokenize("0b010");
+  ASSERT_EQ(list->length, 1, "has one tokens");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_NUMBER_BINARY, "a binary number token");
+  ASSERT_EQ(list->tokens[0].source->length, 5, "of length 5");
+
+  TEST("A binary number with underscores");
+  list = tokenize("0b0010_0011");
+  ASSERT_EQ(list->length, 1, "has one token");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_NUMBER_BINARY, "a binary number token");
+  ASSERT_EQ(list->tokens[0].source->length, 11, "of length 11");
+
+
+  TEST("A 'decimal' number containing hex digits");
+  list = tokenize("00000FF12345");
+  ASSERT_EQ(list->length, 2, "has two tokens");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_NUMBER_DECIMAL, "a decimal number token");
+  ASSERT_EQ(list->tokens[0].source->length, 5, "of length 5");
+  ASSERT_EQ(list->tokens[1].type, TOKEN_TYPE_IDENTIFIER, "an identifier token");
+  ASSERT_EQ(list->tokens[1].source->length, 7, "of length 7");
+
+  TEST("A 'decimal' number containing letters");
+  list = tokenize("00000ZZ12345");
+  ASSERT_EQ(list->length, 2, "has two tokens");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_NUMBER_DECIMAL, "a decimal number token");
+  ASSERT_EQ(list->tokens[0].source->length, 5, "of length 5");
+  ASSERT_EQ(list->tokens[1].type, TOKEN_TYPE_IDENTIFIER, "an identifier token");
+  ASSERT_EQ(list->tokens[1].source->length, 7, "of length 7");
+
+  TEST("A 'hexidecimal' number with leading zeroes");
+  list = tokenize("000x0000012345");
+  ASSERT_EQ(list->length, 2, "has two tokens");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_NUMBER_DECIMAL, "a decimal number token");
+  ASSERT_EQ(list->tokens[0].source->length, 3, "of length 3");
+  ASSERT_EQ(list->tokens[1].type, TOKEN_TYPE_IDENTIFIER, "an identifier token");
+  ASSERT_EQ(list->tokens[1].source->length, 11, "of length 11");
+
+  TEST("A 'binary' number with leading zeroes");
+  list = tokenize("000x000001");
+  ASSERT_EQ(list->length, 2, "has two tokens");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_NUMBER_DECIMAL, "a decimal number token");
+  ASSERT_EQ(list->tokens[0].source->length, 3, "of length 3");
+  ASSERT_EQ(list->tokens[1].type, TOKEN_TYPE_IDENTIFIER, "an identifier token");
+  ASSERT_EQ(list->tokens[1].source->length, 7, "of length 7");
+}
+
 
 void run_all_tokenizer_tests() {
   tokenizer_empty_tests();
   tokenizer_whitespace_tests();
   tokenizer_newline_tests();
   tokenizer_comment_tests();
+  tokenizer_numeric_tests();
 
-  // // Number tests.
-  // tokenize_test("1234");
-  // tokenize_test("12 34");
-  // tokenize_test("01234");
-  // tokenize_test("0x12b34");
-  // tokenize_test("0b1011");
-  // tokenize_test("0b10_01");
-  // tokenize_test("0b10_201"); // Two tokens, `0b10_` and `201`.
-  //
   // // String tests.
   // tokenize_test("\"\"");
   // tokenize_test("\"1\"");
