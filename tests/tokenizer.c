@@ -1,5 +1,27 @@
 // ** Utilities ** //
 
+void dump_token(Token t) {
+  printf("«Token type=%d file=", t.type);
+  print_string(t.filename);
+  printf(" line=%ju pos=%ju source=", t.line, t.pos);
+  print_string(t.source);
+  printf("»\n");
+}
+
+void dump_token_list(TokenList* list){
+  if (list == NULL) {
+    fprintf(stderr, "NULL TokenList returned!");
+    return;
+  }
+
+  TokenList t = *list;
+  printf("List [ %ju ]\n", t.length);
+
+  for (uintmax_t i = 0; i < t.length; i++) {
+    dump_token(t.tokens[i]);
+  }
+}
+
 void* tokenize(char* str) {
   return tokenize_string(newString("FILE"), newString(str));
 }
@@ -178,6 +200,109 @@ void tokenizer_numeric_tests() {
   ASSERT_EQ(list->tokens[1].source->length, 7, "of length 7");
 }
 
+void tokenizer_string_tests() {
+  TokenList* list;
+
+  TEST("A simple string");
+  list = tokenize("\"this is a string\"");
+  ASSERT_EQ(list->length, 1, "has one tokens");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_STRING, "a string token");
+  ASSERT_EQ(list->tokens[0].source->length, 18, "of length 18");
+
+  TEST("A string containing escaped characters");
+  list = tokenize("\"\\a\\b\\f\\n\\\"\\'\\x20\"");
+  ASSERT_EQ(list->length, 1, "has one tokens");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_STRING, "a string token");
+  ASSERT_EQ(list->tokens[0].source->length, 18, "of length 18");
+
+  TEST("A string without closing quotes before a newline");
+  list = tokenize("\"Newline ahead\n");
+  ASSERT_EQ(list->length, 2, "has one tokens");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_STRING, "a string token");
+  ASSERT_EQ(list->tokens[0].source->length, 14, "of length 14");
+  ASSERT_EQ(list->tokens[1].type, TOKEN_TYPE_NEWLINE, "followed by a newline token");
+  ASSERT_EQ(list->tokens[1].source->length, 1, "of length 1");
+
+  TEST("A string ending with a backslash without closing quotes before a newline");
+  list = tokenize("\"Newline ahead\\\\\n");
+  ASSERT_EQ(list->length, 2, "has one tokens");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_STRING, "a string token");
+  ASSERT_EQ(list->tokens[0].source->length, 16, "of length 16");
+  ASSERT_EQ(list->tokens[1].type, TOKEN_TYPE_NEWLINE, "followed by a newline token");
+  ASSERT_EQ(list->tokens[1].source->length, 1, "of length 1");
+
+  TEST("An unterminated string");
+  list = tokenize("\"EOF ahead");
+  ASSERT_EQ(list->length, 1, "has one tokens");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_STRING, "a string token");
+  ASSERT_EQ(list->tokens[0].source->length, 10, "of length 10");
+}
+
+void tokenizer_operator_tests() {
+  TokenList* list;
+
+  TEST("A simple operator example");
+  list = tokenize("1 + 2");
+  ASSERT_EQ(list->length, 5, "has five tokens");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_NUMBER_DECIMAL, "a decimal number token");
+  ASSERT_EQ(list->tokens[0].source->length, 1, "of length 1");
+  ASSERT_EQ(list->tokens[1].type, TOKEN_TYPE_WHITESPACE, "a whitespace token");
+  ASSERT_EQ(list->tokens[1].source->length, 1, "of length 1");
+  ASSERT_EQ(list->tokens[2].type, TOKEN_TYPE_OPERATOR, "an operator token");
+  ASSERT_EQ(list->tokens[2].source->length, 1, "of length 1");
+  ASSERT_EQ(list->tokens[3].type, TOKEN_TYPE_WHITESPACE, "a whitespace token");
+  ASSERT_EQ(list->tokens[3].source->length, 1, "of length 1");
+  ASSERT_EQ(list->tokens[4].type, TOKEN_TYPE_NUMBER_DECIMAL, "a decimal number token");
+  ASSERT_EQ(list->tokens[4].source->length, 1, "of length 1");
+
+  TEST("A more complex operator example");
+  list = tokenize("foo(1 + 2, 3,*bar)");
+  ASSERT_EQ(list->length, 14, "has fourteen tokens");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_IDENTIFIER, "an identifier token");
+  ASSERT_EQ(list->tokens[0].source->length, 3, "of length 3");
+  ASSERT_EQ(list->tokens[1].type, TOKEN_TYPE_OPERATOR, "followed by an operator token");
+  ASSERT_EQ(list->tokens[1].source->length, 1, "of length 1");
+  ASSERT_EQ(list->tokens[2].type, TOKEN_TYPE_NUMBER_DECIMAL, "followed by a decimal number token");
+  ASSERT_EQ(list->tokens[2].source->length, 1, "of length 1");
+  ASSERT_EQ(list->tokens[3].type, TOKEN_TYPE_WHITESPACE, "followed by a whitespace token");
+  ASSERT_EQ(list->tokens[3].source->length, 1, "of length 1");
+  ASSERT_EQ(list->tokens[4].type, TOKEN_TYPE_OPERATOR, "followed by an operator token");
+  ASSERT_EQ(list->tokens[4].source->length, 1, "of length 1");
+  ASSERT_EQ(list->tokens[5].type, TOKEN_TYPE_WHITESPACE, "followed by a whitespace token");
+  ASSERT_EQ(list->tokens[5].source->length, 1, "of length 1");
+  ASSERT_EQ(list->tokens[6].type, TOKEN_TYPE_NUMBER_DECIMAL, "followed by a decimal number token");
+  ASSERT_EQ(list->tokens[6].source->length, 1, "of length 1");
+  ASSERT_EQ(list->tokens[7].type, TOKEN_TYPE_OPERATOR, "followed by an operator token");
+  ASSERT_EQ(list->tokens[7].source->length, 1, "of length 1");
+  ASSERT_EQ(list->tokens[8].type, TOKEN_TYPE_WHITESPACE, "followed by a whitespace token");
+  ASSERT_EQ(list->tokens[8].source->length, 1, "of length 1");
+  ASSERT_EQ(list->tokens[9].type, TOKEN_TYPE_NUMBER_DECIMAL, "followed by a decimal number token");
+  ASSERT_EQ(list->tokens[9].source->length, 1, "of length 1");
+  ASSERT_EQ(list->tokens[10].type, TOKEN_TYPE_OPERATOR, "followed by an operator token");
+  ASSERT_EQ(list->tokens[10].source->length, 1, "of length 1");
+  ASSERT_EQ(list->tokens[11].type, TOKEN_TYPE_OPERATOR, "followed by an operator token");
+  ASSERT_EQ(list->tokens[11].source->length, 1, "of length 1");
+  ASSERT_EQ(list->tokens[12].type, TOKEN_TYPE_IDENTIFIER, "followed by an identifier token");
+  ASSERT_EQ(list->tokens[12].source->length, 3, "of length 3");
+  ASSERT_EQ(list->tokens[13].type, TOKEN_TYPE_OPERATOR, "followed by an operator token");
+  ASSERT_EQ(list->tokens[13].source->length, 1, "of length 1");
+}
+
+void tokenizer_identifier_tests() {
+  TokenList* list;
+
+  TEST("A simple identifier");
+  list = tokenize("foo");
+  ASSERT_EQ(list->length, 1, "has one token");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_IDENTIFIER, "an identifier token");
+  ASSERT_EQ(list->tokens[0].source->length, 3, "of length 3");
+
+  TEST("A unicode identifier");
+  list = tokenize("👉🏽🚷");
+  ASSERT_EQ(list->length, 1, "has one token");
+  ASSERT_EQ(list->tokens[0].type, TOKEN_TYPE_IDENTIFIER, "an identifier token");
+  ASSERT_EQ(list->tokens[0].source->length, 12, "of length 12");
+}
 
 void run_all_tokenizer_tests() {
   tokenizer_empty_tests();
@@ -185,13 +310,7 @@ void run_all_tokenizer_tests() {
   tokenizer_newline_tests();
   tokenizer_comment_tests();
   tokenizer_numeric_tests();
-
-  // // String tests.
-  // tokenize_test("\"\"");
-  // tokenize_test("\"1\"");
-  // tokenize_test("\"abc\"");
-  // tokenize_test("\"\\\\\"");
-  // tokenize_test(" \"\\\"\" ");
-  // tokenize_test("\"\n\"");
-  // tokenize_test("\"\n\\n\"");
+  tokenizer_string_tests();
+  tokenizer_operator_tests();
+  tokenizer_identifier_tests();
 }

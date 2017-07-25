@@ -15,11 +15,11 @@ const char* ESCAPED[256] = {NULL};
 void initialize_escape_sequences() {
   for (int i; i < 32; i++) {
     ESCAPED[i] = malloc(4 * sizeof(char));
-    sprintf((char*) ESCAPED[i], "\\x%02x", i);
+    sprintf((char*) ESCAPED[i], "\\x%02X", i);
   }
   for (int i = 127; i < 256; i++) {
     ESCAPED[i] = malloc(4 * sizeof(char));
-    sprintf((char*) ESCAPED[i], "\\x%02x", i);
+    sprintf((char*) ESCAPED[i], "\\x%02X", i);
   }
 
   ESCAPED['\0'] = "\\0";
@@ -27,6 +27,7 @@ void initialize_escape_sequences() {
   ESCAPED['\b'] = "\\b";
   ESCAPED['\e'] = "\\e";
   ESCAPED['\f'] = "\\f";
+  ESCAPED['\n'] = "\\n";
   ESCAPED['\r'] = "\\r";
   ESCAPED['\t'] = "\\t";
   ESCAPED['\v'] = "\\v";
@@ -37,7 +38,7 @@ void initialize_escape_sequences() {
 void print_string(String* str) {
   printf("\"");
   for (int i = 0; i < str->length; i++) {
-    char c = str->data[i];
+    unsigned char c = str->data[i];
 
     if (ESCAPED[c] == NULL)
       printf("%c", c);
@@ -46,29 +47,6 @@ void print_string(String* str) {
   }
   printf("\"");
 }
-
-void dump_token(Token t) {
-  printf("«Token type=%d file=", t.type);
-  print_string(t.filename);
-  printf(" line=%ju pos=%ju source=", t.line, t.pos);
-  print_string(t.source);
-  printf("»\n");
-}
-
-void dump_token_list(TokenList* list){
-  if (list == NULL) {
-    fprintf(stderr, "NULL TokenList returned!");
-    return;
-  }
-
-  TokenList t = *list;
-  printf("List [ %ju ]\n", t.length);
-
-  for (uintmax_t i = 0; i < t.length; i++) {
-    dump_token(t.tokens[i]);
-  }
-}
-
 
 String* newString(char* s) {
   String* str = malloc(sizeof(String));

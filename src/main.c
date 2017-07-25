@@ -146,9 +146,15 @@ TokenList* tokenize_string(String* filename, String* input) {
         line_pos = 0;
         break;
       case '"':
-        ADVANCE('"');
-        do { SLURP(THIS != '"'); } while (LAST == '\\');
-        ADVANCE('"');
+        do {
+          ADVANCE('"');
+          SLURP(THIS != '"' && !IS_NEWLINE(THIS));
+        } while (LAST == '\\' && !IS_NEWLINE(THIS));
+
+        if (file_pos < input_length && !IS_NEWLINE(THIS)) {
+          ADVANCE('"');
+        }
+
         COMMIT(TOKEN_TYPE_STRING);
         break;
       case '0'...'9':
@@ -173,6 +179,10 @@ TokenList* tokenize_string(String* filename, String* input) {
 
         COMMIT(token_type);
         break;
+      case ',':
+        ADVANCE(',');
+        COMMIT(TOKEN_TYPE_OPERATOR);
+        break;
       case '/':
         if (NEXT == '/') {
           SLURP_TO_EOL();
@@ -183,7 +193,8 @@ TokenList* tokenize_string(String* filename, String* input) {
         }
       case '!':
       case '`':
-      case '#'...'.':
+      case '#'...'+':
+      case '-'...'.':
       case ':'...'@':
       case '['...'^':
       case '{'...'~':
