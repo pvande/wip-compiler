@@ -13,7 +13,7 @@ typedef enum {
 typedef struct {
   TokenType type;
   String* source;
-  String* filename;
+  String* file;
   size_t line;
   size_t pos;
 } Token;
@@ -21,26 +21,30 @@ typedef struct {
 typedef struct {
   size_t length;
   Token* tokens;
+  String* lines;
 } TokenList;
 
 
-// @Precondition: filename data is never freed.
+// @Precondition: file data is never freed.
 // @Precondition: input data is never freed.
-TokenList* tokenize_string(String* filename, String* input) {
+TokenList* tokenize_string(String* file, String* input) {
   // @Lazy: We're allocating as much memory as we could ever possibly need, in
   // the hopes that we can avoid ever having to reallocate mid-routine.  This is
   // likely *way* more memory than we actually need, but it's at least cheap and
   // fairly reliable.
   size_t input_length = input->length;
-  Token* tokens = calloc(input_length, sizeof(Token));
+  Token* tokens = calloc(input_length + 1, sizeof(Token));
+  String* lines = calloc(input_length, sizeof(String));
   size_t token_idx = 0;
 
   TokenType token_type = 0;
   size_t token_start = 0; // Position in the file where the current token began.
   size_t file_pos = 0;    // Position in the file we're currently parsing.
 
-  size_t line_no = 0;  // Line number we're parsing.
-  size_t line_pos = 0; // Position within the line we're parsing.
+  size_t line_no = 0;     // Line number we're parsing.
+  size_t _line_no;
+  size_t line_pos = 0;    // Position within the line we're parsing.
+  size_t line_start = 0;  // File offset for beginning of the current line.
 
   #define THIS  (input->data[file_pos])
   #define LAST  (input->data[file_pos - 1])
@@ -70,7 +74,7 @@ TokenList* tokenize_string(String* filename, String* input) {
   #define SLURP_IDENT()           SLURP(IS_IDENTIFIER(THIS))
 
   #define START()    (token_start = file_pos)
-  #define COMMIT(T)  (tokens[token_idx++] = (Token) { T, SOURCE, filename, line_no, line_pos - LENGTH })
+  #define COMMIT(T)  (tokens[token_idx++] = (Token) { T, SOURCE, file, line_no, line_pos - LENGTH })
 
   while (file_pos < input_length) {
     START();
@@ -82,9 +86,16 @@ TokenList* tokenize_string(String* filename, String* input) {
         COMMIT(TOKEN_TYPE_WHITESPACE);
         break;
       case '\n':
-        SLURP_NEWLINES();
+        _line_no = line_no;
+        while (file_pos < input_length && IS_NEWLINE(THIS)) {
+          lines[_line_no++] = *substring(input, line_start, file_pos - line_start);
+          line_start = file_pos + 1;
+          ADVANCE(THIS);
+        }
+
         COMMIT(TOKEN_TYPE_NEWLINE);
-        line_no += 1;
+
+        line_no = _line_no;
         line_pos = 0;
         break;
       case '"':
@@ -149,6 +160,22 @@ TokenList* tokenize_string(String* filename, String* input) {
     }
   }
 
+  TokenList* list = malloc(sizeof(TokenList));
+  if (token_idx) {
+    // if (tokens[token_idx - 1].type != TOKEN_TYPE_NEWLINE) {
+    //   tokens[token_idx] = (Token) { TOKEN_TYPE_NEWLINE, new_string("\n"), file, line_no, line_pos + 1 };
+    //   token_idx += 1;
+    // }
+    list->length = token_idx;
+    list->tokens = realloc(tokens, list->length * sizeof(Token));
+    list->lines = realloc(lines, list->length * sizeof(String));
+  } else {
+    list->length = 0;
+    list->tokens = NULL;
+    list->lines = NULL;
+    free(tokens);
+  }
+
   #undef THIS
   #undef LAST
   #undef NEXT
@@ -174,16 +201,6 @@ TokenList* tokenize_string(String* filename, String* input) {
   #undef SLURP_IDENT
   #undef START
   #undef COMMIT
-
-  TokenList* list = malloc(sizeof(TokenList));
-  if (token_idx) {
-    list->length = token_idx;
-    list->tokens = realloc(tokens, list->length * sizeof(Token));
-  } else {
-    list->length = 0;
-    list->tokens = NULL;
-    free(tokens);
-  }
 
   return list;
 }

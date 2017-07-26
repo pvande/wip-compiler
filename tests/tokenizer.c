@@ -2,7 +2,7 @@
 
 void dump_token(Token t) {
   printf("«Token type=%d file=", t.type);
-  print_string(t.filename);
+  print_string(t.file);
   printf(" line=%ju pos=%ju source=", t.line, t.pos);
   print_string(t.source);
   printf("»\n");
