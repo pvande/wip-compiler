@@ -7,6 +7,7 @@
 
 #include "src/string.c"
 #include "src/file.c"
+#include "src/table.c"
 
 #include "src/tokenizer.c"
 

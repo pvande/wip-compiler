@@ -23,7 +23,7 @@ void dump_token_list(TokenList* list){
 }
 
 void* tokenize(char* str) {
-  return tokenize_string(newString("FILE"), newString(str));
+  return tokenize_string(new_string("FILE"), new_string(str));
 }
 
 void tokenize_test(char* str) {
