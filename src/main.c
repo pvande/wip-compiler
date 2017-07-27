@@ -13,6 +13,13 @@
 #include "src/list.c"
 #include "src/queue.c"
 
+
+typedef struct ParserScope {
+  Table* declarations;
+
+  struct ParserScope* parent_scope;
+} ParserScope;
+
 typedef enum {
   TOKEN_UNKNOWN,
   TOKEN_DIRECTIVE,
@@ -28,7 +35,9 @@ typedef enum {
 } TokenType;
 
 typedef enum {
+  EXPR_LITERAL,
   EXPR_IDENT,
+  EXPR_FUNCTION,
 } ExpressionType;
 
 typedef struct {
@@ -51,26 +60,27 @@ typedef struct {
 } Expression;
 
 typedef struct {
-  Expression _;
+  Expression base;
   Token* identifier;
-} ExpressionIdentifier;
+} IdentifierExpression;
 
 typedef struct {
-  Expression _;
+  Expression base;
   Token* literal;
-} ExpressionLiteral;
+} LiteralExpression;
+
+typedef struct {
+  Expression base;
+  List* args;
+  ParserScope* scope;
+  List* instructions;
+} FunctionExpression;
 
 typedef struct {
   Token* name;
   Token* type;
   Expression* value;
 } Declaration;
-
-typedef struct ParserScope {
-  Table* declarations;
-
-  struct ParserScope* parent_scope;
-} ParserScope;
 
 typedef struct {
   Token* tokens;

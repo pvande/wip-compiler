@@ -43,16 +43,18 @@ ParserState __parser_state;
 #define MARK()         (__parser_state.pos)
 #define RESTORE(MARK)  (__parser_state.pos = MARK)
 
-Expression* new_identifier_expression(Token* token) {
-  ExpressionIdentifier* expr = malloc(sizeof(ExpressionIdentifier));
-  expr->identifier = token;
+Expression* new_literal_expression(Token* token) {
+  LiteralExpression* expr = malloc(sizeof(LiteralExpression));
+  expr->base.type = EXPR_LITERAL;
+  expr->literal = token;
 
   return (Expression*) expr;
 }
 
-Expression* new_literal_expression(Token* token) {
-  ExpressionLiteral* expr = malloc(sizeof(ExpressionLiteral));
-  expr->literal = token;
+Expression* new_identifier_expression(Token* token) {
+  IdentifierExpression* expr = malloc(sizeof(IdentifierExpression));
+  expr->base.type = EXPR_IDENT;
+  expr->identifier = token;
 
   return (Expression*) expr;
 }
@@ -110,24 +112,6 @@ int peek_op(char* op) {
   return string_equals(oper, TOKEN.source);
 }
 
-int detect_function_definition() {
-  size_t mark = MARK();
-  int depth = 0;
-  do {
-    if (accept_op("(")) {
-      depth += 1;
-    } else if (accept_op(")")) {
-      depth -= 1;
-    } else {
-      ADVANCE();
-    }
-  } while (depth && TOKENS_REMAIN);
-
-  int is_arrow = peek_op("=>");
-  RESTORE(mark);
-  return depth == 0 && is_arrow;
-}
-
 void error(char* msg) {
   char* filename = to_zero_terminated_string(TOKEN.file);
   char* line_str = to_zero_terminated_string(&CURRENT_LINE);
@@ -151,6 +135,37 @@ void error(char* msg) {
   accept(TOKEN_NEWLINE);
 }
 
+int detect_function_definition() {
+  size_t mark = MARK();
+  int depth = 0;
+  do {
+    if (accept_op("(")) {
+      depth += 1;
+    } else if (accept_op(")")) {
+      depth -= 1;
+    } else {
+      ADVANCE();
+    }
+  } while (depth && TOKENS_REMAIN);
+
+  int is_arrow = peek_op("=>");
+  RESTORE(mark);
+  return depth == 0 && is_arrow;
+}
+
+FunctionExpression* parse_function_definition() {
+  FunctionExpression* func = malloc(sizeof(FunctionExpression));
+  func->base.type = EXPR_FUNCTION;
+
+  accept_op("(");
+  accept_op(")");
+  accept_op("=>");
+  accept_op("{");
+  accept_op("}");
+
+  return func;
+}
+
 Expression* parse_expression() {
   if (accept(TOKEN_IDENTIFIER)) {
     return new_identifier_expression(&ACCEPTED);
@@ -172,8 +187,7 @@ Expression* parse_expression() {
     }
   } else if (peek_op("(")) {
     if (detect_function_definition()) {
-      // @TODO Parse the function definition.
-      return NULL;
+      return (Expression*) parse_function_definition();
     } else {
       accept_op("(");
       Expression* expr = parse_expression();
@@ -193,7 +207,6 @@ Expression* parse_expression() {
 
 Declaration* parse_declaration() {
   Declaration* decl;
-
   if (accept(TOKEN_IDENTIFIER)) {
     Token* ident = &ACCEPTED;
 

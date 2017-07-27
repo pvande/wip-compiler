@@ -1,5 +1,4 @@
 size_t file_read_all_into(const char* filename, String* str) {
-  printf("%s\n", filename);
   FILE* f = fopen(filename, "rb");
   if (!f) {
     return -1;
