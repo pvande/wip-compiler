@@ -136,6 +136,8 @@ Expression* parse_expression() {
       return NULL;
     }
     return new_literal_expression(&ACCEPTED);
+  } else {
+    error("Unable to parse expression.");
   }
 
   return NULL;
@@ -180,6 +182,8 @@ Declaration* parse_declaration() {
       error("Expected a declaration.");
       return NULL;
     }
+  } else if (accept(TOKEN_DIRECTIVE)) {
+    // @TODO Add support for directives at the declaration level.
   } else {
     error("Expected an identifier to declare.");
     return NULL;

@@ -53,6 +53,11 @@ TokenList* tokenize_string(String* file, String* input) {
     START();
 
     switch (THIS) {
+      case '#':
+        ADVANCE('#');
+        SLURP_IDENT();
+        COMMIT(TOKEN_DIRECTIVE);
+        break;
       case ' ':
       case '\t':
         SLURP_WHITESPACE();
@@ -126,7 +131,7 @@ TokenList* tokenize_string(String* file, String* input) {
         }
       case '!':
       case '`':
-      case '#'...'+':
+      case '$'...'+':
       case '-'...'.':
       case ':'...'@':
       case '['...'^':

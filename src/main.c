@@ -11,6 +11,8 @@
 #include "src/list.c"
 
 typedef enum {
+  TOKEN_UNKNOWN,
+  TOKEN_DIRECTIVE,
   TOKEN_WHITESPACE,
   TOKEN_NEWLINE,
   TOKEN_COMMENT,
