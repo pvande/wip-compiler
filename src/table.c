@@ -1,3 +1,30 @@
+typedef struct {
+  size_t capacity;
+  size_t size;
+
+  char* occupied;
+  String** keys;
+  void** values;
+} Table;
+
+
+void initialize_table(Table* table, size_t capacity) {
+  table->capacity = capacity;
+  table->size = 0;
+  table->occupied = calloc(capacity, sizeof(char));
+  table->keys = malloc(capacity * sizeof(String*));
+  table->values = malloc(capacity * sizeof(void*));
+}
+
+Table* new_table(size_t capacity) {
+  assert(capacity != 0);
+
+  Table* ret = malloc(sizeof(Table));
+  initialize_table(ret, capacity);
+
+  return ret;
+}
+
 uint32_t __hash__ (String* str) {
   size_t len = str->length;
   char* data = str->data;
@@ -41,28 +68,6 @@ uint32_t __hash__ (String* str) {
   hash += hash >> 6;
 
   return hash;
-}
-
-typedef struct {
-  size_t capacity;
-  size_t size;
-
-  char* occupied;
-  String** keys;
-  void** values;
-} Table;
-
-Table* new_table(size_t capacity) {
-  assert(capacity != 0);
-
-  Table* ret = malloc(sizeof(Table));
-  ret->capacity = capacity;
-  ret->size = 0;
-  ret->occupied = calloc(capacity, sizeof(char));
-  ret->keys = malloc(capacity * sizeof(String*));
-  ret->values = malloc(capacity * sizeof(void*));
-
-  return ret;
 }
 
 size_t __table_find_slot_for_key(Table* t, String* key) {

@@ -4,12 +4,14 @@ typedef struct {
 } String;
 
 
-String* new_string(char* s) {
+void initialize_string(String* string, char* data) {
+  string->length = strlen(data);
+  string->data = data;
+}
+
+String* new_string(char* data) {
   String* str = malloc(sizeof(String));
-
-  str->length = strlen(s);
-  str->data = s;
-
+  initialize_string(str, data);
   return str;
 }
 
