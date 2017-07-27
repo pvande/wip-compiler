@@ -1,3 +1,15 @@
+/*********
+
+PROGRAM => STATEMENT*
+STATEMENT => _ (DECLARATION) _ (Newline | <EOF>)
+DECLARATION => Identifier _ ":" _ Identifier |
+               Identifier _ ":" _ Identifier _ "=" _ EXPRESSION |
+               Identifier _ ":=" _ EXPRESSION
+EXPRESSION => Identifier
+_ => Whitespace?
+
+*********/
+
 /*
   PROGRAM => STATEMENT*
   STATEMENT => _? (DECLARATION) _? (NEWLINE | EOF)
@@ -6,9 +18,6 @@
   UNARY => ()
   BINARY => ()
   VALUE => (NUMBER | STRING | IDENTIFIER)
-  _ => (' ' | '\t')+
-  NEWLINE => '\n'+
-  EOF => '\0'
 */
 
 ParserScope* new_parser_scope() {
@@ -28,23 +37,33 @@ ParserState __parser_state;
 
 #define ADVANCE()      (__parser_state.pos += 1)
 
-Declaration* add_declaration(Token* ident, Token* type, Token* value) {
-  ParserScope* scope = CURRENT_SCOPE;
+Expression* new_expression(Token* token) {
+  Expression* expr = malloc(sizeof(Expression));
+  expr->token = token;
 
-  List* declarations = table_find(scope->declarations, ident->source);
-  if (declarations == NULL) {
-    declarations = new_list(1, 128);
-    table_add(scope->declarations, ident->source, declarations);
-  }
+  return expr;
+}
 
+Declaration* new_declaration(Token* ident, Token* type, Expression* value) {
   Declaration* decl = malloc(sizeof(Declaration));
   decl->name = ident;
   decl->type = type;
   decl->value = value;
 
-  list_add(declarations, decl);
-
   return decl;
+}
+
+void add_declaration(Declaration* decl) {
+  ParserScope* scope = CURRENT_SCOPE;
+  String* key = decl->name->source;
+
+  List* declarations = table_find(scope->declarations, key);
+  if (declarations == NULL) {
+    declarations = new_list(1, 128);
+    table_add(scope->declarations, key, declarations);
+  }
+
+  list_add(declarations, decl);
 }
 
 void error(char* msg) {
@@ -100,7 +119,11 @@ int expect(TokenType type) {
   return 0;
 }
 
-void parse_statement() {
+// void parse_expression() {}
+
+Declaration* parse_statement() {
+  Declaration* decl;
+
   if (accept(TOKEN_IDENTIFIER)) {
     Token* ident = &ACCEPTED;
 
@@ -109,26 +132,27 @@ void parse_statement() {
       accept(TOKEN_WHITESPACE);
       expect(TOKEN_IDENTIFIER);
       Token* type = &ACCEPTED;
-      Token* value = NULL;
+      Expression* value = NULL;
 
       if (accept_op("=")) {
         // @TODO Parse expressions
         accept(TOKEN_WHITESPACE);
         expect(TOKEN_IDENTIFIER);
-        value = &ACCEPTED;
+        value = new_expression(&ACCEPTED);
       }
 
-      add_declaration(ident, type, value);
+      decl = new_declaration(ident, type, value);
     } else if (accept_op(":=")) {
       accept(TOKEN_WHITESPACE);
       expect(TOKEN_IDENTIFIER);
-      Token* value = &ACCEPTED;
+      Expression* value = new_expression(&ACCEPTED);
 
-      add_declaration(ident, NULL, value);
+      decl = new_declaration(ident, NULL, value);
     }
   }
 
   expect(TOKEN_NEWLINE);
+  return decl;
 }
 
 void parse_tokens(TokenList* list, ParserScope* scope) {
@@ -144,6 +168,7 @@ void parse_tokens(TokenList* list, ParserScope* scope) {
 
   while (TOKENS_REMAIN) {
     accept(TOKEN_WHITESPACE);
-    parse_statement();
+    Declaration* decl = parse_statement();
+    if (decl != NULL) add_declaration(decl);
   }
 }

@@ -36,13 +36,14 @@ typedef struct {
   String* lines;
 } TokenList;
 
-// typedef struct {
-// } Expression;
+typedef struct {
+  Token* token;
+} Expression;
 
 typedef struct {
   Token* name;
   Token* type;
-  Token* value;
+  Expression* value;
 } Declaration;
 
 typedef struct ParserScope {
