@@ -34,12 +34,14 @@ ParserState __parser_state;
 
 #define ACCEPTED       (__parser_state.tokens[__parser_state.pos - 1])
 #define TOKEN          (__parser_state.tokens[__parser_state.pos])
+#define NEXT_TOKEN     (__parser_state.tokens[__parser_state.pos + 1])
 #define TOKENS_REMAIN  (__parser_state.pos < __parser_state.length)
 #define CURRENT_LINE   (__parser_state.lines[TOKEN.line])
 #define CURRENT_SCOPE  (__parser_state.current_scope)
 
 #define ADVANCE()      (__parser_state.pos += 1)
-#define RETREAT()      (__parser_state.pos -= 1)
+#define MARK()         (__parser_state.pos)
+#define RESTORE(MARK)  (__parser_state.pos = MARK)
 
 Expression* new_identifier_expression(Token* token) {
   ExpressionIdentifier* expr = malloc(sizeof(ExpressionIdentifier));
@@ -106,16 +108,44 @@ int accept(TokenType type) {
   return 0;
 }
 
+int peek(TokenType type) {
+  return TOKEN.type == type;
+}
+
 int accept_op(char* op) {
   String* oper = new_string(op);
 
-  accept(TOKEN_WHITESPACE);
   if (TOKEN.type == TOKEN_OPERATOR && string_equals(oper, TOKEN.source)) {
     ADVANCE();
     return 1;
   }
 
   return 0;
+}
+
+int peek_op(char* op) {
+  if (TOKEN.type != TOKEN_OPERATOR) return 0;
+
+  String* oper = new_string(op);
+  return string_equals(oper, TOKEN.source);
+}
+
+int detect_function_definition() {
+  size_t mark = MARK();
+  int depth = 0;
+  do {
+    if (accept_op("(")) {
+      depth += 1;
+    } else if (accept_op(")")) {
+      depth -= 1;
+    } else {
+      ADVANCE();
+    }
+  } while (depth && TOKENS_REMAIN);
+
+  int is_arrow = peek_op("=>");
+  RESTORE(mark);
+  return depth == 0 && is_arrow;
 }
 
 Expression* parse_expression() {
@@ -129,13 +159,28 @@ Expression* parse_expression() {
     return new_literal_expression(&ACCEPTED);
   } else if (accept(TOKEN_NUMBER_BINARY)) {
     return new_literal_expression(&ACCEPTED);
-  } else if (accept(TOKEN_STRING)) {
-    if (ACCEPTED.source->data[0] != ACCEPTED.source->data[ACCEPTED.source->length - 1]) {
-      RETREAT();
+  } else if (peek(TOKEN_STRING)) {
+    if (TOKEN.source->data[0] == TOKEN.source->data[TOKEN.source->length - 1]) {
+      accept(TOKEN_STRING);
+      return new_literal_expression(&ACCEPTED);
+    } else {
       error("Unclosed string literal.");
       return NULL;
     }
-    return new_literal_expression(&ACCEPTED);
+  } else if (peek_op("(")) {
+    if (detect_function_definition()) {
+      // @TODO Parse the function definition.
+      return NULL;
+    } else {
+      accept_op("(");
+      Expression* expr = parse_expression();
+      if (!accept_op(")")) {
+        error("Expected ')'");
+        return NULL;
+      }
+
+      return expr;
+    }
   } else {
     error("Unable to parse expression.");
   }
@@ -151,7 +196,6 @@ Declaration* parse_declaration() {
 
     if (accept_op(":")) {
       // @TODO Parse type expressions
-      accept(TOKEN_WHITESPACE);
       if (!accept(TOKEN_IDENTIFIER)) {
         error("Expected type expression.");
         return NULL;
@@ -160,7 +204,6 @@ Declaration* parse_declaration() {
       decl = new_declaration(ident, type, NULL);
 
       if (accept_op("=")) {
-        accept(TOKEN_WHITESPACE);
         Expression* value = parse_expression();
         if (!value) {
           error("Expected expression.");
@@ -170,7 +213,6 @@ Declaration* parse_declaration() {
         decl->value = value;
       }
     } else if (accept_op(":=")) {
-      accept(TOKEN_WHITESPACE);
       Expression* value = parse_expression();
       if (!value) {
         error("Expected expression.");
@@ -189,7 +231,6 @@ Declaration* parse_declaration() {
     return NULL;
   }
 
-  accept(TOKEN_WHITESPACE);
   if (!accept(TOKEN_NEWLINE)) {
     error("Expected end of line.");
     return NULL;
@@ -210,7 +251,6 @@ void parse_tokens(TokenList* list, ParserScope* scope) {
   };
 
   while (TOKENS_REMAIN) {
-    accept(TOKEN_WHITESPACE);
     Declaration* decl = parse_declaration();
     if (decl != NULL) {
       add_declaration(decl);

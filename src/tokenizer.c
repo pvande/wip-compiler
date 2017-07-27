@@ -61,7 +61,8 @@ TokenList* tokenize_string(String* file, String* input) {
       case ' ':
       case '\t':
         SLURP_WHITESPACE();
-        COMMIT(TOKEN_WHITESPACE);
+        // @TODO Figure out how to differentiate `ident (` from `ident(`.  Do
+        //       we really even care?
         break;
       case '\n':
         _line_no = line_no;
@@ -118,7 +119,11 @@ TokenList* tokenize_string(String* file, String* input) {
         COMMIT(token_type);
         break;
       case ',':
-        ADVANCE(',');
+      case '(':
+      case ')':
+      case '{':
+      case '}':
+        ADVANCE(THIS);
         COMMIT(TOKEN_OPERATOR);
         break;
       case '/':
@@ -131,11 +136,13 @@ TokenList* tokenize_string(String* file, String* input) {
         }
       case '!':
       case '`':
-      case '$'...'+':
+      case '$'...'\'':
+      case '*'...'+':
       case '-'...'.':
       case ':'...'@':
       case '['...'^':
-      case '{'...'~':
+      case '|':
+      case '~':
         SLURP_OPERATOR();
         COMMIT(TOKEN_OPERATOR);
         break;
