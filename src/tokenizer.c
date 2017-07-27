@@ -84,7 +84,7 @@ TokenList* tokenize_string(String* file, String* input) {
         COMMIT(TOKEN_STRING);
         break;
       case '0'...'9':
-        token_type = TOKEN_NUMBER_DECIMAL;
+        token_type = 0;
 
         if (THIS == '0') {
           ADVANCE('0');
@@ -96,11 +96,18 @@ TokenList* tokenize_string(String* file, String* input) {
             token_type = TOKEN_NUMBER_BINARY;
             ADVANCE('b');
             SLURP_BINARY_NUMBER();
-          } else {
+          }
+        }
+
+        if (!token_type) {
+          token_type = TOKEN_NUMBER_DECIMAL;
+          SLURP_DECIMAL_NUMBER();
+
+          if (THIS == '.') {
+            token_type = TOKEN_NUMBER_FRACTIONAL;
+            ADVANCE('.');
             SLURP_DECIMAL_NUMBER();
           }
-        } else {
-          SLURP_DECIMAL_NUMBER();
         }
 
         COMMIT(token_type);

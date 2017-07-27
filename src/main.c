@@ -15,6 +15,7 @@ typedef enum {
   TOKEN_NEWLINE,
   TOKEN_COMMENT,
   TOKEN_NUMBER_DECIMAL,
+  TOKEN_NUMBER_FRACTIONAL,
   TOKEN_NUMBER_HEX,
   TOKEN_NUMBER_BINARY,
   TOKEN_STRING,
@@ -49,6 +50,11 @@ typedef struct {
   Expression _;
   Token* identifier;
 } ExpressionIdentifier;
+
+typedef struct {
+  Expression _;
+  Token* literal;
+} ExpressionLiteral;
 
 typedef struct {
   Token* name;

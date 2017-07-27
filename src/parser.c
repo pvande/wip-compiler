@@ -1,12 +1,14 @@
 /*********
 
-PROGRAM => STATEMENT*
-STATEMENT => _ (DECLARATION) _ (Newline | <EOF>)
+PROGRAM     => STATEMENT*
+STATEMENT   => _ (DECLARATION) _ (Newline | <EOF>)
 DECLARATION => Identifier _ ":" _ TYPE |
                Identifier _ ":" _ TYPE _ "=" _ EXPRESSION |
                Identifier _ ":=" _ EXPRESSION
-TYPE => Identifier
-EXPRESSION => Identifier
+TYPE        => Identifier
+EXPRESSION  => Identifier |
+               Number |
+               String
 _ => Whitespace?
 
 *********/
@@ -37,10 +39,18 @@ ParserState __parser_state;
 #define CURRENT_SCOPE  (__parser_state.current_scope)
 
 #define ADVANCE()      (__parser_state.pos += 1)
+#define RETREAT()      (__parser_state.pos -= 1)
 
 Expression* new_identifier_expression(Token* token) {
   ExpressionIdentifier* expr = malloc(sizeof(ExpressionIdentifier));
   expr->identifier = token;
+
+  return (Expression*) expr;
+}
+
+Expression* new_literal_expression(Token* token) {
+  ExpressionLiteral* expr = malloc(sizeof(ExpressionLiteral));
+  expr->literal = token;
 
   return (Expression*) expr;
 }
@@ -109,9 +119,23 @@ int accept_op(char* op) {
 }
 
 Expression* parse_expression() {
-  accept(TOKEN_WHITESPACE);
   if (accept(TOKEN_IDENTIFIER)) {
     return new_identifier_expression(&ACCEPTED);
+  } else if (accept(TOKEN_NUMBER_DECIMAL)) {
+    return new_literal_expression(&ACCEPTED);
+  } else if (accept(TOKEN_NUMBER_FRACTIONAL)) {
+    return new_literal_expression(&ACCEPTED);
+  } else if (accept(TOKEN_NUMBER_HEX)) {
+    return new_literal_expression(&ACCEPTED);
+  } else if (accept(TOKEN_NUMBER_BINARY)) {
+    return new_literal_expression(&ACCEPTED);
+  } else if (accept(TOKEN_STRING)) {
+    if (ACCEPTED.source->data[0] != ACCEPTED.source->data[ACCEPTED.source->length - 1]) {
+      RETREAT();
+      error("Unclosed string literal.");
+      return NULL;
+    }
+    return new_literal_expression(&ACCEPTED);
   }
 
   return NULL;
@@ -134,6 +158,7 @@ Declaration* parse_declaration() {
       decl = new_declaration(ident, type, NULL);
 
       if (accept_op("=")) {
+        accept(TOKEN_WHITESPACE);
         Expression* value = parse_expression();
         if (!value) {
           error("Expected expression.");
@@ -143,6 +168,7 @@ Declaration* parse_declaration() {
         decl->value = value;
       }
     } else if (accept_op(":=")) {
+      accept(TOKEN_WHITESPACE);
       Expression* value = parse_expression();
       if (!value) {
         error("Expected expression.");
