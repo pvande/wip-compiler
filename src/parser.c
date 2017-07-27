@@ -79,26 +79,6 @@ void add_declaration(Declaration* decl) {
   list_add(declarations, decl);
 }
 
-void error(char* msg) {
-  char* filename = to_zero_terminated_string(TOKEN.file);
-  char* line_str = to_zero_terminated_string(&CURRENT_LINE);
-  size_t line_no = TOKEN.line;
-
-  char* bold = "\e[1;37m";
-  char* code = "\e[0;36m";
-  char* err = "\e[0;31m";
-  char* reset = "\e[0m";
-
-  printf("Error: %s\n", msg);
-  printf("In %s%s%s on line %s%zu%s\n\n", bold, filename, reset, bold, TOKEN.line + 1, reset);
-  printf("> %s%s%s\n", code, line_str, reset);
-
-  for (int i = 0; i < CURRENT_LINE.length; i++) line_str[i] = ' ';
-  for (int i = TOKEN.pos; i < TOKEN.pos + TOKEN.source->length; i++) line_str[i] = '^';
-
-  printf("  %s%s%s\n\n", err, line_str, reset);
-}
-
 int accept(TokenType type) {
   if (TOKEN.type == type) {
     ADVANCE();
@@ -146,6 +126,29 @@ int detect_function_definition() {
   int is_arrow = peek_op("=>");
   RESTORE(mark);
   return depth == 0 && is_arrow;
+}
+
+void error(char* msg) {
+  char* filename = to_zero_terminated_string(TOKEN.file);
+  char* line_str = to_zero_terminated_string(&CURRENT_LINE);
+  size_t line_no = TOKEN.line;
+
+  char* bold = "\e[1;37m";
+  char* code = "\e[0;36m";
+  char* err = "\e[0;31m";
+  char* reset = "\e[0m";
+
+  printf("Error: %s\n", msg);
+  printf("In %s%s%s on line %s%zu%s\n\n", bold, filename, reset, bold, TOKEN.line + 1, reset);
+  printf("> %s%s%s\n", code, line_str, reset);
+
+  for (int i = 0; i < CURRENT_LINE.length; i++) line_str[i] = ' ';
+  for (int i = TOKEN.pos; i < TOKEN.pos + TOKEN.source->length; i++) line_str[i] = '^';
+
+  printf("  %s%s%s\n\n", err, line_str, reset);
+
+  while (TOKEN.type != TOKEN_NEWLINE) accept(TOKEN.type);
+  accept(TOKEN_NEWLINE);
 }
 
 Expression* parse_expression() {
@@ -226,6 +229,8 @@ Declaration* parse_declaration() {
     }
   } else if (accept(TOKEN_DIRECTIVE)) {
     // @TODO Add support for directives at the declaration level.
+    error("Directives aren't handled yet.");
+    return NULL;
   } else {
     error("Expected an identifier to declare.");
     return NULL;
@@ -252,10 +257,6 @@ void parse_tokens(TokenList* list, ParserScope* scope) {
 
   while (TOKENS_REMAIN) {
     Declaration* decl = parse_declaration();
-    if (decl != NULL) {
-      add_declaration(decl);
-    } else {
-      break;
-    }
+    if (decl != NULL) add_declaration(decl);
   }
 }

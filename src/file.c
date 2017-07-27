@@ -1,18 +1,18 @@
-String* read_whole_file(const char* filename) {
+size_t file_read_all_into(const char* filename, String* str) {
+  printf("%s\n", filename);
   FILE* f = fopen(filename, "rb");
   if (!f) {
-    return NULL;
+    return -1;
   }
 
   struct stat s;
   fstat(fileno(f), &s);
 
-  String* str = (String*) malloc(sizeof(String));
   str->length = s.st_size;
   str->data = malloc(s.st_size * sizeof(char));
 
   fread(str->data, s.st_size, 1, f);
   fclose(f);
 
-  return str;
+  return s.st_size;
 }

@@ -36,17 +36,17 @@ void* list_get(List* list, size_t idx) {
 }
 
 size_t list_add(List* list, void* value) {
-  list->size += 1;
-
-  if (list->size > list->capacity) {
+  if (list->size >= list->capacity) {
     size_t bucket_count = list->capacity / list->bucket_size;
     list->buckets = realloc(list->buckets, (bucket_count + 1) * sizeof(void*));
+    list->buckets[bucket_count] = malloc(list->bucket_size * sizeof(void*));
     list->capacity += list->bucket_size;
   }
 
   size_t bucket = list->size / list->bucket_size;
   size_t bucket_idx = list->size % list->bucket_size;
 
+  list->size += 1;
   list->buckets[bucket][bucket_idx] = value;
   return list->size;
 }

@@ -35,6 +35,7 @@ void queue_add(Queue* queue, void* value) {
 void* queue_pull(Queue* queue) {
   void* ptr = list_get((List*) queue, queue->position);
   queue->position += 1;
+  queue->list.size -= 1;
 
   // If we've emptied a bucket we should rotate them, so that we can avoid
   // unnecessary allocations.
