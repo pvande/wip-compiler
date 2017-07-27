@@ -2,9 +2,10 @@
 
 PROGRAM => STATEMENT*
 STATEMENT => _ (DECLARATION) _ (Newline | <EOF>)
-DECLARATION => Identifier _ ":" _ Identifier |
-               Identifier _ ":" _ Identifier _ "=" _ EXPRESSION |
+DECLARATION => Identifier _ ":" _ TYPE |
+               Identifier _ ":" _ TYPE _ "=" _ EXPRESSION |
                Identifier _ ":=" _ EXPRESSION
+TYPE => Identifier
 EXPRESSION => Identifier
 _ => Whitespace?
 
@@ -37,11 +38,11 @@ ParserState __parser_state;
 
 #define ADVANCE()      (__parser_state.pos += 1)
 
-Expression* new_expression(Token* token) {
-  Expression* expr = malloc(sizeof(Expression));
-  expr->token = token;
+Expression* new_identifier_expression(Token* token) {
+  ExpressionIdentifier* expr = malloc(sizeof(ExpressionIdentifier));
+  expr->identifier = token;
 
-  return expr;
+  return (Expression*) expr;
 }
 
 Declaration* new_declaration(Token* ident, Token* type, Expression* value) {
@@ -107,21 +108,16 @@ int accept_op(char* op) {
   return 0;
 }
 
-int expect(TokenType type) {
-  if (TOKEN.type == type) {
-    ADVANCE();
-    return 1;
+Expression* parse_expression() {
+  accept(TOKEN_WHITESPACE);
+  if (accept(TOKEN_IDENTIFIER)) {
+    return new_identifier_expression(&ACCEPTED);
   }
 
-  error("Expected different token.");
-  while(TOKEN.type != TOKEN_NEWLINE) ADVANCE();
-
-  return 0;
+  return NULL;
 }
 
-// void parse_expression() {}
-
-Declaration* parse_statement() {
+Declaration* parse_declaration() {
   Declaration* decl;
 
   if (accept(TOKEN_IDENTIFIER)) {
@@ -130,28 +126,45 @@ Declaration* parse_statement() {
     if (accept_op(":")) {
       // @TODO Parse type expressions
       accept(TOKEN_WHITESPACE);
-      expect(TOKEN_IDENTIFIER);
+      if (!accept(TOKEN_IDENTIFIER)) {
+        error("Expected type expression.");
+        return NULL;
+      }
       Token* type = &ACCEPTED;
-      Expression* value = NULL;
+      decl = new_declaration(ident, type, NULL);
 
       if (accept_op("=")) {
-        // @TODO Parse expressions
-        accept(TOKEN_WHITESPACE);
-        expect(TOKEN_IDENTIFIER);
-        value = new_expression(&ACCEPTED);
+        Expression* value = parse_expression();
+        if (!value) {
+          error("Expected expression.");
+          return NULL;
+        }
+
+        decl->value = value;
+      }
+    } else if (accept_op(":=")) {
+      Expression* value = parse_expression();
+      if (!value) {
+        error("Expected expression.");
+        return NULL;
       }
 
-      decl = new_declaration(ident, type, value);
-    } else if (accept_op(":=")) {
-      accept(TOKEN_WHITESPACE);
-      expect(TOKEN_IDENTIFIER);
-      Expression* value = new_expression(&ACCEPTED);
-
       decl = new_declaration(ident, NULL, value);
+    } else {
+      error("Expected a declaration.");
+      return NULL;
     }
+  } else {
+    error("Expected an identifier to declare.");
+    return NULL;
   }
 
-  expect(TOKEN_NEWLINE);
+  accept(TOKEN_WHITESPACE);
+  if (!accept(TOKEN_NEWLINE)) {
+    error("Expected end of line.");
+    return NULL;
+  }
+
   return decl;
 }
 
@@ -168,7 +181,11 @@ void parse_tokens(TokenList* list, ParserScope* scope) {
 
   while (TOKENS_REMAIN) {
     accept(TOKEN_WHITESPACE);
-    Declaration* decl = parse_statement();
-    if (decl != NULL) add_declaration(decl);
+    Declaration* decl = parse_declaration();
+    if (decl != NULL) {
+      add_declaration(decl);
+    } else {
+      break;
+    }
   }
 }

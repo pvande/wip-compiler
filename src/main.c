@@ -22,6 +22,10 @@ typedef enum {
   TOKEN_IDENTIFIER,
 } TokenType;
 
+typedef enum {
+  EXPR_IDENT,
+} ExpressionType;
+
 typedef struct {
   TokenType type;
   String* source;
@@ -36,9 +40,15 @@ typedef struct {
   String* lines;
 } TokenList;
 
+
 typedef struct {
-  Token* token;
+  ExpressionType type;
 } Expression;
+
+typedef struct {
+  Expression _;
+  Token* identifier;
+} ExpressionIdentifier;
 
 typedef struct {
   Token* name;
