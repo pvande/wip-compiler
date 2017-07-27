@@ -4,13 +4,13 @@ void test_table_creation() {
   TEST("Creating a new table(4)");
   t = new_table(4);
   ASSERT_EQ(t->size, 0, "has a size of zero");
-  ASSERT_EQ(t->allocated, 4, "has 4 slots allocated");
+  ASSERT_EQ(t->capacity, 4, "has 4 slots capacity");
   free_table(t);
 
   // TEST("Creating a new table(0)");
   // t = new_table(0);
   // ASSERT_EQ(t->size, 0, "has a size of zero");
-  // ASSERT_EQ(t->allocated, 0, "has 0 slots allocated");
+  // ASSERT_EQ(t->capacity, 0, "has 0 slots capacity");
   // free_table(t);
 }
 
@@ -21,7 +21,7 @@ void test_table_add() {
   t = new_table(2);
   table_add(t, new_string("A"), new_string("A Value"));
   ASSERT_EQ(t->size, 1, "has a size of one");
-  ASSERT_EQ(t->allocated, 2, "has 2 slots allocated");
+  ASSERT_EQ(t->capacity, 2, "has 2 slots capacity");
   free_table(t);
 
   TEST("Adding two items to a table(2)");
@@ -29,7 +29,7 @@ void test_table_add() {
   table_add(t, new_string("A"), new_string("A Value"));
   table_add(t, new_string("B"), new_string("B Value"));
   ASSERT_EQ(t->size, 2, "has a size of two");
-  ASSERT_EQ(t->allocated, 2, "has 2 slots allocated");
+  ASSERT_EQ(t->capacity, 2, "has 2 slots capacity");
   free_table(t);
 
   TEST("Adding three items to a table(2)");
@@ -38,7 +38,7 @@ void test_table_add() {
   table_add(t, new_string("B"), new_string("B Value"));
   table_add(t, new_string("C"), new_string("C Value"));
   ASSERT_EQ(t->size, 3, "has a size of three");
-  ASSERT_EQ(t->allocated, 3, "has 3 slots allocated");
+  ASSERT_EQ(t->capacity, 3, "has 3 slots capacity");
   free_table(t);
 
   TEST("Adding four items to a table(2)");
@@ -48,7 +48,7 @@ void test_table_add() {
   table_add(t, new_string("C"), new_string("C Value"));
   table_add(t, new_string("D"), new_string("D Value"));
   ASSERT_EQ(t->size, 4, "has a size of four");
-  ASSERT_EQ(t->allocated, 4, "has 4 slots allocated");
+  ASSERT_EQ(t->capacity, 4, "has 4 slots capacity");
   free_table(t);
 
   TEST("Adding five items to a table(2)");
@@ -59,7 +59,7 @@ void test_table_add() {
   table_add(t, new_string("D"), new_string("D Value"));
   table_add(t, new_string("E"), new_string("E Value"));
   ASSERT_EQ(t->size, 5, "has a size of five");
-  ASSERT_EQ(t->allocated, 6, "has 6 slots allocated");
+  ASSERT_EQ(t->capacity, 6, "has 6 slots capacity");
   free_table(t);
 
   TEST("Adding a duplicate item to a table(4)");
@@ -67,7 +67,7 @@ void test_table_add() {
   table_add(t, new_string("A"), new_string("A Value"));
   table_add(t, new_string("A"), new_string("a Value"));
   ASSERT_EQ(t->size, 1, "has a size of one");
-  ASSERT_EQ(t->allocated, 2, "has 2 slots allocated");
+  ASSERT_EQ(t->capacity, 2, "has 2 slots capacity");
   free_table(t);
 }
 

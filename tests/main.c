@@ -15,10 +15,8 @@ int __failed_assertions = 0;
 #include "tests/tokenizer.c"
 
 int main() {
-  initialize_escape_sequences();
-
-  printf("\nTABLE TESTS\n");
-  run_all_table_tests();
+  // printf("\nTABLE TESTS\n");
+  // run_all_table_tests();
 
   printf("\nTOKENIZER TESTS\n");
   run_all_tokenizer_tests();

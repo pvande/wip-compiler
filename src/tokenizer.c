@@ -15,7 +15,6 @@ TokenList* tokenize_string(String* file, String* input) {
   size_t file_pos = 0;    // Position in the file we're currently parsing.
 
   size_t line_no = 0;     // Line number we're parsing.
-  size_t _line_no;
   size_t line_pos = 0;    // Position within the line we're parsing.
   size_t line_start = 0;  // File offset for beginning of the current line.
 
@@ -65,18 +64,21 @@ TokenList* tokenize_string(String* file, String* input) {
         //       we really even care?
         break;
       case '\n':
-        _line_no = line_no;
-        while (file_pos < input_length && IS_NEWLINE(THIS)) {
-          lines[_line_no++] = *substring(input, line_start, file_pos - line_start);
-          line_start = file_pos + 1;
-          ADVANCE(THIS);
+        {
+          size_t _line_no = line_no;
+          while (file_pos < input_length && IS_NEWLINE(THIS)) {
+            lines[_line_no++] = *substring(input, line_start, file_pos - line_start);
+            line_start = file_pos + 1;
+            ADVANCE(THIS);
+            SLURP_WHITESPACE();
+          }
+
+          COMMIT(TOKEN_NEWLINE);
+
+          line_no = _line_no;
+          line_pos = 0;
+          break;
         }
-
-        COMMIT(TOKEN_NEWLINE);
-
-        line_no = _line_no;
-        line_pos = 0;
-        break;
       case '"':
         do {
           ADVANCE('"');
@@ -154,10 +156,11 @@ TokenList* tokenize_string(String* file, String* input) {
 
   TokenList* list = malloc(sizeof(TokenList));
   if (token_idx) {
-    // if (tokens[token_idx - 1].type != TOKEN_NEWLINE) {
-    //   tokens[token_idx] = (Token) { TOKEN_NEWLINE, new_string("\n"), file, line_no, line_pos + 1 };
-    //   token_idx += 1;
-    // }
+    if (tokens[token_idx - 1].type != TOKEN_NEWLINE) {
+      tokens[token_idx] = (Token) { TOKEN_NEWLINE, new_string("\n"), file, line_no, line_pos + 1 };
+      token_idx += 1;
+    }
+
     list->length = token_idx;
     list->tokens = realloc(tokens, list->length * sizeof(Token));
     list->lines = realloc(lines, list->length * sizeof(String));
@@ -166,6 +169,7 @@ TokenList* tokenize_string(String* file, String* input) {
     list->tokens = NULL;
     list->lines = NULL;
     free(tokens);
+    free(lines);
   }
 
   #undef THIS

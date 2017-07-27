@@ -50,15 +50,16 @@ void print_string(String* str) {
 }
 
 #define RAW(X, SIZE)  do { for (int i = 0; i < SIZE; i++) { print_escaped_character(((char*) X)[i]); } printf("\n"); } while (0)
-// #define PRINT(V) _Generic((V), \
-//   void*: print_pointer, \
-//   String*: print_string, \
-//   size_t: __print_size_t, \
-//   int: __print_int, \
-// )(V)
-// #define GEN_PRINT(TYPE, SPECIFIER_STR) int __print_##TYPE(TYPE x) { return printf(SPECIFIER_STR, x);}
-// GEN_PRINT(size_t, "%ju");
-// GEN_PRINT(int, "%d");
+#define PRINT(V) _Generic((V), \
+  void*: print_pointer, \
+  String*: print_string, \
+  size_t: __print_size_t, \
+  TokenType: __print_int, \
+  int: __print_int \
+)(V)
+#define GEN_PRINT(TYPE, SPECIFIER_STR) int __print_##TYPE(TYPE x) { return printf(SPECIFIER_STR, x);}
+GEN_PRINT(size_t, "%ju");
+GEN_PRINT(int, "%d");
 
 void print_pointer(void* x) {
   printf("0x%0X", (unsigned int) x);
