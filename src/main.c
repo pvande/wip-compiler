@@ -9,6 +9,7 @@
 #include "src/file.c"
 #include "src/table.c"
 #include "src/list.c"
+#include "src/queue.c"
 
 typedef enum {
   TOKEN_UNKNOWN,
