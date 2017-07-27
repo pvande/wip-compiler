@@ -44,7 +44,7 @@ uint32_t __hash__ (String* str) {
 }
 
 typedef struct {
-  size_t allocated;
+  size_t capacity;
   size_t size;
 
   char* occupied;
@@ -56,7 +56,7 @@ Table* new_table(size_t capacity) {
   assert(capacity != 0);
 
   Table* ret = malloc(sizeof(Table));
-  ret->allocated = capacity;
+  ret->capacity = capacity;
   ret->size = 0;
   ret->occupied = calloc(capacity, sizeof(char));
   ret->keys = malloc(capacity * sizeof(String*));
@@ -65,17 +65,16 @@ Table* new_table(size_t capacity) {
   return ret;
 }
 
-void print_string(String*);
 size_t __table_find_slot_for_key(Table* t, String* key) {
   size_t slot = __hash__(key);
   size_t steps = 0;
 
   do {
     slot += 1;
-    slot %= t->allocated;
+    slot %= t->capacity;
     if (!t->occupied[slot] || string_equals(key, t->keys[slot])) return slot;
     steps += 1;
-  } while(t->occupied[slot] && steps < t->allocated);
+  } while(t->occupied[slot] && steps < t->capacity);
 
   return -1;
 }
@@ -94,7 +93,7 @@ void __table_store(Table* t, String* key, void* value) {
 void table_resize(Table* t, size_t size) {
   Table* tmp = new_table(size);
 
-  for (int i = 0; i < t->allocated; i++) {
+  for (int i = 0; i < t->capacity; i++) {
     if (! t->occupied[i]) continue;
     __table_store(tmp, t->keys[i], t->values[i]);
   }
@@ -103,15 +102,15 @@ void table_resize(Table* t, size_t size) {
   free(t->keys);
   free(t->values);
 
-  t->allocated = tmp->allocated;
+  t->capacity = tmp->capacity;
   t->occupied = tmp->occupied;
   t->keys = tmp->keys;
   t->values = tmp->values;
 }
 
 void table_add(Table* t, String* key, void* value) {
-  if (t->size >= t->allocated) {
-    table_resize(t, t->allocated * 1.5);
+  if (t->size >= t->capacity) {
+    table_resize(t, t->capacity * 1.5);
   }
 
   __table_store(t, key, value);

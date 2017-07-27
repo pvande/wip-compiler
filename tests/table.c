@@ -1,17 +1,3 @@
-void print_table(Table* t) {
-  printf("{ [%zu of %zu]\n", t->size, t->allocated);
-  for (int i = 0; i < t->allocated; i++) {
-    if (t->occupied[i]) {
-      printf("  ");
-      print_string(t->keys[i]);
-      printf(" => 0x%0X\n", (unsigned int) t->values[i]);
-    } else {
-      printf("  ---\n");
-    }
-  }
-  printf("}\n");
-}
-
 void test_table_creation() {
   Table* t;
 

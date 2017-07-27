@@ -6,11 +6,9 @@ typedef struct {
   void*** buckets;
 } List;
 
-List* new_list(size_t capacity, size_t bucket_size) {
-  assert(capacity != 0);
-  assert(bucket_size != 0);
-
-  size_t bucket_count = capacity / bucket_size;
+List* new_list(size_t bucket_count, size_t bucket_size) {
+  assert(bucket_count > 0);
+  assert(bucket_size > 0);
 
   List* ret = malloc(sizeof(List));
   ret->capacity = bucket_size * bucket_count;
@@ -19,7 +17,7 @@ List* new_list(size_t capacity, size_t bucket_size) {
   ret->buckets = malloc(bucket_count * sizeof(void*));
 
   for (int i = 0; i < bucket_count; i++) {
-    ret->buckets[i] = malloc(capacity * sizeof(void*));
+    ret->buckets[i] = malloc(bucket_size * sizeof(void*));
   }
 
   return ret;

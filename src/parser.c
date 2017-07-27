@@ -11,88 +11,139 @@
   EOF => '\0'
 */
 
-typedef struct {
-  int id;
-} Identifier;
-
-typedef struct {
-} Expression;
-
-typedef struct {
-  Identifier* identifier;
-} Declaration;
-
-typedef struct ParserScope {
-  Table* declarations;
-
-  struct ParserScope* parent_scope;
-} ParserScope;
-
-typedef struct {
-  Token* tokens;
-  String* lines;
-  size_t length;
-  size_t pos;
-
-  ParserScope* global;
-  ParserScope* current_scope;
-} ParserState;
-
 ParserScope* new_parser_scope() {
-  ParserScope* scope = malloc(sizeof(ParserScope));
-  // scope->identifiers = new_table(128);
+  ParserScope* scope = calloc(1, sizeof(ParserScope));
   scope->declarations = new_table(128);
 
   return scope;
 }
 
+ParserState __parser_state;
 
-#define THIS                  (state->tokens[state->pos])
-#define NEXT                  (state->tokens[state->pos + 1])
-#define THIS_IS(TYPE)         (THIS.type == TYPE)
-#define NEXT_IS(TYPE)         (NEXT.type == TYPE)
-#define NEXT_IS_OP(STR)       (NEXT_IS(TOKEN_TYPE_OPERATOR) && string_equals(NEXT.source, new_string(STR)))
-#define TOKENS_REMAIN         (state->pos < state->length)
-#define ADVANCE()             if (TOKENS_REMAIN) { state->pos += 1; }
-#define SKIP_REST_OF_LINE()   while (!THIS_IS(TOKEN_TYPE_NEWLINE)) { ADVANCE(); }
+#define ACCEPTED       (__parser_state.tokens[__parser_state.pos - 1])
+#define TOKEN          (__parser_state.tokens[__parser_state.pos])
+#define TOKENS_REMAIN  (__parser_state.pos < __parser_state.length)
+#define CURRENT_LINE   (__parser_state.lines[TOKEN.line])
+#define CURRENT_SCOPE  (__parser_state.current_scope)
 
-#define CONSUME_WHITESPACE()  if (THIS_IS(TOKEN_TYPE_WHITESPACE)) { ADVANCE(); }
+#define ADVANCE()      (__parser_state.pos += 1)
 
-#define PRINT_ERROR_MSG(MSG)    printf("Error: %s\n", MSG);
-#define PRINT_ERROR_LOC(TOKEN)  printf("In \e[1;37m%s\e[0m on line \e[1;37m%zu\e[0m\n", to_zero_terminated_string(TOKEN.file), TOKEN.line + 1);
-#define PRINT_ERROR_LINE(TOKEN)  printf("> \e[0;36m%s\e[0m\n", to_zero_terminated_string(&state->lines[TOKEN.line]));
-#define PRINT_ERROR_INDICATOR(TOKEN)  do { for (int i = 0;  i < TOKEN.pos + 2; i++, putchar(' ')); for (int i = 0; i < TOKEN.source->length; i++, putchar('^')); printf("\n\n"); } while (0)
+Declaration* add_declaration(Token* ident, Token* type, Token* value) {
+  ParserScope* scope = CURRENT_SCOPE;
 
-#define ERROR(MSG, TOKEN)  do { PRINT_ERROR_MSG(MSG); PRINT_ERROR_LOC(TOKEN); PRINT_ERROR_LINE(TOKEN); PRINT_ERROR_INDICATOR(TOKEN); SKIP_REST_OF_LINE(); } while (0)
-
-// void add_declaration(ParserState state, String* name) {
-//   ParserScope* scope = state.current_scope;
-//
-//   List* declarations = table_get(scope->declarations, name);
-// }
-
-void parse_statement(ParserState* state) {
-  CONSUME_WHITESPACE();
-
-  if (0 && THIS_IS(TOKEN_TYPE_IDENTIFIER) && NEXT_IS_OP(":")) {
-    // Declaration d = state.current_scope->declarations[state.current_scope->declaration_count];
-  } else {
-    ERROR("not handled", THIS);
+  List* declarations = table_find(scope->declarations, ident->source);
+  if (declarations == NULL) {
+    declarations = new_list(1, 128);
+    table_add(scope->declarations, ident->source, declarations);
   }
 
-  assert(THIS_IS(TOKEN_TYPE_NEWLINE));
-  ADVANCE();
+  Declaration* decl = malloc(sizeof(Declaration));
+  decl->name = ident;
+  decl->type = type;
+  decl->value = value;
+
+  list_add(declarations, decl);
+
+  return decl;
+}
+
+void error(char* msg) {
+  char* filename = to_zero_terminated_string(TOKEN.file);
+  char* line_str = to_zero_terminated_string(&CURRENT_LINE);
+  size_t line_no = TOKEN.line;
+
+  char* bold = "\e[1;37m";
+  char* code = "\e[0;36m";
+  char* err = "\e[0;31m";
+  char* reset = "\e[0m";
+
+  printf("Error: %s\n", msg);
+  printf("In %s%s%s on line %s%zu%s\n\n", bold, filename, reset, bold, TOKEN.line + 1, reset);
+  printf("> %s%s%s\n", code, line_str, reset);
+
+  for (int i = 0; i < CURRENT_LINE.length; i++) line_str[i] = ' ';
+  for (int i = TOKEN.pos; i < TOKEN.pos + TOKEN.source->length; i++) line_str[i] = '^';
+
+  printf("  %s%s%s\n\n", err, line_str, reset);
+}
+
+int accept(TokenType type) {
+  if (TOKEN.type == type) {
+    ADVANCE();
+    return 1;
+  }
+
+  return 0;
+}
+
+int accept_op(char* op) {
+  String* oper = new_string(op);
+
+  accept(TOKEN_WHITESPACE);
+  if (TOKEN.type == TOKEN_OPERATOR && string_equals(oper, TOKEN.source)) {
+    ADVANCE();
+    return 1;
+  }
+
+  return 0;
+}
+
+int expect(TokenType type) {
+  if (TOKEN.type == type) {
+    ADVANCE();
+    return 1;
+  }
+
+  error("Expected different token.");
+  while(TOKEN.type != TOKEN_NEWLINE) ADVANCE();
+
+  return 0;
+}
+
+void parse_statement() {
+  if (accept(TOKEN_IDENTIFIER)) {
+    Token* ident = &ACCEPTED;
+
+    if (accept_op(":")) {
+      // @TODO Parse type expressions
+      accept(TOKEN_WHITESPACE);
+      expect(TOKEN_IDENTIFIER);
+      Token* type = &ACCEPTED;
+      Token* value = NULL;
+
+      if (accept_op("=")) {
+        // @TODO Parse expressions
+        accept(TOKEN_WHITESPACE);
+        expect(TOKEN_IDENTIFIER);
+        value = &ACCEPTED;
+      }
+
+      add_declaration(ident, type, value);
+    } else if (accept_op(":=")) {
+      accept(TOKEN_WHITESPACE);
+      expect(TOKEN_IDENTIFIER);
+      Token* value = &ACCEPTED;
+
+      add_declaration(ident, NULL, value);
+    }
+  }
+
+  expect(TOKEN_NEWLINE);
 }
 
 void parse_tokens(TokenList* list, ParserScope* scope) {
-  ParserState* state = malloc(sizeof(ParserState));
-  state->tokens = list->tokens;
-  state->lines = list->lines;
-  state->length = list->length;
-  state->global = scope;
-  state->current_scope = scope;
+  __parser_state = (ParserState) {
+    .tokens = list->tokens,
+    .lines = list->lines,
+    .length = list->length,
+
+    .pos = 0,
+
+    .current_scope = scope,
+  };
 
   while (TOKENS_REMAIN) {
-    parse_statement(state);
+    accept(TOKEN_WHITESPACE);
+    parse_statement();
   }
 }

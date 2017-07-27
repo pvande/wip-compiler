@@ -1,30 +1,3 @@
-typedef enum {
-  TOKEN_TYPE_WHITESPACE,
-  TOKEN_TYPE_NEWLINE,
-  TOKEN_TYPE_COMMENT,
-  TOKEN_TYPE_NUMBER_DECIMAL,
-  TOKEN_TYPE_NUMBER_HEX,
-  TOKEN_TYPE_NUMBER_BINARY,
-  TOKEN_TYPE_STRING,
-  TOKEN_TYPE_OPERATOR,
-  TOKEN_TYPE_IDENTIFIER,
-} TokenType;
-
-typedef struct {
-  TokenType type;
-  String* source;
-  String* file;
-  size_t line;
-  size_t pos;
-} Token;
-
-typedef struct {
-  size_t length;
-  Token* tokens;
-  String* lines;
-} TokenList;
-
-
 // @Precondition: file data is never freed.
 // @Precondition: input data is never freed.
 TokenList* tokenize_string(String* file, String* input) {
@@ -83,7 +56,7 @@ TokenList* tokenize_string(String* file, String* input) {
       case ' ':
       case '\t':
         SLURP_WHITESPACE();
-        COMMIT(TOKEN_TYPE_WHITESPACE);
+        COMMIT(TOKEN_WHITESPACE);
         break;
       case '\n':
         _line_no = line_no;
@@ -93,7 +66,7 @@ TokenList* tokenize_string(String* file, String* input) {
           ADVANCE(THIS);
         }
 
-        COMMIT(TOKEN_TYPE_NEWLINE);
+        COMMIT(TOKEN_NEWLINE);
 
         line_no = _line_no;
         line_pos = 0;
@@ -108,19 +81,19 @@ TokenList* tokenize_string(String* file, String* input) {
           ADVANCE('"');
         }
 
-        COMMIT(TOKEN_TYPE_STRING);
+        COMMIT(TOKEN_STRING);
         break;
       case '0'...'9':
-        token_type = TOKEN_TYPE_NUMBER_DECIMAL;
+        token_type = TOKEN_NUMBER_DECIMAL;
 
         if (THIS == '0') {
           ADVANCE('0');
           if (THIS == 'x') {
-            token_type = TOKEN_TYPE_NUMBER_HEX;
+            token_type = TOKEN_NUMBER_HEX;
             ADVANCE('x');
             SLURP_HEX_NUMBER();
           } else if (THIS == 'b') {
-            token_type = TOKEN_TYPE_NUMBER_BINARY;
+            token_type = TOKEN_NUMBER_BINARY;
             ADVANCE('b');
             SLURP_BINARY_NUMBER();
           } else {
@@ -134,12 +107,12 @@ TokenList* tokenize_string(String* file, String* input) {
         break;
       case ',':
         ADVANCE(',');
-        COMMIT(TOKEN_TYPE_OPERATOR);
+        COMMIT(TOKEN_OPERATOR);
         break;
       case '/':
         if (NEXT == '/') {
           SLURP_TO_EOL();
-          COMMIT(TOKEN_TYPE_COMMENT);
+          COMMIT(TOKEN_COMMENT);
           break;
         } else {
           // Continue to process as an operator.
@@ -152,18 +125,18 @@ TokenList* tokenize_string(String* file, String* input) {
       case '['...'^':
       case '{'...'~':
         SLURP_OPERATOR();
-        COMMIT(TOKEN_TYPE_OPERATOR);
+        COMMIT(TOKEN_OPERATOR);
         break;
       default:
         SLURP_IDENT();
-        COMMIT(TOKEN_TYPE_IDENTIFIER);
+        COMMIT(TOKEN_IDENTIFIER);
     }
   }
 
   TokenList* list = malloc(sizeof(TokenList));
   if (token_idx) {
-    // if (tokens[token_idx - 1].type != TOKEN_TYPE_NEWLINE) {
-    //   tokens[token_idx] = (Token) { TOKEN_TYPE_NEWLINE, new_string("\n"), file, line_no, line_pos + 1 };
+    // if (tokens[token_idx - 1].type != TOKEN_NEWLINE) {
+    //   tokens[token_idx] = (Token) { TOKEN_NEWLINE, new_string("\n"), file, line_no, line_pos + 1 };
     //   token_idx += 1;
     // }
     list->length = token_idx;
