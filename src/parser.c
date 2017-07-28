@@ -1,6 +1,3 @@
-#define DEFINE(TYPE, NAME, VAL)  static TYPE _ ## NAME = { strlen(VAL), VAL }; TYPE* const NAME = &_ ## NAME;
-#define DEFINE_STR(NAME, VAL)    DEFINE(String, NAME, VAL)
-
 // ** Constant Operators ** //
 DEFINE_STR(OP_DECLARE, ":");
 DEFINE_STR(OP_DECLARE_ASSIGN, ":=");
@@ -17,11 +14,11 @@ DEFINE_STR(OP_COMMA, ",");
 
 ParserState __parser_state;
 
-#define ACCEPTED       (&__parser_state.tokens[__parser_state.pos - 1])
-#define TOKEN          (__parser_state.tokens[__parser_state.pos])
+#define ACCEPTED       (&__parser_state.list.tokens[__parser_state.pos - 1])
+#define TOKEN          (__parser_state.list.tokens[__parser_state.pos])
 // #define NEXT_TOKEN     (__parser_state.tokens[__parser_state.pos + 1])
-#define TOKENS_REMAIN  (__parser_state.pos < __parser_state.length)
-#define CURRENT_LINE   (__parser_state.lines[TOKEN.line])
+#define TOKENS_REMAIN  (__parser_state.pos < __parser_state.list.length)
+#define CURRENT_LINE   (__parser_state.list.lines[TOKEN.line])
 #define CURRENT_SCOPE  (__parser_state.current_scope)
 
 #define ADVANCE()      (__parser_state.pos += 1)
@@ -322,6 +319,7 @@ void parse_namespace() {
       while (accept(TOKEN_NEWLINE));
 
       if (decl != NULL) {
+        // @TODO Figure this out.
         ParserScope* scope = CURRENT_SCOPE;
         String* key = decl->name->source;
 
@@ -340,14 +338,10 @@ void parse_namespace() {
   }
 }
 
-void parse(TokenList* list, ParserScope* global) {
+void parse_file(TokenList* list, ParserScope* global) {
   __parser_state = (ParserState) {
-    .tokens = list->tokens,
-    .lines = list->lines,
-    .length = list->length,
-
+    .list = *list,
     .pos = 0,
-
     .current_scope = global,
   };
 

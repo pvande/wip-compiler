@@ -1,5 +1,9 @@
 #define HERE  (printf("Got to %s line %d\n", __FILE__, __LINE__));
 
+#define ____  ,
+#define DEFINE(TYPE, NAME, VAL)  static TYPE _ ## NAME = (TYPE) VAL; TYPE* const NAME = &_ ## NAME;
+#define DEFINE_STR(NAME, VAL)    DEFINE(String, NAME, { strlen(VAL) ____ VAL })
+
 #include <assert.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -13,12 +17,6 @@
 #include "src/list.c"
 #include "src/queue.c"
 
-
-typedef struct ParserScope {
-  Table* declarations;
-
-  struct ParserScope* parent_scope;
-} ParserScope;
 
 typedef enum {
   TOKEN_UNKNOWN,
@@ -34,19 +32,13 @@ typedef enum {
   TOKEN_IDENTIFIER,
 } TokenType;
 
-typedef enum {
-  EXPR_LITERAL,
-  EXPR_IDENT,
-  EXPR_UNPARSED_FUNCTION,
-  EXPR_FUNCTION,
-} ExpressionType;
-
 typedef struct {
   TokenType type;
   String* source;
   String* file;
   size_t line;
   size_t pos;
+  char is_well_formed;
 } Token;
 
 typedef struct {
@@ -55,6 +47,27 @@ typedef struct {
   size_t length;
 } TokenList;
 
+
+typedef struct ParserScope {
+  Table* declarations;
+
+  struct ParserScope* parent_scope;
+} ParserScope;
+
+typedef struct {
+  TokenList list;
+  size_t pos;
+
+  ParserScope* current_scope;
+} ParserState;
+
+
+typedef enum {
+  EXPR_LITERAL,
+  EXPR_IDENT,
+  EXPR_UNPARSED_FUNCTION,
+  EXPR_FUNCTION,
+} ExpressionType;
 
 typedef struct {
   ExpressionType type;
@@ -78,31 +91,19 @@ typedef struct {
   List* body;
 } FunctionExpression;
 
+
 typedef struct {
   Token* name;
   Token* type;
   Expression* value;
 } Declaration;
 
-typedef struct {
-  Token* tokens;
-  String* lines;
-  size_t length;
-  size_t pos;
-
-  ParserScope* current_scope;
-} ParserState;
-
-#include "src/debug.c"
-
-#include "src/tokenizer.c"
-#include "src/parser.c"
 
 typedef enum {
   JOB_SENTINEL,
   JOB_READ,
   JOB_LEX,
-  JOB_PARSE,
+  JOB_PARSE_FILE,
 } JobType;
 
 typedef struct {
@@ -122,110 +123,76 @@ typedef struct {
 
 typedef struct {
   Job base;
+  String* filename;
   TokenList* tokens;
-} NamespaceParseJob;
+} FileParseJob;
 
-Queue JOB_QUEUE;
-ParserScope* GLOBAL_SCOPE;
+#include "src/debug.c"
 
-void process_queue() {
-  int did_work = 0;
-
-  while (queue_length(&JOB_QUEUE) > 0) {
-    Job* _job = queue_pull(&JOB_QUEUE);
-
-    if (_job->type == JOB_READ) {
-      ReadJob* job = (ReadJob*) _job;
-
-      LexJob* next_job = malloc(sizeof(LexJob));
-      next_job->base.type = JOB_LEX;
-      next_job->filename = job->filename;
-      next_job->source = malloc(sizeof(String));
-
-      {
-        // @Lazy `filename.data` will not be zero-terminated if it came from a
-        //       #load directive.  We could avoid the repeated heap allocations
-        //       if we maintained a zeroed byte string we could copy the string
-        //       data into.
-        char* file = to_zero_terminated_string(job->filename);
-
-        // @Performance This has higher memory overhead than incrementally
-        //              reading the file, but is faster overall.
-        size_t result = file_read_all_into(file, next_job->source);
-        free(file);
-
-        if (result == -1) {
-          // @TODO: Record an error about not being able to find this file.
-          free(next_job);
-          free(job);
-          continue;
-        }
-      }
-
-      queue_add(&JOB_QUEUE, next_job);
-      did_work = 1;
-
-    } else if (_job->type == JOB_LEX) {
-      LexJob* job = (LexJob*) _job;
-
-      NamespaceParseJob* next_job = malloc(sizeof(NamespaceParseJob));
-      next_job->base.type = JOB_PARSE;
-      next_job->tokens = tokenize_string(job->filename, job->source);
-
-      queue_add(&JOB_QUEUE, next_job);
-
-      did_work = 1;
-
-    } else if (_job->type == JOB_PARSE) {
-      NamespaceParseJob* job = (NamespaceParseJob*) _job;
-
-      parse(job->tokens, GLOBAL_SCOPE);
-
-      did_work = 1;
-
-    } else if (_job->type == JOB_SENTINEL) {
-      if (!did_work) break;
-      did_work = 0;
-
-      queue_add(&JOB_QUEUE, _job);
-      continue;
-    }
-
-    free(_job);
-  }
-}
+#include "src/pipeline.c"
+#include "src/tokenizer.c"
+#include "src/parser.c"
 
 #ifndef TESTING
 
 int main(int argc, char** argv) {
   if (argc == 1) {
-    fprintf(stderr, "Usage: %s <filename>...\n", argv[0]);
+    fprintf(stderr, "Usage: %s <filename>\n", argv[0]);
     return 1;
   }
 
-  initialize_queue(&JOB_QUEUE, 1, 1);
+  initialize_pipeline();
+  pipeline_emit_read_job(new_string(argv[1]));
 
-  GLOBAL_SCOPE = calloc(1, sizeof(ParserScope));
-  GLOBAL_SCOPE->declarations = new_table(128);
+  int did_work = 1;
+  while (pipeline_has_jobs()) {
+    Job* _job = pipeline_take_job();
 
-  for (int i = 1; i < argc; i++) {
-    // @Lazy We should be able to get away with far fewer Job allocations if
-    // we had a pool of Job descriptions for each type.
-    ReadJob* job = malloc(sizeof(ReadJob));
-    String* filename = new_string(argv[i]);
-    job->base.type = JOB_READ;
-    job->filename = filename;
-    queue_add(&JOB_QUEUE, job);
+    if (_job->type == JOB_READ) {
+      ReadJob* job = (ReadJob*) _job;
+
+      // @Lazy `filename.data` may not be naturally zero-terminated.
+      char* file = to_zero_terminated_string(job->filename);
+      String* source = file_read_all(file);
+      free(file);
+
+      if (source == NULL) {
+        // @TODO: Record an error about not being able to find this file.
+        free(job);
+        continue;
+      }
+
+      pipeline_emit_lex_job(job->filename, source);
+      did_work = 1;
+
+    } else if (_job->type == JOB_LEX) {
+      LexJob* job = (LexJob*) _job;
+
+      TokenList* tokens = tokenize_string(job->filename, job->source);
+      pipeline_emit_file_parse_job(job->filename, tokens);
+      did_work = 1;
+
+    } else if (_job->type == JOB_PARSE_FILE) {
+      FileParseJob* job = (FileParseJob*) _job;
+
+      ParserScope* file_scope = calloc(1, sizeof(ParserScope));
+      file_scope->declarations = new_table(128);
+
+      parse_file(job->tokens, file_scope);
+
+      print_scope(file_scope);
+      did_work = 1;
+
+    } else if (_job->type == JOB_SENTINEL) {
+      if (!did_work) break;
+      did_work = 0;
+      pipeline_emit(_job);
+      continue;
+    }
+
+    free(_job);
   }
 
-  // Since we constantly re-enqueue incomplete work, this sentinel value will
-  // allow us to detect unsolvable cycles and abort cleanly.
-  Job sentinel = (Job) { JOB_SENTINEL };
-  queue_add(&JOB_QUEUE, &sentinel);
-
-  process_queue();
-
-  print_scope(GLOBAL_SCOPE);
   printf("\n");
 
   return 0;
