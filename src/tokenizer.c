@@ -136,7 +136,9 @@ TokenList* tokenize_string(String* file, String* input) {
       case '/':
         if (NEXT == '/') {
           SLURP_TO_EOL();
-          COMMIT(TOKEN_COMMENT);
+          // @TODO This can potentially lead to back-to-back newlines, despite
+          //       our best efforts.
+          // COMMIT(TOKEN_COMMENT);
           break;
         } else {
           // Continue to process as an operator.

@@ -1,115 +1,69 @@
-/*********
+#define DEFINE(TYPE, NAME, VAL)  static TYPE _ ## NAME = { strlen(VAL), VAL }; TYPE* const NAME = &_ ## NAME;
+#define DEFINE_STR(NAME, VAL)    DEFINE(String, NAME, VAL)
 
-PROGRAM     => STATEMENT*
-STATEMENT   => _ (DECLARATION) _ (Newline | <EOF>)
-DECLARATION => Identifier _ ":" _ TYPE |
-               Identifier _ ":" _ TYPE _ "=" _ EXPRESSION |
-               Identifier _ ":=" _ EXPRESSION
-TYPE        => Identifier
-EXPRESSION  => Identifier |
-               Number |
-               String
-_ => Whitespace?
+// ** Constant Operators ** //
+DEFINE_STR(OP_DECLARE, ":");
+DEFINE_STR(OP_DECLARE_ASSIGN, ":=");
+DEFINE_STR(OP_ASSIGN, "=");
+DEFINE_STR(OP_FUNC_ARROW, "=>");
+DEFINE_STR(OP_OPEN_PAREN, "(");
+DEFINE_STR(OP_CLOSE_PAREN, ")");
+DEFINE_STR(OP_OPEN_BRACE, "{");
+DEFINE_STR(OP_CLOSE_BRACE, "}");
+DEFINE_STR(OP_COMMA, ",");
 
-*********/
 
-/*
-  PROGRAM => STATEMENT*
-  STATEMENT => _? (DECLARATION) _? (NEWLINE | EOF)
-  DECLARATION => IDENTIFIER _? ':' (_? IDENTIFIER _?)? '=' _? EXPRESSION
-  EXPRESSION => UNARY _? EXPRESSION | EXPRESSION _? BINARY _? EXPRESSION | IDENTIFIER '(' _? (EXPRESSION _? (',' _? EXPRESSION _?)*)? ')'| VALUE
-  UNARY => ()
-  BINARY => ()
-  VALUE => (NUMBER | STRING | IDENTIFIER)
-*/
-
-ParserScope* new_parser_scope() {
-  ParserScope* scope = calloc(1, sizeof(ParserScope));
-  scope->declarations = new_table(128);
-
-  return scope;
-}
+// ** State Manipulation Primitives ** //
 
 ParserState __parser_state;
 
-#define ACCEPTED       (__parser_state.tokens[__parser_state.pos - 1])
+#define ACCEPTED       (&__parser_state.tokens[__parser_state.pos - 1])
 #define TOKEN          (__parser_state.tokens[__parser_state.pos])
-#define NEXT_TOKEN     (__parser_state.tokens[__parser_state.pos + 1])
+// #define NEXT_TOKEN     (__parser_state.tokens[__parser_state.pos + 1])
 #define TOKENS_REMAIN  (__parser_state.pos < __parser_state.length)
 #define CURRENT_LINE   (__parser_state.lines[TOKEN.line])
 #define CURRENT_SCOPE  (__parser_state.current_scope)
 
 #define ADVANCE()      (__parser_state.pos += 1)
-#define MARK()         (__parser_state.pos)
-#define RESTORE(MARK)  (__parser_state.pos = MARK)
+#define BEGIN()        const size_t __mark__ = __parser_state.pos;
+#define ROLLBACK()     (__parser_state.pos = __mark__)
 
-Expression* new_literal_expression(Token* token) {
-  LiteralExpression* expr = malloc(sizeof(LiteralExpression));
-  expr->base.type = EXPR_LITERAL;
-  expr->literal = token;
 
-  return (Expression*) expr;
-}
-
-Expression* new_identifier_expression(Token* token) {
-  IdentifierExpression* expr = malloc(sizeof(IdentifierExpression));
-  expr->base.type = EXPR_IDENT;
-  expr->identifier = token;
-
-  return (Expression*) expr;
-}
-
-Declaration* new_declaration(Token* ident, Token* type, Expression* value) {
-  Declaration* decl = malloc(sizeof(Declaration));
-  decl->name = ident;
-  decl->type = type;
-  decl->value = value;
-
-  return decl;
-}
-
-void add_declaration(Declaration* decl) {
-  ParserScope* scope = CURRENT_SCOPE;
-  String* key = decl->name->source;
-
-  List* declarations = table_find(scope->declarations, key);
-  if (declarations == NULL) {
-    declarations = new_list(1, 128);
-    table_add(scope->declarations, key, declarations);
-  }
-
-  list_add(declarations, decl);
-}
-
-int accept(TokenType type) {
-  if (TOKEN.type == type) {
-    ADVANCE();
-    return 1;
-  }
-
-  return 0;
-}
+// ** Parsing Primitives ** //
 
 int peek(TokenType type) {
   return TOKEN.type == type;
 }
 
-int accept_op(char* op) {
-  String* oper = new_string(op);
-
-  if (TOKEN.type == TOKEN_OPERATOR && string_equals(oper, TOKEN.source)) {
-    ADVANCE();
-    return 1;
-  }
-
-  return 0;
+int peek_op(String* op) {
+  if (TOKEN.type != TOKEN_OPERATOR) return 0;
+  return string_equals(op, TOKEN.source);
 }
 
-int peek_op(char* op) {
-  if (TOKEN.type != TOKEN_OPERATOR) return 0;
+int peek_directive(String* name) {
+  if (TOKEN.type != TOKEN_DIRECTIVE) return 0;
+  return string_equals(name, TOKEN.source);
+}
 
-  String* oper = new_string(op);
-  return string_equals(oper, TOKEN.source);
+int accept(TokenType type) {
+  if (!peek(type)) return 0;
+
+  ADVANCE();
+  return 1;
+}
+
+int accept_op(String* op) {
+  if (!peek_op(op)) return 0;
+
+  ADVANCE();
+  return 1;
+}
+
+int accept_directive(String* name) {
+  if (!peek_directive(name)) return 0;
+
+  ADVANCE();
+  return 1;
 }
 
 void error(char* msg) {
@@ -131,133 +85,262 @@ void error(char* msg) {
 
   printf("  %s%s%s\n\n", err, line_str, reset);
 
-  while (TOKEN.type != TOKEN_NEWLINE) accept(TOKEN.type);
-  accept(TOKEN_NEWLINE);
+  free(filename);
+  free(line_str);
 }
 
-int detect_function_definition() {
-  size_t mark = MARK();
-  int depth = 0;
-  do {
-    if (accept_op("(")) {
-      depth += 1;
-    } else if (accept_op(")")) {
-      depth -= 1;
-    } else {
-      ADVANCE();
-    }
-  } while (depth && TOKENS_REMAIN);
 
-  int is_arrow = peek_op("=>");
-  RESTORE(mark);
-  return depth == 0 && is_arrow;
+// ** Apathetic Parsing ** //
+
+List* slurp_argument_list() {
+  size_t depth = 0;
+  List* tokens = new_list(2, 64);  // @TODO Validate these numbers.
+
+  while (!(TOKENS_REMAIN && depth == 0 && peek_op(OP_CLOSE_PAREN))) {
+    if (peek_op(OP_OPEN_PAREN)) depth += 1;
+    if (peek_op(OP_CLOSE_PAREN)) depth -= 1;
+
+    list_add(tokens, &TOKEN);
+    ADVANCE();
+  }
+
+  return tokens;
 }
 
-FunctionExpression* parse_function_definition() {
-  FunctionExpression* func = malloc(sizeof(FunctionExpression));
-  func->base.type = EXPR_FUNCTION;
+// @Lazy We should be able to parse this fully in the initial pass, since no
+//       unknown operators are legal in the return types list.
+// @Lazy Is there any reason a '{' should be permitted in a return type block?
+List* slurp_return_list() {
+  List* tokens = new_list(1, 8);  // @TODO Validate these numbers.
 
-  accept_op("(");
-  accept_op(")");
-  accept_op("=>");
-  accept_op("{");
-  accept_op("}");
+  while(!peek_op(OP_OPEN_BRACE)) {
+    list_add(tokens, &TOKEN);
+    ADVANCE();
+  }
 
-  return func;
+  return tokens;
 }
 
-Expression* parse_expression() {
+List* slurp_code_block() {
+  size_t parens = 0;
+  size_t braces = 0;
+  List* tokens = new_list(1, 8);  // @TODO Validate these numbers.
+
+  while (!(TOKENS_REMAIN && parens == 0 && braces == 0 && peek_op(OP_CLOSE_BRACE))) {
+    if (peek_op(OP_OPEN_PAREN)) parens += 1;
+    if (peek_op(OP_CLOSE_PAREN)) parens -= 1;
+    if (peek_op(OP_OPEN_BRACE)) braces += 1;
+    if (peek_op(OP_CLOSE_BRACE)) braces -= 1;
+
+    list_add(tokens, &TOKEN);
+    ADVANCE();
+  }
+
+  return tokens;
+}
+
+// ** Lookahead Operations ** //
+
+int test_declaration() {
+  int result;
+
+  BEGIN();
   if (accept(TOKEN_IDENTIFIER)) {
-    return new_identifier_expression(&ACCEPTED);
-  } else if (accept(TOKEN_NUMBER_DECIMAL)) {
-    return new_literal_expression(&ACCEPTED);
-  } else if (accept(TOKEN_NUMBER_FRACTIONAL)) {
-    return new_literal_expression(&ACCEPTED);
-  } else if (accept(TOKEN_NUMBER_HEX)) {
-    return new_literal_expression(&ACCEPTED);
-  } else if (accept(TOKEN_NUMBER_BINARY)) {
-    return new_literal_expression(&ACCEPTED);
-  } else if (peek(TOKEN_STRING)) {
-    if (TOKEN.source->data[0] == TOKEN.source->data[TOKEN.source->length - 1]) {
-      accept(TOKEN_STRING);
-      return new_literal_expression(&ACCEPTED);
+    result = peek_op(OP_DECLARE) || peek_op(OP_DECLARE_ASSIGN);
+  }
+  ROLLBACK();
+
+  return result;
+}
+
+int test_directive() {
+  return peek(TOKEN_DIRECTIVE);
+}
+
+int test_function_expression() {
+  int result = 0;
+
+  BEGIN();
+  if (accept_op(OP_OPEN_PAREN)) {
+    slurp_argument_list();  // @Leak We really don't need an allocation here.
+    if (accept_op(OP_CLOSE_PAREN)) {
+      result = peek_op(OP_FUNC_ARROW);
+    }
+  }
+  ROLLBACK();
+
+  return result;
+}
+
+
+// ** Parser States ** //
+
+void* parse_function_expression() {
+  accept_op(OP_OPEN_PAREN);
+  List* args = slurp_argument_list();
+  accept_op(OP_CLOSE_PAREN);
+
+  accept_op(OP_FUNC_ARROW);
+
+  List* returns = slurp_return_list();
+
+  if (!accept_op(OP_OPEN_BRACE)) {
+    // @Leak args, returns
+    error("Expected code block");
+    return NULL;
+  }
+  List* body = slurp_code_block();
+  if (!accept_op(OP_CLOSE_BRACE)) {
+    // @Leak args, returns, body
+    error("Unexpected termination of code block");
+    return NULL;
+  }
+
+  FunctionExpression* expr = malloc(sizeof(FunctionExpression));
+  expr->base.type = EXPR_UNPARSED_FUNCTION;
+  expr->arguments = args;
+  expr->returns = returns;
+  expr->body = body;
+
+  return expr;
+}
+
+// @Cleanup Replace these dynamic allocations with a growable pool.
+void* parse_expression() {
+  if (accept(TOKEN_IDENTIFIER)) {
+    IdentifierExpression* expr = malloc(sizeof(IdentifierExpression));
+    expr->base.type = EXPR_IDENT;
+    expr->identifier = ACCEPTED;
+
+    return expr;
+  } else if (accept(TOKEN_NUMBER_DECIMAL) ||
+             accept(TOKEN_NUMBER_FRACTIONAL) ||
+             accept(TOKEN_NUMBER_HEX) ||
+             accept(TOKEN_NUMBER_BINARY)) {
+    LiteralExpression* expr = malloc(sizeof(LiteralExpression));
+    expr->base.type = EXPR_LITERAL;
+    expr->literal = ACCEPTED;
+
+    return expr;
+  } else if (accept(TOKEN_STRING)) {
+    // @TODO Push well-formedness checks into the tokenizer.
+    if (ACCEPTED->source->data[0] == ACCEPTED->source->data[ACCEPTED->source->length - 1]) {
+      LiteralExpression* expr = malloc(sizeof(LiteralExpression));
+      expr->base.type = EXPR_LITERAL;
+      expr->literal = ACCEPTED;
+
+      return expr;
     } else {
       error("Unclosed string literal.");
       return NULL;
     }
-  } else if (peek_op("(")) {
-    if (detect_function_definition()) {
-      return (Expression*) parse_function_definition();
-    } else {
-      accept_op("(");
-      Expression* expr = parse_expression();
-      if (!accept_op(")")) {
-        error("Expected ')'");
-        return NULL;
-      }
-
-      return expr;
+  } else if (test_function_expression()) {
+      return parse_function_expression();
+  } else if (accept_op(OP_OPEN_PAREN)) {
+    Expression* expr = parse_expression();
+    if (!accept_op(OP_CLOSE_PAREN)) {
+      // @Leak expr
+      error("Expected ')'");
+      return NULL;
     }
+
+    return expr;
   } else {
-    error("Unable to parse expression.");
+    error("Unable to parse expression");
   }
 
   return NULL;
 }
 
-Declaration* parse_declaration() {
-  Declaration* decl;
-  if (accept(TOKEN_IDENTIFIER)) {
-    Token* ident = &ACCEPTED;
+void* parse_type() {
+  if (!accept(TOKEN_IDENTIFIER)) {
+    error("Unknown expression; expected a type identifier");
+    return NULL;
+  }
 
-    if (accept_op(":")) {
-      // @TODO Parse type expressions
-      if (!accept(TOKEN_IDENTIFIER)) {
-        error("Expected type expression.");
-        return NULL;
-      }
-      Token* type = &ACCEPTED;
-      decl = new_declaration(ident, type, NULL);
+  return ACCEPTED;
+}
 
-      if (accept_op("=")) {
-        Expression* value = parse_expression();
-        if (!value) {
-          error("Expected expression.");
-          return NULL;
-        }
+void* parse_directive() {
+  // @TODO Actually process this directive.
+  accept(TOKEN_DIRECTIVE);
+  return NULL;
+}
 
-        decl->value = value;
-      }
-    } else if (accept_op(":=")) {
-      Expression* value = parse_expression();
-      if (!value) {
-        error("Expected expression.");
-        return NULL;
-      }
+void* parse_declaration() {
+  Token* name = NULL;
+  Token* type = NULL;
+  Expression* value = NULL;
 
-      decl = new_declaration(ident, NULL, value);
-    } else {
-      error("Expected a declaration.");
+  accept(TOKEN_IDENTIFIER);
+  name = ACCEPTED;
+
+  if (accept_op(OP_DECLARE)) {
+    type = parse_type();
+    if (type == NULL) {
       return NULL;
     }
-  } else if (accept(TOKEN_DIRECTIVE)) {
-    // @TODO Add support for directives at the declaration level.
-    error("Directives aren't handled yet.");
-    return NULL;
-  } else {
-    error("Expected an identifier to declare.");
-    return NULL;
+
+    if (accept_op(OP_ASSIGN)) {
+      value = parse_expression();
+    }
+  } else if (accept_op(OP_DECLARE_ASSIGN)) {
+    value = parse_expression();
+    if (value == NULL) {
+      return NULL;
+    }
   }
 
-  if (!accept(TOKEN_NEWLINE)) {
-    error("Expected end of line.");
-    return NULL;
-  }
+  Declaration* decl = malloc(sizeof(Declaration));
+  decl->name = name;
+  decl->type = type;
+  decl->value = value;
 
   return decl;
 }
 
-void parse_tokens(TokenList* list, ParserScope* scope) {
+void parse_namespace() {
+  while (TOKENS_REMAIN) {
+    if (test_directive()) {
+      void* directive = parse_directive();
+
+      // @TODO Actually implement these directives.
+      error("Hey, got a directive");
+    } else if (test_declaration()) {
+      Declaration* decl = parse_declaration();
+      if (decl == NULL) {
+        error("Malformed declaration");
+        while (accept(TOKEN_NEWLINE));
+        continue;
+      }
+
+      if (!accept(TOKEN_NEWLINE)) {
+        error("Expected end of declaration");
+        continue;
+      }
+
+      while (accept(TOKEN_NEWLINE));
+
+      if (decl != NULL) {
+        ParserScope* scope = CURRENT_SCOPE;
+        String* key = decl->name->source;
+
+        List* declarations = table_find(scope->declarations, key);
+        if (declarations == NULL) {
+          declarations = new_list(1, 128);
+          table_add(scope->declarations, key, declarations);
+        }
+
+        list_add(declarations, decl);
+      }
+    } else {
+      error("Unrecognized code in top-level context");
+      while (accept(TOKEN_NEWLINE));
+    }
+  }
+}
+
+void parse(TokenList* list, ParserScope* global) {
   __parser_state = (ParserState) {
     .tokens = list->tokens,
     .lines = list->lines,
@@ -265,11 +348,8 @@ void parse_tokens(TokenList* list, ParserScope* scope) {
 
     .pos = 0,
 
-    .current_scope = scope,
+    .current_scope = global,
   };
 
-  while (TOKENS_REMAIN) {
-    Declaration* decl = parse_declaration();
-    if (decl != NULL) add_declaration(decl);
-  }
+  parse_namespace();
 }

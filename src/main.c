@@ -23,8 +23,8 @@ typedef struct ParserScope {
 typedef enum {
   TOKEN_UNKNOWN,
   TOKEN_DIRECTIVE,
+  TOKEN_TAG,
   TOKEN_NEWLINE,
-  TOKEN_COMMENT,
   TOKEN_NUMBER_DECIMAL,
   TOKEN_NUMBER_FRACTIONAL,
   TOKEN_NUMBER_HEX,
@@ -37,6 +37,7 @@ typedef enum {
 typedef enum {
   EXPR_LITERAL,
   EXPR_IDENT,
+  EXPR_UNPARSED_FUNCTION,
   EXPR_FUNCTION,
 } ExpressionType;
 
@@ -49,9 +50,9 @@ typedef struct {
 } Token;
 
 typedef struct {
-  size_t length;
   Token* tokens;
   String* lines;
+  size_t length;
 } TokenList;
 
 
@@ -71,9 +72,10 @@ typedef struct {
 
 typedef struct {
   Expression base;
-  List* args;
   ParserScope* scope;
-  List* instructions;
+  List* arguments;
+  List* returns;
+  List* body;
 } FunctionExpression;
 
 typedef struct {
@@ -96,8 +98,6 @@ typedef struct {
 #include "src/tokenizer.c"
 #include "src/parser.c"
 
-#ifndef TESTING
-
 typedef enum {
   JOB_SENTINEL,
   JOB_READ,
@@ -111,19 +111,19 @@ typedef struct {
 
 typedef struct {
   Job base;
-  String filename;
+  String* filename;
 } ReadJob;
 
 typedef struct {
   Job base;
-  String filename;
-  String source;
+  String* filename;
+  String* source;
 } LexJob;
 
 typedef struct {
   Job base;
   TokenList* tokens;
-} ParseJob;
+} NamespaceParseJob;
 
 Queue JOB_QUEUE;
 ParserScope* GLOBAL_SCOPE;
@@ -140,17 +140,18 @@ void process_queue() {
       LexJob* next_job = malloc(sizeof(LexJob));
       next_job->base.type = JOB_LEX;
       next_job->filename = job->filename;
+      next_job->source = malloc(sizeof(String));
 
       {
         // @Lazy `filename.data` will not be zero-terminated if it came from a
         //       #load directive.  We could avoid the repeated heap allocations
         //       if we maintained a zeroed byte string we could copy the string
         //       data into.
-        char* file = to_zero_terminated_string(&job->filename);
+        char* file = to_zero_terminated_string(job->filename);
 
         // @Performance This has higher memory overhead than incrementally
         //              reading the file, but is faster overall.
-        size_t result = file_read_all_into(file, &next_job->source);
+        size_t result = file_read_all_into(file, next_job->source);
         free(file);
 
         if (result == -1) {
@@ -167,18 +168,18 @@ void process_queue() {
     } else if (_job->type == JOB_LEX) {
       LexJob* job = (LexJob*) _job;
 
-      ParseJob* next_job = malloc(sizeof(ParseJob));
+      NamespaceParseJob* next_job = malloc(sizeof(NamespaceParseJob));
       next_job->base.type = JOB_PARSE;
-      next_job->tokens = tokenize_string(&job->filename, &job->source);
+      next_job->tokens = tokenize_string(job->filename, job->source);
 
       queue_add(&JOB_QUEUE, next_job);
 
       did_work = 1;
 
     } else if (_job->type == JOB_PARSE) {
-      ParseJob* job = (ParseJob*) _job;
+      NamespaceParseJob* job = (NamespaceParseJob*) _job;
 
-      parse_tokens(job->tokens, GLOBAL_SCOPE);
+      parse(job->tokens, GLOBAL_SCOPE);
 
       did_work = 1;
 
@@ -194,6 +195,8 @@ void process_queue() {
   }
 }
 
+#ifndef TESTING
+
 int main(int argc, char** argv) {
   if (argc == 1) {
     fprintf(stderr, "Usage: %s <filename>...\n", argv[0]);
@@ -202,15 +205,16 @@ int main(int argc, char** argv) {
 
   initialize_queue(&JOB_QUEUE, 1, 1);
 
-  GLOBAL_SCOPE = new_parser_scope();
+  GLOBAL_SCOPE = calloc(1, sizeof(ParserScope));
+  GLOBAL_SCOPE->declarations = new_table(128);
 
   for (int i = 1; i < argc; i++) {
     // @Lazy We should be able to get away with far fewer Job allocations if
     // we had a pool of Job descriptions for each type.
     ReadJob* job = malloc(sizeof(ReadJob));
+    String* filename = new_string(argv[i]);
     job->base.type = JOB_READ;
-    job->filename.length = strlen(argv[i]);
-    job->filename.data = argv[i];
+    job->filename = filename;
     queue_add(&JOB_QUEUE, job);
   }
 
