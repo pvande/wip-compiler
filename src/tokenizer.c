@@ -131,7 +131,11 @@ TokenList* tokenize_string(String* file, String* input) {
       case '{':
       case '}':
         ADVANCE(THIS);
-        COMMIT(TOKEN_OPERATOR);
+        COMMIT(TOKEN_SYNTAX_OPERATOR);
+        break;
+      case ':':
+        SLURP_OPERATOR();
+        COMMIT(TOKEN_SYNTAX_OPERATOR);
         break;
       case '/':
         if (NEXT == '/') {
@@ -148,7 +152,7 @@ TokenList* tokenize_string(String* file, String* input) {
       case '$'...'\'':
       case '*'...'+':
       case '-'...'.':
-      case ':'...'?':
+      case ';'...'?':
       case '['...'^':
       case '|':
       case '~':

@@ -11,10 +11,10 @@
                    | Operator ":" TYPE "=" EXPRESSION
                    | Operator ":=" EXPRESSION
     TYPE = Ident
-    EXPRESSION = "(" EXPRESSION ")"
-               | FUNCTION_EXPR
-               | UNOP EXPRESSION
-               | EXPRESSION BINOP EXPRESSION
+    EXPRESSION = FUNCTION_EXPR
+               | "(" EXPRESSION ")"
+               | EXPRESSION Operator EXPRESSION
+               | Operator EXPRESSION
                | EXPRESSION "(" EXPRESSION_LIST? ")"
                | Literal
                | Ident

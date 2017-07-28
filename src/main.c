@@ -28,6 +28,7 @@ typedef enum {
   TOKEN_NUMBER_HEX,
   TOKEN_NUMBER_BINARY,
   TOKEN_STRING,
+  TOKEN_SYNTAX_OPERATOR,
   TOKEN_OPERATOR,
   TOKEN_IDENTIFIER,
 } TokenType;
@@ -38,7 +39,6 @@ typedef struct {
   String* file;
   size_t line;
   size_t pos;
-  char is_well_formed;
 } Token;
 
 typedef struct {
@@ -67,6 +67,8 @@ typedef enum {
   EXPR_IDENT,
   EXPR_UNPARSED_FUNCTION,
   EXPR_FUNCTION,
+  EXPR_UNARY_OP,
+  EXPR_BINARY_OP,
 } ExpressionType;
 
 typedef struct {
@@ -90,6 +92,19 @@ typedef struct {
   List* returns;
   List* body;
 } FunctionExpression;
+
+typedef struct {
+  Expression base;
+  Token* operator;
+  Expression* right;
+} UnaryOpExpression;
+
+typedef struct {
+  Expression base;
+  Token* operator;
+  Expression* left;
+  Expression* right;
+} BinaryOpExpression;
 
 
 typedef struct {

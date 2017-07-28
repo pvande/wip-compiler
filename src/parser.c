@@ -32,9 +32,18 @@ int peek(TokenType type) {
   return TOKEN.type == type;
 }
 
-int peek_op(String* op) {
+int peek_syntax_op(String* op) {
+  if (TOKEN.type != TOKEN_SYNTAX_OPERATOR) return 0;
+  return string_equals(op, TOKEN.source);
+}
+
+int peek_nonsyntax_op(String* op) {
   if (TOKEN.type != TOKEN_OPERATOR) return 0;
   return string_equals(op, TOKEN.source);
+}
+
+int peek_op(String* op) {
+  return peek_syntax_op(op) || peek_nonsyntax_op(op);
 }
 
 int peek_directive(String* name) {
@@ -51,6 +60,20 @@ int accept(TokenType type) {
 
 int accept_op(String* op) {
   if (!peek_op(op)) return 0;
+
+  ADVANCE();
+  return 1;
+}
+
+int accept_syntax_op(String* op) {
+  if (!peek_syntax_op(op)) return 0;
+
+  ADVANCE();
+  return 1;
+}
+
+int accept_nonsyntax_op(String* op) {
+  if (!peek_nonsyntax_op(op)) return 0;
 
   ADVANCE();
   return 1;
@@ -204,12 +227,14 @@ void* parse_function_expression() {
 
 // @Cleanup Replace these dynamic allocations with a growable pool.
 void* parse_expression() {
+  Expression* result = NULL;
+
   if (accept(TOKEN_IDENTIFIER)) {
     IdentifierExpression* expr = malloc(sizeof(IdentifierExpression));
     expr->base.type = EXPR_IDENT;
     expr->identifier = ACCEPTED;
 
-    return expr;
+    result = (Expression*) expr;
   } else if (accept(TOKEN_NUMBER_DECIMAL) ||
              accept(TOKEN_NUMBER_FRACTIONAL) ||
              accept(TOKEN_NUMBER_HEX) ||
@@ -218,35 +243,47 @@ void* parse_expression() {
     expr->base.type = EXPR_LITERAL;
     expr->literal = ACCEPTED;
 
-    return expr;
+    result = (Expression*) expr;
   } else if (accept(TOKEN_STRING)) {
     // @TODO Push well-formedness checks into the tokenizer.
-    if (ACCEPTED->source->data[0] == ACCEPTED->source->data[ACCEPTED->source->length - 1]) {
-      LiteralExpression* expr = malloc(sizeof(LiteralExpression));
-      expr->base.type = EXPR_LITERAL;
-      expr->literal = ACCEPTED;
-
-      return expr;
-    } else {
+    if (ACCEPTED->source->data[0] != ACCEPTED->source->data[ACCEPTED->source->length - 1]) {
       error("Unclosed string literal.");
       return NULL;
     }
+
+    LiteralExpression* expr = malloc(sizeof(LiteralExpression));
+    expr->base.type = EXPR_LITERAL;
+    expr->literal = ACCEPTED;
+
+    result = (Expression*) expr;
   } else if (test_function_expression()) {
-      return parse_function_expression();
+    result = parse_function_expression();
   } else if (accept_op(OP_OPEN_PAREN)) {
     Expression* expr = parse_expression();
+
     if (!accept_op(OP_CLOSE_PAREN)) {
       // @Leak expr
       error("Expected ')'");
       return NULL;
     }
 
-    return expr;
+    result = (Expression*) expr;
   } else {
     error("Unable to parse expression");
+    return NULL;
   }
 
-  return NULL;
+  if (accept(TOKEN_OPERATOR)) {
+    BinaryOpExpression* expr = malloc(sizeof(BinaryOpExpression));
+    expr->base.type = EXPR_BINARY_OP;
+    expr->operator = ACCEPTED;
+    expr->left = result;
+    expr->right = parse_expression();
+
+    result = (Expression*) expr;
+  }
+
+  return result;
 }
 
 void* parse_type() {
