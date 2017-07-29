@@ -38,8 +38,8 @@ void pipeline_emit_file_parse_job(String* filename, TokenList* tokens) {
   printf("Emitting FileParseJob for %zu tokens of ", tokens->length); print_string(filename); printf("\n");
 
   // @Lazy We should use a pool allocator.
-  FileParseJob* job = malloc(sizeof(FileParseJob));
-  job->base.type = JOB_PARSE_FILE;
+  ParseJob* job = malloc(sizeof(ParseJob));
+  job->base.type = JOB_PARSE;
   job->filename = filename;
   job->tokens = tokens;
 

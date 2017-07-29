@@ -123,7 +123,7 @@ typedef enum {
   JOB_SENTINEL,
   JOB_READ,
   JOB_LEX,
-  JOB_PARSE_FILE,
+  JOB_PARSE,
 } JobType;
 
 typedef struct {
@@ -145,7 +145,7 @@ typedef struct {
   Job base;
   String* filename;
   TokenList* tokens;
-} FileParseJob;
+} ParseJob;
 
 #include "src/debug.c"
 
@@ -192,8 +192,8 @@ int main(int argc, char** argv) {
       pipeline_emit_file_parse_job(job->filename, tokens);
       did_work = 1;
 
-    } else if (_job->type == JOB_PARSE_FILE) {
-      FileParseJob* job = (FileParseJob*) _job;
+    } else if (_job->type == JOB_PARSE) {
+      ParseJob* job = (ParseJob*) _job;
 
       ParserScope* file_scope = calloc(1, sizeof(ParserScope));
       file_scope->declarations = new_table(128);
