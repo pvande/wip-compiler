@@ -65,7 +65,7 @@ void print_pointer(void* x) {
   printf("0x%0X", (unsigned int) x);
 }
 
-void print_token(Token t) {
+void inspect_token(Token t) {
   printf("«Token type=%d file=", t.type);
   print_string(t.file);
   printf(" line=%ju pos=%ju source=", t.line, t.pos);
@@ -83,7 +83,7 @@ void print_token_list(TokenList* list){
   printf("List [ %ju ]\n", t.length);
 
   for (uintmax_t i = 0; i < t.length; i++) {
-    print_token(t.tokens[i]);
+    inspect_token(t.tokens[i]);
   }
 }
 
@@ -125,29 +125,101 @@ void print_table(Table* t) {
 //   }
 //   printf("]");
 // }
+void print_declaration();
 
-void print_scope_declarations_table_with_indentation(ParserScope* scope, int indent) {
-  printf("{\n");
-  for (int i = 0; i < scope->declarations->capacity; i++) {
-    if (!scope->declarations->occupied[i]) continue;
+void print_token(Token* token) {
+  printf("%s", to_zero_terminated_string(token->source));
+}
 
-    for (int i = 0; i < indent; i++) printf("  ");
-    print_string(scope->declarations->keys[i]);
+void print_return_type(ReturnType* type) {
+  if (type->name) {
+    print_token(type->name);
+    printf(" : ");
+  }
+  print_token(type->type);
+}
+
+void print_expression(Expression* _expr) {
+  printf("(");
+  if (_expr->type == EXPR_IDENT) {
+    IdentifierExpression* expr = (void*) _expr;
+    print_token(expr->identifier);
+  } else if (_expr->type == EXPR_LITERAL) {
+    LiteralExpression* expr = (void*) _expr;
+    print_token(expr->literal);
+  } else if (_expr->type == EXPR_UNARY_OP) {
+    UnaryOpExpression* expr = (void*) _expr;
+    print_token(expr->operator);
+    print_expression(expr->rhs);
+  } else if (_expr->type == EXPR_BINARY_OP) {
+    BinaryOpExpression* expr = (void*) _expr;
+    print_expression(expr->lhs);
+    print_token(expr->operator);
+    print_expression(expr->rhs);
+  } else if (_expr->type == EXPR_FUNCTION) {
+    FunctionExpression* expr = (void*) _expr;
+    printf("(");
+    for (int i = 0; i < expr->arguments->size; i++) {
+      if (i > 0) printf(", ");
+      print_declaration(list_get(expr->arguments, i));
+    }
+    printf(")");
     printf(" => ");
-    print_pointer(scope->declarations->values[i]);
-    printf("\n");
+
+    printf("(");
+    for (int i = 0; i < expr->returns->size; i++) {
+      if (i > 0) printf(", ");
+      print_return_type(list_get(expr->returns, i));
+    }
+    printf(")");
+
+    printf(" {}");
+  }
+  printf(")");
+}
+
+void print_declaration(Declaration* decl) {
+  print_token(decl->name);
+  printf(" : ");
+
+  if (decl->type == NULL) {
+    printf("___");
+  } else {
+    print_token(decl->type);
   }
 
-  for (int i = 0; i < indent - 1; i++) printf("  ");
-  printf("}\n");
+  printf(" = ");
+
+  if (decl->value == NULL) {
+    printf("NULL");
+  } else {
+    print_expression(decl->value);
+  }
+}
+
+void print_declaration_list(List* list) {
+  printf("[\n");
+  for (int i = 0; i < list->size; i++) {
+    Declaration* decl = list_get(list, i);
+    printf("    ");
+    print_declaration(decl);
+    printf("\n");
+  }
+  printf("  ]\n");
 }
 
 void print_scope(ParserScope* scope) {
   printf("Scope: ");
-  int indentation = 1;
-  do {
-    print_scope_declarations_table_with_indentation(scope, indentation);
-    indentation += 1;
-    scope = scope->parent_scope;
-  } while (scope != NULL);
+  printf("{\n");
+  for (int i = 0; i < scope->declarations->capacity; i++) {
+    if (!scope->declarations->occupied[i]) continue;
+
+    printf("  ");
+    print_string(scope->declarations->keys[i]);
+    printf(" => ");
+    print_declaration_list(scope->declarations->values[i]);
+    printf("\n");
+  }
+
+  printf("}\n");
 }

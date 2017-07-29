@@ -1,4 +1,4 @@
-#define HERE  (printf("Got to %s line %d\n", __FILE__, __LINE__));
+#define HERE  (printf("\nGot to %s line %d\n", __FILE__, __LINE__));
 
 #define ____  ,
 #define DEFINE(TYPE, NAME, VAL)  static TYPE _ ## NAME = (TYPE) VAL; TYPE* const NAME = &_ ## NAME;
@@ -65,7 +65,6 @@ typedef struct {
 typedef enum {
   EXPR_LITERAL,
   EXPR_IDENT,
-  EXPR_UNPARSED_FUNCTION,
   EXPR_FUNCTION,
   EXPR_UNARY_OP,
   EXPR_BINARY_OP,
@@ -105,6 +104,12 @@ typedef struct {
   Expression* lhs;
   Expression* rhs;
 } BinaryOpExpression;
+
+
+typedef struct {
+  Token* type;
+  Token* name;
+} ReturnType;
 
 
 typedef struct {

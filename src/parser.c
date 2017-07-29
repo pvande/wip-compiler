@@ -9,7 +9,6 @@ DEFINE_STR(OP_OPEN_BRACE, "{");
 DEFINE_STR(OP_CLOSE_BRACE, "}");
 DEFINE_STR(OP_COMMA, ",");
 
-
 // ** State Manipulation Primitives ** //
 
 ParserState __parser_state;
@@ -112,21 +111,6 @@ void error(char* msg) {
 
 // ** Apathetic Parsing ** //
 
-List* slurp_argument_list() {
-  size_t depth = 0;
-  List* tokens = new_list(2, 64);  // @TODO Validate these numbers.
-
-  while (!(TOKENS_REMAIN && depth == 0 && peek_op(OP_CLOSE_PAREN))) {
-    if (peek_op(OP_OPEN_PAREN)) depth += 1;
-    if (peek_op(OP_CLOSE_PAREN)) depth -= 1;
-
-    list_add(tokens, &TOKEN);
-    ADVANCE();
-  }
-
-  return tokens;
-}
-
 // @Lazy We should be able to parse this fully in the initial pass, since no
 //       unknown operators are legal in the return types list.
 // @Lazy Is there any reason a '{' should be permitted in a return type block?
@@ -182,7 +166,14 @@ int test_function_expression() {
 
   BEGIN();
   if (accept_op(OP_OPEN_PAREN)) {
-    slurp_argument_list();  // @Leak We really don't need an allocation here.
+    size_t depth = 0;
+
+    while (!(TOKENS_REMAIN && depth == 0 && peek_op(OP_CLOSE_PAREN))) {
+      if (peek_op(OP_OPEN_PAREN)) depth += 1;
+      if (peek_op(OP_CLOSE_PAREN)) depth -= 1;
+      ADVANCE();
+    }
+
     if (accept_op(OP_CLOSE_PAREN)) {
       result = peek_op(OP_FUNC_ARROW);
     }
@@ -194,15 +185,101 @@ int test_function_expression() {
 
 
 // ** Parser States ** //
+void* parse_declaration();  // @TODO Make this forward declaration unnecessary.
+
+void* parse_argument_list() {
+  List* arguments = new_list(1, 8);
+
+  if (peek_op(OP_CLOSE_PAREN)) return arguments;
+
+  Declaration* decl = parse_declaration();
+  if (decl == NULL) {
+    error("Got a NULL declaration when we shouldn't have");
+    return arguments;
+  }
+  list_add(arguments, decl);
+
+  while (accept_op(OP_COMMA)) {
+    Declaration* decl = parse_declaration();
+    if (decl == NULL) {
+      error("Got a NULL declaration when we shouldn't have");
+      return arguments;
+    }
+    list_add(arguments, decl);
+  }
+
+  return arguments;
+}
+
+void* parse_return_type() {
+  Token* name = NULL;
+  Token* type = NULL;
+
+  if (accept(TOKEN_IDENTIFIER)) {
+    type = ACCEPTED;
+
+    if (accept_op(OP_DECLARE)) {
+      if (accept(TOKEN_IDENTIFIER)) {
+        name = type;
+        type = ACCEPTED;
+      } else {
+        error("Expected type in return type declaration");
+        return NULL;
+      }
+    } else {
+      // Type-only return type.
+    }
+  } else {
+    error("Expected type in return type declaration");
+    return NULL;
+  }
+
+  ReturnType* return_type = malloc(sizeof(ReturnType));
+  return_type->type = type;
+  return_type->name = name;
+
+  return return_type;
+}
+
+void* parse_return_list() {
+  List* returns = new_list(1, 8);
+
+  if (accept_op(OP_OPEN_PAREN)) {
+    ReturnType* type = parse_return_type();
+    if (type == NULL) return returns;
+
+    list_add(returns, type);
+
+    while (accept_op(OP_COMMA)) {
+      ReturnType* type = parse_return_type();
+      if (type == NULL) return returns;
+      list_add(returns, type);
+    }
+
+    if (!accept_op(OP_CLOSE_PAREN)) {
+      error("Unbalanced parens in return type list");
+      return returns;
+    }
+  } else if (accept(TOKEN_IDENTIFIER)) {
+    ReturnType* type = malloc(sizeof(ReturnType));
+    type->type = ACCEPTED;
+    type->name = NULL;
+    list_add(returns, type);
+  } else {
+    // Void return
+  }
+
+  return returns;
+}
 
 void* parse_function_expression() {
   accept_op(OP_OPEN_PAREN);
-  List* args = slurp_argument_list();
+  List* args = parse_argument_list();
   accept_op(OP_CLOSE_PAREN);
 
   accept_op(OP_FUNC_ARROW);
 
-  List* returns = slurp_return_list();
+  List* returns = parse_return_list();
 
   if (!accept_op(OP_OPEN_BRACE)) {
     // @Leak args, returns
@@ -217,7 +294,7 @@ void* parse_function_expression() {
   }
 
   FunctionExpression* expr = malloc(sizeof(FunctionExpression));
-  expr->base.type = EXPR_UNPARSED_FUNCTION;
+  expr->base.type = EXPR_FUNCTION;
   expr->arguments = args;
   expr->returns = returns;
   expr->body = body;

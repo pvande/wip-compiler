@@ -1,9 +1,9 @@
 # Grammar
 
     NAMESPACE = ((DECLARATION | NS_DIRECTIVE) "\n")*
-    NS_DIRECTIVE = "#load" String
-                 | "#operator" OP_DECLARATION
-                 | "#run" EXPRESSION
+    NS_DIRECTIVE = "@import" String
+                 | "@operator" OP_DECLARATION
+                 | "@run" EXPRESSION
     DECLARATION = Ident ":" TYPE
                 | Ident ":" TYPE "=" EXPRESSION
                 | Ident ":=" EXPRESSION
@@ -36,3 +36,9 @@
 * What global directives are we missing?
 * What more complex type statements do we want to support?
 * Are non-identifiers useful on the LHS of a declaration?
+
+# To Do
+
+* Actually implement NS_DIRECTIVE behaviors.
+* Expand TYPE declarations.
+* Add function call syntax.
