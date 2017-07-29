@@ -353,9 +353,29 @@ void* parse_expression() {
     expr->operator = ACCEPTED;
     expr->rhs = parse_expression();
 
-    // @TODO What happens if `rhs` is NULL?
+    if (expr->rhs == NULL) {
+      return NULL;
+    }
 
-    result = (Expression*) expr;
+    // @Lazy I know there's a cleaner way to handle this.
+    {
+      UnaryOpExpression* parent = expr;
+      Expression* subexpr = expr->rhs;
+      while (((UnaryOpExpression*) parent)->rhs->type == EXPR_BINARY_OP) {
+        parent = (void*) subexpr;
+        subexpr = parent->rhs;
+      }
+
+      if (parent != expr) {
+        result = expr->rhs;
+        parent->rhs = (Expression*) expr;
+        expr->rhs = subexpr;
+      } else {
+        result = (Expression*) expr;
+      }
+    }
+
+    return result;
   } else {
     error("Unable to parse expression");
     return NULL;
@@ -367,6 +387,11 @@ void* parse_expression() {
     expr->operator = ACCEPTED;
     expr->lhs = result;
     expr->rhs = parse_expression();
+
+    if (expr->rhs == NULL) {
+      // @Leak expr
+      return NULL;
+    }
 
     result = (Expression*) expr;
   }
