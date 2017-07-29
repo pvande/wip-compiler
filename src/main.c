@@ -96,14 +96,14 @@ typedef struct {
 typedef struct {
   Expression base;
   Token* operator;
-  Expression* right;
+  Expression* rhs;
 } UnaryOpExpression;
 
 typedef struct {
   Expression base;
   Token* operator;
-  Expression* left;
-  Expression* right;
+  Expression* lhs;
+  Expression* rhs;
 } BinaryOpExpression;
 
 

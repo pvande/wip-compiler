@@ -268,6 +268,15 @@ void* parse_expression() {
     }
 
     result = (Expression*) expr;
+  } else if (accept(TOKEN_OPERATOR)) {
+    UnaryOpExpression* expr = malloc(sizeof(UnaryOpExpression));
+    expr->base.type = EXPR_UNARY_OP;
+    expr->operator = ACCEPTED;
+    expr->rhs = parse_expression();
+
+    // @TODO What happens if `rhs` is NULL?
+
+    result = (Expression*) expr;
   } else {
     error("Unable to parse expression");
     return NULL;
@@ -277,8 +286,8 @@ void* parse_expression() {
     BinaryOpExpression* expr = malloc(sizeof(BinaryOpExpression));
     expr->base.type = EXPR_BINARY_OP;
     expr->operator = ACCEPTED;
-    expr->left = result;
-    expr->right = parse_expression();
+    expr->lhs = result;
+    expr->rhs = parse_expression();
 
     result = (Expression*) expr;
   }
