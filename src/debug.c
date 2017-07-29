@@ -141,22 +141,14 @@ void print_return_type(ReturnType* type) {
 }
 
 void print_expression(Expression* _expr) {
-  printf("(");
   if (_expr->type == EXPR_IDENT) {
     IdentifierExpression* expr = (void*) _expr;
     print_token(expr->identifier);
+    return;
   } else if (_expr->type == EXPR_LITERAL) {
     LiteralExpression* expr = (void*) _expr;
     print_token(expr->literal);
-  } else if (_expr->type == EXPR_UNARY_OP) {
-    UnaryOpExpression* expr = (void*) _expr;
-    print_token(expr->operator);
-    print_expression(expr->rhs);
-  } else if (_expr->type == EXPR_BINARY_OP) {
-    BinaryOpExpression* expr = (void*) _expr;
-    print_expression(expr->lhs);
-    print_token(expr->operator);
-    print_expression(expr->rhs);
+    return;
   } else if (_expr->type == EXPR_FUNCTION) {
     FunctionExpression* expr = (void*) _expr;
     printf("(");
@@ -175,6 +167,20 @@ void print_expression(Expression* _expr) {
     printf(")");
 
     printf(" {}");
+  }
+
+  printf("(");
+  if (_expr->type == EXPR_UNARY_OP) {
+    UnaryOpExpression* expr = (void*) _expr;
+    print_token(expr->operator);
+    print_expression(expr->rhs);
+  } else if (_expr->type == EXPR_BINARY_OP) {
+    BinaryOpExpression* expr = (void*) _expr;
+    print_expression(expr->lhs);
+    printf(" ");
+    print_token(expr->operator);
+    printf(" ");
+    print_expression(expr->rhs);
   }
   printf(")");
 }
