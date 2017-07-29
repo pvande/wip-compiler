@@ -103,28 +103,29 @@ void debug_table(Table* t) {
 
 
 void print_table(Table* t) {
+  int printed = 0;
   printf("{");
   for (int i = 0; i < t->capacity; i++) {
     if (!t->occupied[i]) continue;
+    if (printed) printf(", ");
 
+    printed = 1;
     print_string(t->keys[i]);
     printf(" => ");
     print_pointer(t->values[i]);
-    printf(", ");
   }
   printf("}");
 }
 
-// void print_list(List* t) {
-//   printf("[");
-//   for (int i = 0; i < t->count; i++) {
-//     printf("  ");
-//     print_string(t->keys[i]);
-//     printf(" => ")
-//     print_pointer(t->values[i]);
-//   }
-//   printf("]");
-// }
+void print_list(List* list) {
+  printf("[");
+  for (int i = 0; i < list->size; i++) {
+    if (i > 0) printf(", ");
+    print_pointer(list_get(list, i));
+  }
+  printf("]");
+}
+
 void print_declaration();
 
 void print_token(Token* token) {
@@ -205,11 +206,11 @@ void print_declaration_list(List* list) {
     print_declaration(decl);
     printf("\n");
   }
-  printf("  ]\n");
+  printf("  ]");
 }
 
 void print_scope(ParserScope* scope) {
-  printf("Scope: ");
+  printf("\n\nScope: ");
   printf("{\n");
   for (int i = 0; i < scope->declarations->capacity; i++) {
     if (!scope->declarations->occupied[i]) continue;

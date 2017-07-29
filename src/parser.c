@@ -15,7 +15,6 @@ ParserState __parser_state;
 
 #define ACCEPTED       (&__parser_state.list.tokens[__parser_state.pos - 1])
 #define TOKEN          (__parser_state.list.tokens[__parser_state.pos])
-// #define NEXT_TOKEN     (__parser_state.tokens[__parser_state.pos + 1])
 #define TOKENS_REMAIN  (__parser_state.pos < __parser_state.list.length)
 #define CURRENT_LINE   (__parser_state.list.lines[TOKEN.line])
 #define CURRENT_SCOPE  (__parser_state.current_scope)
@@ -146,7 +145,7 @@ List* slurp_code_block() {
 // ** Lookahead Operations ** //
 
 int test_declaration() {
-  int result;
+  int result = 0;
 
   BEGIN();
   if (accept(TOKEN_IDENTIFIER)) {
@@ -421,7 +420,9 @@ void* parse_declaration() {
 
 void parse_namespace() {
   while (TOKENS_REMAIN) {
-    if (test_directive()) {
+    if (accept(TOKEN_NEWLINE)) {
+      // Move on, nothing to see here.
+    } else if (test_directive()) {
       void* directive = parse_directive();
 
       // @TODO Actually implement these directives.
@@ -439,21 +440,17 @@ void parse_namespace() {
         continue;
       }
 
-      while (accept(TOKEN_NEWLINE));
+      // @TODO Figure this out.
+      ParserScope* scope = CURRENT_SCOPE;
+      String* key = decl->name->source;
 
-      if (decl != NULL) {
-        // @TODO Figure this out.
-        ParserScope* scope = CURRENT_SCOPE;
-        String* key = decl->name->source;
-
-        List* declarations = table_find(scope->declarations, key);
-        if (declarations == NULL) {
-          declarations = new_list(1, 128);
-          table_add(scope->declarations, key, declarations);
-        }
-
-        list_add(declarations, decl);
+      List* declarations = table_find(scope->declarations, key);
+      if (declarations == NULL) {
+        declarations = new_list(1, 128);
+        table_add(scope->declarations, key, declarations);
       }
+
+      list_add(declarations, decl);
     } else {
       error("Unrecognized code in top-level context");
       while (accept(TOKEN_NEWLINE));

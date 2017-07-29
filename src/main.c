@@ -213,8 +213,6 @@ int main(int argc, char** argv) {
     free(_job);
   }
 
-  printf("\n");
-
   return 0;
 }
 
