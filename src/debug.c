@@ -172,7 +172,7 @@ void print_expression(Expression* _expr) {
   printf("(");
   if (_expr->type == EXPR_UNARY_OP) {
     UnaryOpExpression* expr = (void*) _expr;
-    print_token(expr->operator);
+    if (expr->operator->source->data[0] != '(') print_token(expr->operator);
     print_expression(expr->rhs);
   } else if (_expr->type == EXPR_BINARY_OP) {
     BinaryOpExpression* expr = (void*) _expr;

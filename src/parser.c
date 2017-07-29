@@ -335,7 +335,10 @@ void* parse_expression() {
   } else if (test_function_expression()) {
     result = parse_function_expression();
   } else if (accept_op(OP_OPEN_PAREN)) {
-    Expression* expr = parse_expression();
+    UnaryOpExpression* expr = malloc(sizeof(UnaryOpExpression));
+    expr->base.type = EXPR_UNARY_OP;
+    expr->operator = ACCEPTED;
+    expr->rhs = parse_expression();
 
     if (!accept_op(OP_CLOSE_PAREN)) {
       // @Leak expr
