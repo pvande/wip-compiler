@@ -1,3 +1,18 @@
+const char OPERATORS[256 - 32] = {
+  0, 1, 0, 0, 0, 1, 1, 0,  //  !"#$%&'
+  0, 0, 1, 1, 0, 1, 0, 1,  // ()*+,-./
+  0, 0, 0, 0, 0, 0, 0, 0,  // 01234567
+  0, 0, 2, 0, 1, 2, 1, 1,  // 89:;<=>?
+  2, 0, 0, 0, 0, 0, 0, 0,  // @ABCDEFG
+  0, 0, 0, 0, 0, 0, 0, 0,  // HIJKLMNO
+  0, 0, 0, 0, 0, 0, 0, 0,  // PQRSTUVW
+  0, 0, 0, 0, 0, 0, 1, 0,  // XYZ[\]^_
+  1, 0, 0, 0, 0, 0, 0, 0,  // `abcdefg
+  0, 0, 0, 0, 0, 0, 0, 0,  // hijklmno
+  0, 0, 0, 0, 0, 0, 0, 0,  // pqrstuvw
+  0, 0, 0, 0, 1, 0, 1, 0,  // xyz{|}~
+};
+
 // @Precondition: file data is never freed.
 // @Precondition: input data is never freed.
 TokenList* tokenize_string(String* file, String* input) {
@@ -29,7 +44,8 @@ TokenList* tokenize_string(String* file, String* input) {
   #define IS_BINARY_DIGIT(T)  (T == '_' || T == '0' || T == '1')
   #define IS_DECIMAL_DIGIT(T) (T == '_' || (T >= '0' && T <= '9'))
   #define IS_HEX_DIGIT(T)     (IS_DECIMAL_DIGIT(T) || (T >= 'a' && T <= 'z') || (T >= 'A' && T <= 'Z'))
-  #define IS_OPERATOR(T)      (T == '!' || T == '`' || (T >= '#' && T <= '/') || (T >= ':' && T <= '@') || (T >= '[' && T <= '^') || (T >= '{' && T <= '~'))
+  #define IS_OPERATOR(T)      (OPERATORS[T - 32] == 1)
+  #define IS_NONINITIAL_OP(T) (OPERATORS[T - 32])
   #define IS_IDENTIFIER(T)    (!(IS_WHITESPACE(T) || IS_NEWLINE(T) || IS_OPERATOR(T)))
 
   #define ADVANCE(EXPECTED)   do { assert(EXPECTED == THIS); file_pos += 1; line_pos += 1; } while (0)
@@ -42,7 +58,7 @@ TokenList* tokenize_string(String* file, String* input) {
   #define SLURP_BINARY_NUMBER()   SLURP(IS_BINARY_DIGIT(THIS))
   #define SLURP_DECIMAL_NUMBER()  SLURP(IS_DECIMAL_DIGIT(THIS))
   #define SLURP_HEX_NUMBER()      SLURP(IS_HEX_DIGIT(THIS))
-  #define SLURP_OPERATOR()        SLURP(IS_OPERATOR(THIS))
+  #define SLURP_OPERATOR()        SLURP(IS_NONINITIAL_OP(THIS))
   #define SLURP_IDENT()           SLURP(IS_IDENTIFIER(THIS))
 
   #define START()    (token_start = file_pos)
