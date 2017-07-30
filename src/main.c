@@ -182,11 +182,29 @@ typedef struct {
 
 #ifndef TESTING
 
+#include <execinfo.h>
+#include <signal.h>
+
+void crashbar(int nSignum, siginfo_t* si, void* vcontext) {
+  printf("\nSegmentation fault!\n");
+
+  void* trace[10];
+  size_t size = backtrace(trace, 10);
+  backtrace_symbols_fd(trace, size, 0);
+
+  exit(1);
+}
+
 int main(int argc, char** argv) {
   if (argc == 1) {
     fprintf(stderr, "Usage: %s <filename>\n", argv[0]);
     return 1;
   }
+
+  struct sigaction action = {0};
+  action.sa_flags = SA_SIGINFO;
+  action.sa_sigaction = crashbar;
+  sigaction(SIGSEGV, &action, NULL);
 
   initialize_pipeline();
   pipeline_emit_read_job(new_string(argv[1]));
@@ -263,7 +281,7 @@ int main(int argc, char** argv) {
       BytecodeJob* job = (BytecodeJob*) _job;
 
       // @Lazy Make sure the declarations are passed in the job.
-      List* instructions = bytecode_generate(ws.resolved_declarations);
+      // List* instructions = bytecode_generate(ws.resolved_declarations);
 
       did_work = 1;
 
