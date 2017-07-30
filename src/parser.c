@@ -167,7 +167,7 @@ int test_function_expression() {
   if (accept_op(OP_OPEN_PAREN)) {
     size_t depth = 0;
 
-    while (!(TOKENS_REMAIN && depth == 0 && peek_op(OP_CLOSE_PAREN))) {
+    while (TOKENS_REMAIN && (depth > 0 || !peek_op(OP_CLOSE_PAREN))) {
       if (peek_op(OP_OPEN_PAREN)) depth += 1;
       if (peek_op(OP_CLOSE_PAREN)) depth -= 1;
       ADVANCE();
@@ -468,17 +468,9 @@ void parse_namespace() {
         continue;
       }
 
-      // @TODO Figure this out.
+      // @TODO Figure this out better.
       ParserScope* scope = CURRENT_SCOPE;
-      String* key = decl->name->source;
-
-      List* declarations = table_find(scope->declarations, key);
-      if (declarations == NULL) {
-        declarations = new_list(1, 128);
-        table_add(scope->declarations, key, declarations);
-      }
-
-      list_add(declarations, decl);
+      list_add(scope->declarations, decl);
     } else {
       error("Unrecognized code in top-level context");
       while (accept(TOKEN_NEWLINE));

@@ -217,16 +217,5 @@ void print_declaration_list(List* list) {
 
 void print_scope(ParserScope* scope) {
   printf("\n\nScope: ");
-  printf("{\n");
-  for (int i = 0; i < scope->declarations->capacity; i++) {
-    if (!scope->declarations->occupied[i]) continue;
-
-    printf("  ");
-    print_string(scope->declarations->keys[i]);
-    printf(" => ");
-    print_declaration_list(scope->declarations->values[i]);
-    printf("\n");
-  }
-
-  printf("}\n");
+  print_declaration_list(scope->declarations);
 }

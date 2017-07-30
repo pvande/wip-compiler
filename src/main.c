@@ -48,8 +48,13 @@ typedef struct {
 } TokenList;
 
 
+typedef struct {
+  List* resolved_declarations;
+  size_t declaration_count;
+} CompilationWorkspace;
+
 typedef struct ParserScope {
-  Table* declarations;
+  List* declarations;
 
   struct ParserScope* parent_scope;
 } ParserScope;
@@ -124,6 +129,10 @@ typedef enum {
   JOB_READ,
   JOB_LEX,
   JOB_PARSE,
+  JOB_TYPECHECK,
+  JOB_OPTIMIZE,
+  JOB_BYTECODE,
+  JOB_OUTPUT,
 } JobType;
 
 typedef struct {
@@ -147,6 +156,24 @@ typedef struct {
   TokenList* tokens;
 } ParseJob;
 
+typedef struct {
+  Job base;
+  Declaration* declaration;
+} TypecheckJob;
+
+typedef struct {
+  Job base;
+  Declaration* declaration;
+} OptimizeJob;
+
+typedef struct {
+  Job base;
+} BytecodeJob;
+
+typedef struct {
+  Job base;
+} OutputJob;
+
 #include "src/debug.c"
 
 #include "src/pipeline.c"
@@ -163,6 +190,8 @@ int main(int argc, char** argv) {
 
   initialize_pipeline();
   pipeline_emit_read_job(new_string(argv[1]));
+
+  CompilationWorkspace ws = { new_list(4, 64), 0 };
 
   int did_work = 1;
   while (pipeline_has_jobs()) {
@@ -189,18 +218,58 @@ int main(int argc, char** argv) {
       LexJob* job = (LexJob*) _job;
 
       TokenList* tokens = tokenize_string(job->filename, job->source);
-      pipeline_emit_file_parse_job(job->filename, tokens);
+      pipeline_emit_parse_job(job->filename, tokens);
       did_work = 1;
 
     } else if (_job->type == JOB_PARSE) {
       ParseJob* job = (ParseJob*) _job;
 
       ParserScope* file_scope = calloc(1, sizeof(ParserScope));
-      file_scope->declarations = new_table(128);
+      file_scope->declarations = new_list(4, 32);
 
       parse_file(job->tokens, file_scope);
 
-      print_scope(file_scope);
+      ws.declaration_count += file_scope->declarations->size;
+      for (int i = 0; i < ws.declaration_count; i++) {
+        Declaration* decl = list_get(file_scope->declarations, i);
+        pipeline_emit_typecheck_job(decl);
+      }
+
+      did_work = 1;
+
+    } else if (_job->type == JOB_TYPECHECK) {
+      TypecheckJob* job = (TypecheckJob*) _job;
+
+      // @TODO Implement typechecking.
+
+      pipeline_emit_optimize_job(job->declaration);
+
+      did_work = 1;
+
+    } else if (_job->type == JOB_OPTIMIZE) {
+      OptimizeJob* job = (OptimizeJob*) _job;
+
+      // @TODO Implement optimizations.
+
+      list_add(ws.resolved_declarations, job->declaration);
+
+      if (ws.declaration_count == ws.resolved_declarations->size) {
+        pipeline_emit_bytecode_job(ws.resolved_declarations);
+      }
+
+      did_work = 1;
+
+    } else if (_job->type == JOB_BYTECODE) {
+      BytecodeJob* job = (BytecodeJob*) _job;
+
+      // @Lazy Make sure the declarations are passed in the job.
+      List* instructions = bytecode_generate(ws.resolved_declarations);
+
+      did_work = 1;
+
+    } else if (_job->type == JOB_OUTPUT) {
+      OutputJob* job = (OutputJob*) _job;
+
       did_work = 1;
 
     } else if (_job->type == JOB_SENTINEL) {
