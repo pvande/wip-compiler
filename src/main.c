@@ -91,10 +91,12 @@ typedef struct {
 
 typedef struct {
   Expression base;
+  String* name;
   ParserScope* scope;
   List* arguments;
   List* returns;
   List* body;
+  List* instructions;
 } FunctionExpression;
 
 typedef struct {
@@ -115,7 +117,6 @@ typedef struct {
   Token* type;
   Token* name;
 } ReturnType;
-
 
 typedef struct {
   Token* name;
@@ -168,6 +169,7 @@ typedef struct {
 
 typedef struct {
   Job base;
+  Declaration* declaration;
 } BytecodeJob;
 
 typedef struct {
@@ -179,6 +181,7 @@ typedef struct {
 #include "src/pipeline.c"
 #include "src/tokenizer.c"
 #include "src/parser.c"
+#include "src/bytecode.c"
 
 #ifndef TESTING
 
@@ -260,6 +263,13 @@ int main(int argc, char** argv) {
 
       // @TODO Implement typechecking.
 
+      {
+        Declaration* decl = job->declaration;
+        if (decl->type == NULL) {
+          decl->type = &(Token) { TOKEN_IDENTIFIER, new_string("int"), NULL, 0, 0 };
+        }
+      }
+
       pipeline_emit_optimize_job(job->declaration);
 
       did_work = 1;
@@ -269,11 +279,7 @@ int main(int argc, char** argv) {
 
       // @TODO Implement optimizations.
 
-      list_add(ws.resolved_declarations, job->declaration);
-
-      if (ws.declaration_count == ws.resolved_declarations->size) {
-        pipeline_emit_bytecode_job(ws.resolved_declarations);
-      }
+      pipeline_emit_bytecode_job(job->declaration);
 
       did_work = 1;
 
@@ -281,12 +287,51 @@ int main(int argc, char** argv) {
       BytecodeJob* job = (BytecodeJob*) _job;
 
       // @Lazy Make sure the declarations are passed in the job.
-      // List* instructions = bytecode_generate(ws.resolved_declarations);
+      // @TODO Implement optimizations.
+      List* instructions = bytecode_generate(job->declaration);
+
+      list_add(ws.resolved_declarations, job->declaration);
+
+      if (ws.declaration_count == ws.resolved_declarations->size) {
+        pipeline_emit_output_job(ws.resolved_declarations);
+      }
 
       did_work = 1;
 
     } else if (_job->type == JOB_OUTPUT) {
       OutputJob* job = (OutputJob*) _job;
+
+      // @TODO Refactor this into its own method.
+      {
+        // @TODO Inline base types and runtime support here.
+
+        printf("\n");
+        for (size_t i = 0; i < ws.declaration_count; i++) {
+          Declaration* decl = list_get(ws.resolved_declarations, i);
+
+          printf("%s %s", to_zero_terminated_string(decl->type->source),
+                          to_zero_terminated_string(decl->name->source));
+          if (decl->value && decl->value->type == EXPR_FUNCTION) {
+            printf("()");
+          }
+          printf(";  // Line %zu of ", decl->name->line + 1);
+          print_string(decl->name->file);
+          printf("\n");
+        }
+
+        printf("\n\n");
+        for (size_t i = 0; i < ws.declaration_count; i++) {
+          Declaration* decl = list_get(ws.resolved_declarations, i);
+
+          printf("%s %s", to_zero_terminated_string(decl->type->source),
+                          to_zero_terminated_string(decl->name->source));
+          if (decl->value && decl->value->type == EXPR_FUNCTION) {
+            printf("()");
+          }
+          printf(" {\n");
+          printf("}\n");
+        }
+      }
 
       did_work = 1;
 

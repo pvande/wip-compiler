@@ -292,7 +292,7 @@ void* parse_function_expression() {
     return NULL;
   }
 
-  FunctionExpression* expr = malloc(sizeof(FunctionExpression));
+  FunctionExpression* expr = calloc(1, sizeof(FunctionExpression));
   expr->base.type = EXPR_FUNCTION;
   expr->arguments = args;
   expr->returns = returns;
@@ -436,6 +436,11 @@ void* parse_declaration() {
     if (value == NULL) {
       return NULL;
     }
+  }
+
+  // @Lazy Is this the best place to handle this?
+  if (value != NULL && value->type == EXPR_FUNCTION) {
+    ((FunctionExpression*) value)->name = name->source;
   }
 
   Declaration* decl = malloc(sizeof(Declaration));

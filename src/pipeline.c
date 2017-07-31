@@ -13,7 +13,7 @@ Job* pipeline_take_job() {
 }
 
 void pipeline_emit_read_job(String* filename) {
-  printf("Emitting ReadJob for "); print_string(filename); printf("\n");
+  // printf("Emitting ReadJob for "); print_string(filename); printf("\n");
 
   // @Lazy We should use a pool allocator.
   ReadJob* job = malloc(sizeof(ReadJob));
@@ -23,7 +23,7 @@ void pipeline_emit_read_job(String* filename) {
 }
 
 void pipeline_emit_lex_job(String* filename, String* source) {
-  printf("Emitting LexJob for %zu bytes of ", source->length); print_string(filename); printf("\n");
+  // printf("Emitting LexJob for %zu bytes of ", source->length); print_string(filename); printf("\n");
 
   // @Lazy We should use a pool allocator.
   LexJob* job = malloc(sizeof(LexJob));
@@ -35,7 +35,7 @@ void pipeline_emit_lex_job(String* filename, String* source) {
 }
 
 void pipeline_emit_parse_job(String* filename, TokenList* tokens) {
-  printf("Emitting FileParseJob for %zu tokens of ", tokens->length); print_string(filename); printf("\n");
+  // printf("Emitting FileParseJob for %zu tokens of ", tokens->length); print_string(filename); printf("\n");
 
   // @Lazy We should use a pool allocator.
   ParseJob* job = malloc(sizeof(ParseJob));
@@ -47,7 +47,7 @@ void pipeline_emit_parse_job(String* filename, TokenList* tokens) {
 }
 
 void pipeline_emit_typecheck_job(Declaration* decl) {
-  printf("Emitting TypecheckJob for "); print_string(decl->name->source); printf(" in "); print_string(decl->name->file); printf(" line %zu\n", decl->name->line);
+  // printf("Emitting TypecheckJob for "); print_string(decl->name->source); printf(" in "); print_string(decl->name->file); printf(" line %zu\n", decl->name->line);
 
   // @Lazy We should use a pool allocator.
   TypecheckJob* job = malloc(sizeof(TypecheckJob));
@@ -58,7 +58,7 @@ void pipeline_emit_typecheck_job(Declaration* decl) {
 }
 
 void pipeline_emit_optimize_job(Declaration* decl) {
-  printf("Emitting OptimizeJob for "); print_string(decl->name->source); printf(" in "); print_string(decl->name->file); printf(" line %zu\n", decl->name->line);
+  // printf("Emitting OptimizeJob for "); print_string(decl->name->source); printf(" in "); print_string(decl->name->file); printf(" line %zu\n", decl->name->line);
 
   // @Lazy We should use a pool allocator.
   OptimizeJob* job = malloc(sizeof(OptimizeJob));
@@ -68,13 +68,23 @@ void pipeline_emit_optimize_job(Declaration* decl) {
   pipeline_emit(job);
 }
 
-void pipeline_emit_bytecode_job(List* declarations) {
-  printf("Emitting BytecodeJob for %zu declarations\n", declarations->size);
+void pipeline_emit_bytecode_job(Declaration* decl) {
+  // printf("Emitting BytecodeJob for "); print_string(decl->name->source); printf(" in "); print_string(decl->name->file); printf(" line %zu\n", decl->name->line);
 
   // @Lazy We should use a pool allocator.
   BytecodeJob* job = malloc(sizeof(BytecodeJob));
   job->base.type = JOB_BYTECODE;
-  // job->declaration = decl;
+  job->declaration = decl;
+
+  pipeline_emit(job);
+}
+
+void pipeline_emit_output_job(List* declarations) {
+  // printf("Emitting OutputJob for %zu declarations\n", declarations->size);
+
+  // @Lazy We should use a pool allocator.
+  OutputJob* job = malloc(sizeof(OutputJob));
+  job->base.type = JOB_OUTPUT;
 
   pipeline_emit(job);
 }
