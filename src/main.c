@@ -309,7 +309,7 @@ int main(int argc, char** argv) {
         for (size_t i = 0; i < ws.declaration_count; i++) {
           Declaration* decl = list_get(ws.resolved_declarations, i);
 
-          printf("%s %s", to_zero_terminated_string(decl->type->source),
+          printf("%s ·%s", to_zero_terminated_string(decl->type->source),
                           to_zero_terminated_string(decl->name->source));
           if (decl->value && decl->value->type == EXPR_FUNCTION) {
             printf("()");
@@ -323,7 +323,7 @@ int main(int argc, char** argv) {
         for (size_t i = 0; i < ws.declaration_count; i++) {
           Declaration* decl = list_get(ws.resolved_declarations, i);
 
-          printf("%s %s", to_zero_terminated_string(decl->type->source),
+          printf("%s ·%s", to_zero_terminated_string(decl->type->source),
                           to_zero_terminated_string(decl->name->source));
           if (decl->value && decl->value->type == EXPR_FUNCTION) {
             printf("()");
@@ -331,6 +331,9 @@ int main(int argc, char** argv) {
           printf(" {\n");
           printf("}\n");
         }
+
+        printf("\n\n");
+        printf("int main() { ·main(); }");
       }
 
       did_work = 1;
