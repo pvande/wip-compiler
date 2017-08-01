@@ -67,9 +67,9 @@ void print_pointer(void* x) {
 
 void inspect_token(Token t) {
   printf("«Token type=%d file=", t.type);
-  print_string(t.file);
+  print_string(&t.file);
   printf(" line=%ju pos=%ju source=", t.line, t.pos);
-  print_string(t.source);
+  print_string(&t.source);
   printf("»\n");
 }
 
@@ -80,9 +80,9 @@ void print_token_list(TokenList* list){
   }
 
   TokenList t = *list;
-  printf("List [ %ju ]\n", t.length);
+  printf("List [ %ju ]\n", t.count);
 
-  for (uintmax_t i = 0; i < t.length; i++) {
+  for (uintmax_t i = 0; i < t.count; i++) {
     inspect_token(t.tokens[i]);
   }
 }
@@ -129,7 +129,7 @@ void print_list(List* list) {
 void print_declaration();
 
 void print_token(Token* token) {
-  printf("%s", to_zero_terminated_string(token->source));
+  printf("%s", to_zero_terminated_string(&token->source));
 }
 
 void print_return_type(ReturnType* type) {
@@ -172,7 +172,7 @@ void print_expression(Expression* _expr) {
   printf("(");
   if (_expr->type == EXPR_UNARY_OP) {
     UnaryOpExpression* expr = (void*) _expr;
-    if (expr->operator->source->data[0] != '(') print_token(expr->operator);
+    if (expr->operator->source.data[0] != '(') print_token(expr->operator);
     print_expression(expr->rhs);
   } else if (_expr->type == EXPR_BINARY_OP) {
     BinaryOpExpression* expr = (void*) _expr;

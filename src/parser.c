@@ -15,7 +15,7 @@ ParserState __parser_state;
 
 #define ACCEPTED       (&__parser_state.list.tokens[__parser_state.pos - 1])
 #define TOKEN          (__parser_state.list.tokens[__parser_state.pos])
-#define TOKENS_REMAIN  (__parser_state.pos < __parser_state.list.length)
+#define TOKENS_REMAIN  (__parser_state.pos < __parser_state.list.count)
 #define CURRENT_LINE   (__parser_state.list.lines[TOKEN.line])
 #define CURRENT_SCOPE  (__parser_state.current_scope)
 
@@ -32,12 +32,12 @@ int peek(TokenType type) {
 
 int peek_syntax_op(String* op) {
   if (TOKEN.type != TOKEN_SYNTAX_OPERATOR) return 0;
-  return string_equals(op, TOKEN.source);
+  return string_equals(op, &TOKEN.source);
 }
 
 int peek_nonsyntax_op(String* op) {
   if (TOKEN.type != TOKEN_OPERATOR) return 0;
-  return string_equals(op, TOKEN.source);
+  return string_equals(op, &TOKEN.source);
 }
 
 int peek_op(String* op) {
@@ -46,7 +46,7 @@ int peek_op(String* op) {
 
 int peek_directive(String* name) {
   if (TOKEN.type != TOKEN_DIRECTIVE) return 0;
-  return string_equals(name, TOKEN.source);
+  return string_equals(name, &TOKEN.source);
 }
 
 int accept(TokenType type) {
@@ -85,7 +85,7 @@ int accept_directive(String* name) {
 }
 
 void error(char* msg) {
-  char* filename = to_zero_terminated_string(TOKEN.file);
+  char* filename = to_zero_terminated_string(&TOKEN.file);
   char* line_str = to_zero_terminated_string(&CURRENT_LINE);
   size_t line_no = TOKEN.line;
 
@@ -99,7 +99,7 @@ void error(char* msg) {
   printf("> %s%s%s\n", code, line_str, reset);
 
   for (int i = 0; i < CURRENT_LINE.length; i++) line_str[i] = ' ';
-  for (int i = TOKEN.pos; i < TOKEN.pos + TOKEN.source->length; i++) line_str[i] = '^';
+  for (int i = TOKEN.pos; i < TOKEN.pos + TOKEN.source.length; i++) line_str[i] = '^';
 
   printf("  %s%s%s\n\n", err, line_str, reset);
 
@@ -311,19 +311,9 @@ void* parse_expression() {
     expr->identifier = ACCEPTED;
 
     result = (Expression*) expr;
-  } else if (accept(TOKEN_NUMBER_DECIMAL) ||
-             accept(TOKEN_NUMBER_FRACTIONAL) ||
-             accept(TOKEN_NUMBER_HEX) ||
-             accept(TOKEN_NUMBER_BINARY)) {
-    LiteralExpression* expr = malloc(sizeof(LiteralExpression));
-    expr->base.type = EXPR_LITERAL;
-    expr->literal = ACCEPTED;
-
-    result = (Expression*) expr;
-  } else if (accept(TOKEN_STRING)) {
-    // @TODO Push well-formedness checks into the tokenizer.
-    if (ACCEPTED->source->data[0] != ACCEPTED->source->data[ACCEPTED->source->length - 1]) {
-      error("Unclosed string literal.");
+  } else if (accept(TOKEN_LITERAL)) {
+    if (! ACCEPTED->is_well_formed) {
+      error("Malformed literal.");
       return NULL;
     }
 
@@ -440,7 +430,7 @@ void* parse_declaration() {
 
   // @Lazy Is this the best place to handle this?
   if (value != NULL && value->type == EXPR_FUNCTION) {
-    ((FunctionExpression*) value)->name = name->source;
+    ((FunctionExpression*) value)->name = &name->source;
   }
 
   Declaration* decl = malloc(sizeof(Declaration));

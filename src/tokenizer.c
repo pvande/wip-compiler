@@ -25,7 +25,6 @@ TokenList* tokenize_string(String* file, String* input) {
   String* lines = calloc(input_length, sizeof(String));
   size_t token_idx = 0;
 
-  TokenType token_type = 0;
   size_t token_start = 0; // Position in the file where the current token began.
   size_t file_pos = 0;    // Position in the file we're currently parsing.
 
@@ -37,7 +36,7 @@ TokenList* tokenize_string(String* file, String* input) {
   #define LAST  (input->data[file_pos - 1])
   #define NEXT  (file_pos + 1 < input->length ? input->data[file_pos + 1] : '\0')
   #define LENGTH  (file_pos - token_start)
-  #define SOURCE  (substring(input, token_start, LENGTH))
+  #define SOURCE  (*substring(input, token_start, LENGTH))
 
   #define IS_WHITESPACE(T)    (T == ' ' || T == '\t')
   #define IS_NEWLINE(T)       (T == '\n')
@@ -63,21 +62,20 @@ TokenList* tokenize_string(String* file, String* input) {
   #define SLURP_IDENT()           SLURP(IS_IDENTIFIER(THIS))
 
   #define START()    (token_start = file_pos)
-  #define COMMIT(T)  (tokens[token_idx++] = (Token) { T, SOURCE, file, line_no, line_pos - LENGTH })
 
   while (file_pos < input_length) {
-    START();
+    token_start = file_pos;
 
     switch (THIS) {
       case '@':
         ADVANCE('@');
         SLURP_IDENT();
-        COMMIT(TOKEN_DIRECTIVE);
+        tokens[token_idx++] = (Token) { TOKEN_DIRECTIVE, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case '#':
         ADVANCE('#');
         SLURP_IDENT();
-        COMMIT(TOKEN_TAG);
+        tokens[token_idx++] = (Token) { TOKEN_TAG, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case ' ':
       case '\t':
@@ -95,7 +93,7 @@ TokenList* tokenize_string(String* file, String* input) {
             SLURP_WHITESPACE();
           }
 
-          COMMIT(TOKEN_NEWLINE);
+          tokens[token_idx++] = (Token) { TOKEN_NEWLINE, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
 
           line_no = _line_no;
           line_pos = 0;
@@ -111,36 +109,38 @@ TokenList* tokenize_string(String* file, String* input) {
           ADVANCE('"');
         }
 
-        COMMIT(TOKEN_STRING);
+        tokens[token_idx++] = (Token) { TOKEN_LITERAL, *file, line_no, line_pos - LENGTH, SOURCE, LITERAL_STRING, input->data[token_start] == input->data[file_pos - 1] };
         break;
       case '0'...'9':
-        token_type = 0;
+        {
+          TokenLiteralType literal_type = NONLITERAL;
 
-        if (THIS == '0') {
-          ADVANCE('0');
-          if (THIS == 'x') {
-            token_type = TOKEN_NUMBER_HEX;
-            ADVANCE('x');
-            SLURP_HEX_NUMBER();
-          } else if (THIS == 'b') {
-            token_type = TOKEN_NUMBER_BINARY;
-            ADVANCE('b');
-            SLURP_BINARY_NUMBER();
+          if (THIS == '0') {
+            ADVANCE('0');
+            if (THIS == 'x') {
+              literal_type = NUMBER_HEX;
+              ADVANCE('x');
+              SLURP_HEX_NUMBER();
+            } else if (THIS == 'b') {
+              literal_type = NUMBER_BINARY;
+              ADVANCE('b');
+              SLURP_BINARY_NUMBER();
+            }
           }
-        }
 
-        if (!token_type) {
-          token_type = TOKEN_NUMBER_DECIMAL;
-          SLURP_DECIMAL_NUMBER();
-
-          if (THIS == '.') {
-            token_type = TOKEN_NUMBER_FRACTIONAL;
-            ADVANCE('.');
+          if (!literal_type) {
+            literal_type = NUMBER_DECIMAL;
             SLURP_DECIMAL_NUMBER();
-          }
-        }
 
-        COMMIT(token_type);
+            if (THIS == '.') {
+              literal_type = NUMBER_FRACTION;
+              ADVANCE('.');
+              SLURP_DECIMAL_NUMBER();
+            }
+          }
+
+          tokens[token_idx++] = (Token) { TOKEN_LITERAL, *file, line_no, line_pos - LENGTH, SOURCE, literal_type, 1 };
+        }
         break;
       case ',':
       case '(':
@@ -148,18 +148,18 @@ TokenList* tokenize_string(String* file, String* input) {
       case '{':
       case '}':
         ADVANCE(THIS);
-        COMMIT(TOKEN_SYNTAX_OPERATOR);
+        tokens[token_idx++] = (Token) { TOKEN_SYNTAX_OPERATOR, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case ':':
         SLURP_OPERATOR();
-        COMMIT(TOKEN_SYNTAX_OPERATOR);
+        tokens[token_idx++] = (Token) { TOKEN_SYNTAX_OPERATOR, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case '/':
         if (NEXT == '/') {
           SLURP_TO_EOL();
           // @TODO This can potentially lead to back-to-back newlines, despite
           //       our best efforts.
-          // COMMIT(TOKEN_COMMENT);
+          // tokens[token_idx++] = (Token) { TOKEN_COMMENT, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
           break;
         } else {
           // Continue to process as an operator.
@@ -174,26 +174,26 @@ TokenList* tokenize_string(String* file, String* input) {
       case '|':
       case '~':
         SLURP_OPERATOR();
-        COMMIT(TOKEN_OPERATOR);
+        tokens[token_idx++] = (Token) { TOKEN_OPERATOR, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       default:
         SLURP_IDENT();
-        COMMIT(TOKEN_IDENTIFIER);
+        tokens[token_idx++] = (Token) { TOKEN_IDENTIFIER, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
     }
   }
 
   TokenList* list = malloc(sizeof(TokenList));
   if (token_idx) {
     if (tokens[token_idx - 1].type != TOKEN_NEWLINE) {
-      tokens[token_idx] = (Token) { TOKEN_NEWLINE, new_string("\n"), file, line_no, line_pos + 1 };
+      tokens[token_idx++] = (Token) { TOKEN_IDENTIFIER, *file, line_no, line_pos - LENGTH, *new_string("\n"), NONLITERAL, 1 };
       token_idx += 1;
     }
 
-    list->length = token_idx;
-    list->tokens = realloc(tokens, list->length * sizeof(Token));
-    list->lines = realloc(lines, list->length * sizeof(String));
+    list->count = token_idx;
+    list->tokens = realloc(tokens, list->count * sizeof(Token));
+    list->lines = realloc(lines, list->count * sizeof(String));
   } else {
-    list->length = 0;
+    list->count = 0;
     list->tokens = NULL;
     list->lines = NULL;
     free(tokens);
@@ -224,7 +224,6 @@ TokenList* tokenize_string(String* file, String* input) {
   #undef SLURP_OPERATOR
   #undef SLURP_IDENT
   #undef START
-  #undef COMMIT
 
   return list;
 }

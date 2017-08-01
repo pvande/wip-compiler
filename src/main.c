@@ -17,34 +17,48 @@
 #include "src/list.c"
 #include "src/queue.c"
 
+typedef char bool;
 
 typedef enum {
   TOKEN_UNKNOWN,
   TOKEN_DIRECTIVE,
   TOKEN_TAG,
   TOKEN_NEWLINE,
-  TOKEN_NUMBER_DECIMAL,
-  TOKEN_NUMBER_FRACTIONAL,
-  TOKEN_NUMBER_HEX,
-  TOKEN_NUMBER_BINARY,
-  TOKEN_STRING,
+  TOKEN_LITERAL,
   TOKEN_SYNTAX_OPERATOR,
   TOKEN_OPERATOR,
   TOKEN_IDENTIFIER,
 } TokenType;
 
+typedef enum {
+  NONLITERAL      = 0,
+  LITERAL_NUMBER  = (1 << 0),
+  NUMBER_DECIMAL  = (1 << 1) + 1,
+  NUMBER_HEX      = (1 << 2) + 1,
+  NUMBER_BINARY   = (1 << 3) + 1,
+  NUMBER_FRACTION = (1 << 4) + 1,
+
+  LITERAL_STRING  = (1 << 5),
+} TokenLiteralType;
+
 typedef struct {
   TokenType type;
-  String* source;
-  String* file;
+  String file;
   size_t line;
   size_t pos;
+
+  String source;
+
+  TokenLiteralType literal_type;
+  char is_well_formed;
 } Token;
 
 typedef struct {
-  Token* tokens;
+  String file;
   String* lines;
-  size_t length;
+
+  Token* tokens;
+  size_t count;
 } TokenList;
 
 
@@ -262,11 +276,10 @@ int main(int argc, char** argv) {
       TypecheckJob* job = (TypecheckJob*) _job;
 
       // @TODO Implement typechecking.
-
       {
         Declaration* decl = job->declaration;
         if (decl->type == NULL) {
-          decl->type = &(Token) { TOKEN_IDENTIFIER, new_string("int"), NULL, 0, 0 };
+          decl->type = &(Token) { TOKEN_IDENTIFIER, *new_string(""), 0, 0, *new_string("void"), NONLITERAL, 1 };
         }
       }
 
@@ -309,13 +322,13 @@ int main(int argc, char** argv) {
         for (size_t i = 0; i < ws.declaration_count; i++) {
           Declaration* decl = list_get(ws.resolved_declarations, i);
 
-          printf("%s ·%s", to_zero_terminated_string(decl->type->source),
-                          to_zero_terminated_string(decl->name->source));
+          printf("%s ·%s", to_zero_terminated_string(&decl->type->source),
+                           to_zero_terminated_string(&decl->name->source));
           if (decl->value && decl->value->type == EXPR_FUNCTION) {
             printf("()");
           }
           printf(";  // Line %zu of ", decl->name->line + 1);
-          print_string(decl->name->file);
+          print_string(&decl->name->file);
           printf("\n");
         }
 
@@ -323,8 +336,8 @@ int main(int argc, char** argv) {
         for (size_t i = 0; i < ws.declaration_count; i++) {
           Declaration* decl = list_get(ws.resolved_declarations, i);
 
-          printf("%s ·%s", to_zero_terminated_string(decl->type->source),
-                          to_zero_terminated_string(decl->name->source));
+          printf("%s ·%s", to_zero_terminated_string(&decl->type->source),
+                           to_zero_terminated_string(&decl->name->source));
           if (decl->value && decl->value->type == EXPR_FUNCTION) {
             printf("()");
           }
