@@ -424,7 +424,7 @@ void parse_namespace() {
         continue;
       }
 
-      // @TODO Figure this out better.
+      // @TODO Figure out what we're doing with declarations.
       ParserScope* scope = CURRENT_SCOPE;
       list_add(scope->declarations, decl);
     } else {
