@@ -90,6 +90,15 @@ typedef enum {
   EXPR_BINARY_OP,
 } ExpressionType;
 
+typedef enum {
+  STATEMENT_ASSIGNMENT,
+  STATEMENT_BLOCK,
+  STATEMENT_CONDITIONAL,
+  STATEMENT_DECLARATION,
+  STATEMENT_EXPRESSION,
+  STATEMENT_LOOP,
+} StatementType;
+
 typedef struct {
   Symbol name;
 } AstType;
@@ -136,6 +145,11 @@ typedef struct {
   AstType* type;
   AstExpression* value;
 } AstDeclaration;
+
+typedef struct {
+  StatementType type;
+  void* data;
+} AstStatement;
 
 
 typedef enum {

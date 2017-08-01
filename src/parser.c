@@ -160,6 +160,10 @@ int test_directive() {
   return peek(TOKEN_DIRECTIVE);
 }
 
+int test_code_block() {
+  return peek_op(OP_OPEN_BRACE);
+}
+
 int test_function_expression() {
   int result = 0;
 
@@ -184,7 +188,8 @@ int test_function_expression() {
 
 
 // ** Parser States ** //
-void* parse_declaration();  // @TODO Make this forward declaration unnecessary.
+void* parse_declaration();
+void* parse_expression();
 
 void* parse_argument_list() {
   List* arguments = new_list(1, 8);
@@ -239,6 +244,44 @@ void* parse_return_type() {
   }
 }
 
+void* parse_code_block() {
+  if (!accept_op(OP_OPEN_BRACE)) {
+    error("Expected code block");
+    return NULL;
+  }
+
+  List* body = new_list(4, 8);
+
+  while (!peek_op(OP_CLOSE_BRACE)) {
+    accept(TOKEN_NEWLINE);
+    if (test_declaration()) {
+      AstDeclaration* decl = parse_declaration();
+      AstStatement* stmt = calloc(1, sizeof(AstStatement));
+      stmt->type = STATEMENT_DECLARATION;
+      stmt->data = decl;
+
+      list_add(body, stmt);
+    } else {
+      AstExpression* expr = parse_expression();
+      AstStatement* stmt = calloc(1, sizeof(AstStatement));
+      stmt->type = STATEMENT_EXPRESSION;
+      stmt->data = expr;
+
+      list_add(body, stmt);
+    }
+    accept(TOKEN_NEWLINE);
+  }
+
+  // List* body = slurp_code_block();
+  if (!accept_op(OP_CLOSE_BRACE)) {
+    // @Leak args, returns, body
+    error("Unexpected termination of code block");
+    return NULL;
+  }
+
+  return body;
+}
+
 void* parse_function_expression() {
   accept_op(OP_OPEN_PAREN);
   List* args = parse_argument_list();
@@ -248,17 +291,7 @@ void* parse_function_expression() {
 
   AstType* returns = parse_return_type();
 
-  if (!accept_op(OP_OPEN_BRACE)) {
-    // @Leak args, returns
-    error("Expected code block");
-    return NULL;
-  }
-  List* body = slurp_code_block();
-  if (!accept_op(OP_CLOSE_BRACE)) {
-    // @Leak args, returns, body
-    error("Unexpected termination of code block");
-    return NULL;
-  }
+  List* body = parse_code_block();
 
   FunctionExpression* expr = calloc(1, sizeof(FunctionExpression));
   expr->base.type = EXPR_FUNCTION;

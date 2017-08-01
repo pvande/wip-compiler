@@ -1,3 +1,6 @@
+int indentation = 0;
+#define INDENT  for (int __indent = 0; __indent < indentation; __indent++) printf("  ");
+
 void output_symbol(Symbol x) {
   String* str = symbol_lookup(x);
   for (int i = 0; i < str->length; i++) printf("%c", str->data[i]);
@@ -41,7 +44,25 @@ void output_forward_declaration(AstDeclaration* decl) {
 void output_function_implementation(AstDeclaration* decl) {
   output_function_declaration(decl);
   printf(" {\n");
+  indentation += 1;
+
   // Output function body.
+  FunctionExpression* fn = (FunctionExpression*) decl->value;
+  for (int i = 0; i < fn->body->size; i++) {
+    AstStatement* stmt = list_get(fn->body, i);
+
+    if (stmt->type == STATEMENT_DECLARATION) {
+      INDENT;
+      print_pointer(stmt->data);
+      printf("; // Declaration\n");
+    } else if (stmt->type == STATEMENT_EXPRESSION) {
+      INDENT;
+      print_pointer(stmt->data);
+      printf("; // Expression\n");
+    }
+  }
+
+  indentation -= 1;
   printf("}\n\n");
 }
 
