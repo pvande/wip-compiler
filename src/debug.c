@@ -140,7 +140,7 @@ void print_return_type(ReturnType* type) {
   print_token(type->type);
 }
 
-void print_expression(Expression* _expr) {
+void print_expression(AstExpression* _expr) {
   if (_expr->type == EXPR_IDENT) {
     IdentifierExpression* expr = (void*) _expr;
     print_token(expr->identifier);

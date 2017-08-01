@@ -92,20 +92,20 @@ typedef enum {
 
 typedef struct {
   ExpressionType type;
-} Expression;
+} AstExpression;
 
 typedef struct {
-  Expression base;
+  AstExpression base;
   Token* identifier;
 } IdentifierExpression;
 
 typedef struct {
-  Expression base;
+  AstExpression base;
   Token* literal;
 } LiteralExpression;
 
 typedef struct {
-  Expression base;
+  AstExpression base;
   String* name;
   ParserScope* scope;
   List* arguments;
@@ -115,16 +115,16 @@ typedef struct {
 } FunctionExpression;
 
 typedef struct {
-  Expression base;
+  AstExpression base;
   Token* operator;
-  Expression* rhs;
+  AstExpression* rhs;
 } UnaryOpExpression;
 
 typedef struct {
-  Expression base;
+  AstExpression base;
   Token* operator;
-  Expression* lhs;
-  Expression* rhs;
+  AstExpression* lhs;
+  AstExpression* rhs;
 } BinaryOpExpression;
 
 
@@ -136,7 +136,7 @@ typedef struct {
 typedef struct {
   Token* name;
   Token* type;
-  Expression* value;
+  AstExpression* value;
 } AstDeclaration;
 
 

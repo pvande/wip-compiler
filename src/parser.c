@@ -303,14 +303,14 @@ void* parse_function_expression() {
 
 // @Cleanup Replace these dynamic allocations with a growable pool.
 void* parse_expression() {
-  Expression* result = NULL;
+  AstExpression* result = NULL;
 
   if (accept(TOKEN_IDENTIFIER)) {
     IdentifierExpression* expr = malloc(sizeof(IdentifierExpression));
     expr->base.type = EXPR_IDENT;
     expr->identifier = ACCEPTED;
 
-    result = (Expression*) expr;
+    result = (AstExpression*) expr;
   } else if (accept(TOKEN_LITERAL)) {
     if (! ACCEPTED->is_well_formed) {
       error("Malformed literal.");
@@ -321,7 +321,7 @@ void* parse_expression() {
     expr->base.type = EXPR_LITERAL;
     expr->literal = ACCEPTED;
 
-    result = (Expression*) expr;
+    result = (AstExpression*) expr;
   } else if (test_function_expression()) {
     result = parse_function_expression();
   } else if (accept_op(OP_OPEN_PAREN)) {
@@ -336,7 +336,7 @@ void* parse_expression() {
       return NULL;
     }
 
-    result = (Expression*) expr;
+    result = (AstExpression*) expr;
   } else if (accept(TOKEN_OPERATOR)) {
     UnaryOpExpression* expr = malloc(sizeof(UnaryOpExpression));
     expr->base.type = EXPR_UNARY_OP;
@@ -350,7 +350,7 @@ void* parse_expression() {
     // @Lazy I know there's a cleaner way to handle this.
     {
       UnaryOpExpression* parent = expr;
-      Expression* subexpr = expr->rhs;
+      AstExpression* subexpr = expr->rhs;
       while (((UnaryOpExpression*) parent)->rhs->type == EXPR_BINARY_OP) {
         parent = (void*) subexpr;
         subexpr = parent->rhs;
@@ -358,10 +358,10 @@ void* parse_expression() {
 
       if (parent != expr) {
         result = expr->rhs;
-        parent->rhs = (Expression*) expr;
+        parent->rhs = (AstExpression*) expr;
         expr->rhs = subexpr;
       } else {
-        result = (Expression*) expr;
+        result = (AstExpression*) expr;
       }
     }
 
@@ -383,7 +383,7 @@ void* parse_expression() {
       return NULL;
     }
 
-    result = (Expression*) expr;
+    result = (AstExpression*) expr;
   }
 
   return result;
@@ -407,7 +407,7 @@ void* parse_directive() {
 void* parse_declaration() {
   Token* name = NULL;
   Token* type = NULL;
-  Expression* value = NULL;
+  AstExpression* value = NULL;
 
   accept(TOKEN_IDENTIFIER);
   name = ACCEPTED;
