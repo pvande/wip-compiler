@@ -36,7 +36,7 @@ void output_function_implementation(AstDeclaration* decl) {
   output_function_declaration(decl);
   printf(" {\n");
   // Output function body.
-  printf("}\n");
+  printf("}\n\n");
 }
 
 void output_c_code_for_declarations(List* declarations) {
