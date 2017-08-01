@@ -10,13 +10,11 @@ void output_mangled_name(Symbol name) {
   printf("·"); output_symbol(name);
 }
 
-void output_function_declaration(AstDeclaration* decl) {
-  FunctionExpression* fn = (FunctionExpression*) decl->value;
-
+void output_function_declaration(FunctionExpression* fn) {
   // @TODO Bring back location identifying information for debugging.
   output_symbol(fn->returns.name);
   printf(" ");
-  output_mangled_name(decl->name);
+  output_mangled_name(fn->name);
   printf("(");
   for (int i = 0; i < fn->arguments->size; i++) {
     if (i > 0) printf(", ");
@@ -34,20 +32,37 @@ void output_forward_variable_declaration(AstDeclaration* decl) {
 
 void output_forward_declaration(AstDeclaration* decl) {
   if (decl->value && decl->value->type == EXPR_FUNCTION) {
-    output_function_declaration(decl);
+    output_function_declaration((FunctionExpression*) decl->value);
     printf(";\n");
   } else {
     output_forward_variable_declaration(decl);
   }
 }
 
-void output_function_implementation(AstDeclaration* decl) {
-  output_function_declaration(decl);
-  printf(" {\n");
+void output_code_block(FunctionExpression* fn);
+void output_expression(AstExpression* expr) {
+  if (expr->type == EXPR_LITERAL) {
+    LiteralExpression* lit = (LiteralExpression*) expr;{}
+    String x = lit->literal->source;
+    for (int i = 0; i < x.length; i++) printf("%c", x.data[i]);
+  } else if (expr->type == EXPR_CALL) {
+    CallExpression* call = (CallExpression*) expr;
+    output_symbol(call->function);
+    printf("(");
+    for (int i = 0; i < call->arguments->size; i++) {
+      if (i > 0) printf(", ");
+      AstExpression* e = list_get(call->arguments, i);
+      output_expression(e);
+    }
+    printf(")");
+  }
+}
+
+void output_code_block(FunctionExpression* fn) {
+  printf("{\n");
   indentation += 1;
 
   // Output function body.
-  FunctionExpression* fn = (FunctionExpression*) decl->value;
   for (int i = 0; i < fn->body->size; i++) {
     AstStatement* stmt = list_get(fn->body, i);
 
@@ -57,7 +72,7 @@ void output_function_implementation(AstDeclaration* decl) {
       printf("; // Declaration\n");
     } else if (stmt->type == STATEMENT_EXPRESSION) {
       INDENT;
-      print_pointer(stmt->data);
+      output_expression(stmt->data);
       printf("; // Expression\n");
     }
   }
@@ -79,7 +94,10 @@ void output_c_code_for_declarations(List* declarations) {
   for (size_t i = 0; i < declarations->size; i++) {
     AstDeclaration* decl = list_get(declarations, i);
     if (decl->value && decl->value->type == EXPR_FUNCTION) {
-      output_function_implementation(decl);
+      FunctionExpression* fn = (FunctionExpression*) decl->value;
+      output_function_declaration(fn);
+      printf(" ");
+      output_code_block(fn);
     }
   }
 
