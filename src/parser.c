@@ -473,7 +473,7 @@ void parse_namespace() {
   }
 }
 
-void parse_file(TokenList* list, ParserScope* global) {
+void parse_file(TokenizedFile* list, ParserScope* global) {
   __parser_state = (ParserState) {
     .list = *list,
     .pos = 0,

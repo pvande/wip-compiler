@@ -15,7 +15,7 @@ const char OPERATORS[256 - 32] = {
 
 // @Precondition: file data is never freed.
 // @Precondition: input data is never freed.
-TokenList* tokenize_string(String* file, String* input) {
+TokenizedFile* tokenize_string(String* file, String* input) {
   // @Lazy: We're allocating as much memory as we could ever possibly need, in
   // the hopes that we can avoid ever having to reallocate mid-routine.  This is
   // likely *way* more memory than we actually need, but it's at least cheap and
@@ -182,20 +182,22 @@ TokenList* tokenize_string(String* file, String* input) {
     }
   }
 
-  TokenList* list = malloc(sizeof(TokenList));
+  TokenizedFile* result = malloc(sizeof(TokenizedFile));
+  result->file = *file;
+
   if (token_idx) {
     if (tokens[token_idx - 1].type != TOKEN_NEWLINE) {
       tokens[token_idx++] = (Token) { TOKEN_IDENTIFIER, *file, line_no, line_pos - LENGTH, *new_string("\n"), NONLITERAL, 1 };
       token_idx += 1;
     }
 
-    list->count = token_idx;
-    list->tokens = realloc(tokens, list->count * sizeof(Token));
-    list->lines = realloc(lines, list->count * sizeof(String));
+    result->count = token_idx;
+    result->tokens = realloc(tokens, result->count * sizeof(Token));
+    result->lines = realloc(lines, result->count * sizeof(String));
   } else {
-    list->count = 0;
-    list->tokens = NULL;
-    list->lines = NULL;
+    result->count = 0;
+    result->tokens = NULL;
+    result->lines = NULL;
     free(tokens);
     free(lines);
   }
@@ -225,5 +227,5 @@ TokenList* tokenize_string(String* file, String* input) {
   #undef SLURP_IDENT
   #undef START
 
-  return list;
+  return result;
 }

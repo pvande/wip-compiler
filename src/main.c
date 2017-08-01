@@ -59,7 +59,7 @@ typedef struct {
 
   Token* tokens;
   size_t count;
-} TokenList;
+} TokenizedFile;
 
 
 typedef struct {
@@ -74,7 +74,7 @@ typedef struct ParserScope {
 } ParserScope;
 
 typedef struct {
-  TokenList list;
+  TokenizedFile list;
   size_t pos;
 
   ParserScope* current_scope;
@@ -168,7 +168,7 @@ typedef struct {
 typedef struct {
   Job base;
   String* filename;
-  TokenList* tokens;
+  TokenizedFile* tokens;
 } ParseJob;
 
 typedef struct {
@@ -252,7 +252,7 @@ int main(int argc, char** argv) {
     } else if (_job->type == JOB_LEX) {
       LexJob* job = (LexJob*) _job;
 
-      TokenList* tokens = tokenize_string(job->filename, job->source);
+      TokenizedFile* tokens = tokenize_string(job->filename, job->source);
       pipeline_emit_parse_job(job->filename, tokens);
       did_work = 1;
 

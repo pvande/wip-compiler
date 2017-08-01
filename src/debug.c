@@ -73,13 +73,13 @@ void inspect_token(Token t) {
   printf("»\n");
 }
 
-void print_token_list(TokenList* list){
+void print_tokenized_file(TokenizedFile* list){
   if (list == NULL) {
-    fprintf(stderr, "NULL TokenList returned!");
+    fprintf(stderr, "NULL TokenizedFile returned!");
     return;
   }
 
-  TokenList t = *list;
+  TokenizedFile t = *list;
   printf("List [ %ju ]\n", t.count);
 
   for (uintmax_t i = 0; i < t.count; i++) {

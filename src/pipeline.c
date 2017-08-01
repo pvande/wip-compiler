@@ -34,7 +34,7 @@ void pipeline_emit_lex_job(String* filename, String* source) {
   pipeline_emit(job);
 }
 
-void pipeline_emit_parse_job(String* filename, TokenList* tokens) {
+void pipeline_emit_parse_job(String* filename, TokenizedFile* tokens) {
   // printf("Emitting FileParseJob for %zu tokens of ", tokens->length); print_string(filename); printf("\n");
 
   // @Lazy We should use a pool allocator.
