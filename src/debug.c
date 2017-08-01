@@ -185,7 +185,7 @@ void print_expression(Expression* _expr) {
   printf(")");
 }
 
-void print_declaration(Declaration* decl) {
+void print_declaration(AstDeclaration* decl) {
   print_token(decl->name);
   printf(" : ");
 
@@ -207,7 +207,7 @@ void print_declaration(Declaration* decl) {
 void print_declaration_list(List* list) {
   printf("[\n");
   for (int i = 0; i < list->size; i++) {
-    Declaration* decl = list_get(list, i);
+    AstDeclaration* decl = list_get(list, i);
     printf("    ");
     print_declaration(decl);
     printf("\n");

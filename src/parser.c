@@ -191,7 +191,7 @@ void* parse_argument_list() {
 
   if (peek_op(OP_CLOSE_PAREN)) return arguments;
 
-  Declaration* decl = parse_declaration();
+  AstDeclaration* decl = parse_declaration();
   if (decl == NULL) {
     error("Got a NULL declaration when we shouldn't have");
     return arguments;
@@ -199,7 +199,7 @@ void* parse_argument_list() {
   list_add(arguments, decl);
 
   while (accept_op(OP_COMMA)) {
-    Declaration* decl = parse_declaration();
+    AstDeclaration* decl = parse_declaration();
     if (decl == NULL) {
       error("Got a NULL declaration when we shouldn't have");
       return arguments;
@@ -433,7 +433,7 @@ void* parse_declaration() {
     ((FunctionExpression*) value)->name = &name->source;
   }
 
-  Declaration* decl = malloc(sizeof(Declaration));
+  AstDeclaration* decl = malloc(sizeof(AstDeclaration));
   decl->name = name;
   decl->type = type;
   decl->value = value;
@@ -451,7 +451,7 @@ void parse_namespace() {
       // @TODO Actually implement these directives.
       error("Hey, got a directive");
     } else if (test_declaration()) {
-      Declaration* decl = parse_declaration();
+      AstDeclaration* decl = parse_declaration();
       if (decl == NULL) {
         error("Malformed declaration");
         while (accept(TOKEN_NEWLINE));

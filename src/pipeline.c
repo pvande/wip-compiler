@@ -46,7 +46,7 @@ void pipeline_emit_parse_job(String* filename, TokenizedFile* tokens) {
   pipeline_emit(job);
 }
 
-void pipeline_emit_typecheck_job(Declaration* decl) {
+void pipeline_emit_typecheck_job(AstDeclaration* decl) {
   // printf("Emitting TypecheckJob for "); print_string(decl->name->source); printf(" in "); print_string(decl->name->file); printf(" line %zu\n", decl->name->line);
 
   // @Lazy We should use a pool allocator.
@@ -57,7 +57,7 @@ void pipeline_emit_typecheck_job(Declaration* decl) {
   pipeline_emit(job);
 }
 
-void pipeline_emit_optimize_job(Declaration* decl) {
+void pipeline_emit_optimize_job(AstDeclaration* decl) {
   // printf("Emitting OptimizeJob for "); print_string(decl->name->source); printf(" in "); print_string(decl->name->file); printf(" line %zu\n", decl->name->line);
 
   // @Lazy We should use a pool allocator.
@@ -68,7 +68,7 @@ void pipeline_emit_optimize_job(Declaration* decl) {
   pipeline_emit(job);
 }
 
-void pipeline_emit_bytecode_job(Declaration* decl) {
+void pipeline_emit_bytecode_job(AstDeclaration* decl) {
   // printf("Emitting BytecodeJob for "); print_string(decl->name->source); printf(" in "); print_string(decl->name->file); printf(" line %zu\n", decl->name->line);
 
   // @Lazy We should use a pool allocator.

@@ -137,7 +137,7 @@ typedef struct {
   Token* name;
   Token* type;
   Expression* value;
-} Declaration;
+} AstDeclaration;
 
 
 typedef enum {
@@ -174,17 +174,17 @@ typedef struct {
 
 typedef struct {
   Job base;
-  Declaration* declaration;
+  AstDeclaration* declaration;
 } TypecheckJob;
 
 typedef struct {
   Job base;
-  Declaration* declaration;
+  AstDeclaration* declaration;
 } OptimizeJob;
 
 typedef struct {
   Job base;
-  Declaration* declaration;
+  AstDeclaration* declaration;
 } BytecodeJob;
 
 typedef struct {
@@ -267,7 +267,7 @@ int main(int argc, char** argv) {
 
       ws.declaration_count += file_scope->declarations->size;
       for (int i = 0; i < ws.declaration_count; i++) {
-        Declaration* decl = list_get(file_scope->declarations, i);
+        AstDeclaration* decl = list_get(file_scope->declarations, i);
         pipeline_emit_typecheck_job(decl);
       }
 
@@ -278,7 +278,7 @@ int main(int argc, char** argv) {
 
       // @TODO Implement typechecking.
       {
-        Declaration* decl = job->declaration;
+        AstDeclaration* decl = job->declaration;
         if (decl->type == NULL) {
           decl->type = &(Token) { TOKEN_IDENTIFIER, *new_string(""), 0, 0, *new_string("void"), NONLITERAL, 1 };
         }
@@ -321,7 +321,7 @@ int main(int argc, char** argv) {
 
         printf("\n");
         for (size_t i = 0; i < ws.declaration_count; i++) {
-          Declaration* decl = list_get(ws.resolved_declarations, i);
+          AstDeclaration* decl = list_get(ws.resolved_declarations, i);
 
           printf("%s ·%s", to_zero_terminated_string(&decl->type->source),
                            to_zero_terminated_string(&decl->name->source));
@@ -335,7 +335,7 @@ int main(int argc, char** argv) {
 
         printf("\n\n");
         for (size_t i = 0; i < ws.declaration_count; i++) {
-          Declaration* decl = list_get(ws.resolved_declarations, i);
+          AstDeclaration* decl = list_get(ws.resolved_declarations, i);
 
           printf("%s ·%s", to_zero_terminated_string(&decl->type->source),
                            to_zero_terminated_string(&decl->name->source));
