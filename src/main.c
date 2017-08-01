@@ -88,6 +88,7 @@ typedef enum {
   EXPR_FUNCTION,
   EXPR_UNARY_OP,
   EXPR_BINARY_OP,
+  EXPR_CALL,
 } ExpressionType;
 
 typedef enum {
@@ -139,6 +140,12 @@ typedef struct {
   AstExpression* lhs;
   AstExpression* rhs;
 } BinaryOpExpression;
+
+typedef struct {
+  AstExpression base;
+  Symbol function;
+  List* arguments;
+} CallExpression;
 
 typedef struct {
   Symbol name;

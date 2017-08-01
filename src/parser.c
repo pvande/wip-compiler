@@ -191,28 +191,58 @@ int test_function_expression() {
 void* parse_declaration();
 void* parse_expression();
 
-void* parse_argument_list() {
-  List* arguments = new_list(1, 8);
-
-  if (peek_op(OP_CLOSE_PAREN)) return arguments;
-
-  AstDeclaration* decl = parse_declaration();
-  if (decl == NULL) {
-    error("Got a NULL declaration when we shouldn't have");
-    return arguments;
+void* parse_declaration_tuple() {
+  if (!accept_op(OP_OPEN_PAREN)) {
+    error("Expected argument list");
+    return NULL;
   }
-  list_add(arguments, decl);
 
-  while (accept_op(OP_COMMA)) {
+  List* declarations = new_list(1, 8);
+
+  if (accept_op(OP_CLOSE_PAREN)) return declarations;
+
+  do {
     AstDeclaration* decl = parse_declaration();
     if (decl == NULL) {
       error("Got a NULL declaration when we shouldn't have");
-      return arguments;
+      return declarations;
     }
-    list_add(arguments, decl);
+    list_add(declarations, decl);
+  } while (accept_op(OP_COMMA));
+
+  if (!accept_op(OP_CLOSE_PAREN)) {
+    error("Expected to find the end of the argument list");
+    return declarations;
   }
 
-  return arguments;
+  return declarations;
+}
+
+void* parse_expression_tuple() {
+  if (!accept_op(OP_OPEN_PAREN)) {
+    error("Expected argument list");
+    return NULL;
+  }
+
+  List* expressions = new_list(1, 8);
+
+  if (accept_op(OP_CLOSE_PAREN)) return expressions;
+
+  do {
+    AstDeclaration* decl = parse_expression();
+    if (decl == NULL) {
+      error("Got a NULL expression when we shouldn't have");
+      return expressions;
+    }
+    list_add(expressions, decl);
+  } while (accept_op(OP_COMMA));
+
+  if (!accept_op(OP_CLOSE_PAREN)) {
+    error("Expected to find the end of the argument list");
+    return expressions;
+  }
+
+  return expressions;
 }
 
 void* parse_type() {
@@ -283,9 +313,7 @@ void* parse_code_block() {
 }
 
 void* parse_function_expression() {
-  accept_op(OP_OPEN_PAREN);
-  List* args = parse_argument_list();
-  accept_op(OP_CLOSE_PAREN);
+  List* args = parse_declaration_tuple();
 
   accept_op(OP_FUNC_ARROW);
 
@@ -308,7 +336,14 @@ void* parse_function_expression() {
 void* parse_expression() {
   AstExpression* result = NULL;
 
-  if (accept(TOKEN_IDENTIFIER)) {
+  if (accept(TOKEN_IDENTIFIER) && peek_syntax_op(OP_OPEN_PAREN)) {
+    CallExpression* expr = malloc(sizeof(CallExpression));
+    expr->base.type = EXPR_CALL;
+    expr->function = symbol_get(&ACCEPTED->source);
+    expr->arguments = parse_expression_tuple();
+
+    result = (AstExpression*) expr;
+  } else if (accept(TOKEN_IDENTIFIER)) {
     IdentifierExpression* expr = malloc(sizeof(IdentifierExpression));
     expr->base.type = EXPR_IDENT;
     expr->identifier = ACCEPTED;
