@@ -39,6 +39,7 @@ void print_escaped_character(unsigned char c) {
   else
     printf("\e[1;30m%s\e[m", ESCAPED[c]);
 }
+#define RAW(X, SIZE)  do { for (int i = 0; i < SIZE; i++) { print_escaped_character(((char*) X)[i]); } printf("\n"); } while (0)
 
 void print_string(String* str) {
   printf("\"");
@@ -49,7 +50,10 @@ void print_string(String* str) {
   printf("\"");
 }
 
-#define RAW(X, SIZE)  do { for (int i = 0; i < SIZE; i++) { print_escaped_character(((char*) X)[i]); } printf("\n"); } while (0)
+void print_symbol(Symbol sym) {
+  print_string(symbol_lookup(sym));
+}
+
 #define PRINT(V) _Generic((V), \
   void*: print_pointer, \
   String*: print_string, \
@@ -132,12 +136,8 @@ void print_token(Token* token) {
   printf("%s", to_zero_terminated_string(&token->source));
 }
 
-void print_return_type(ReturnType* type) {
-  if (type->name) {
-    print_token(type->name);
-    printf(" : ");
-  }
-  print_token(type->type);
+void print_ast_type(AstType* type) {
+  print_symbol(type->name);
 }
 
 void print_expression(AstExpression* _expr) {
@@ -159,12 +159,7 @@ void print_expression(AstExpression* _expr) {
     printf(")");
     printf(" => ");
 
-    printf("(");
-    for (int i = 0; i < expr->returns->size; i++) {
-      if (i > 0) printf(", ");
-      print_return_type(list_get(expr->returns, i));
-    }
-    printf(")");
+    print_ast_type(&expr->returns);
 
     printf(" {}");
   }
@@ -186,13 +181,13 @@ void print_expression(AstExpression* _expr) {
 }
 
 void print_declaration(AstDeclaration* decl) {
-  print_token(decl->name);
+  print_symbol(decl->name);
   printf(" : ");
 
   if (decl->type == NULL) {
     printf("___");
   } else {
-    print_token(decl->type);
+    print_ast_type(decl->type);
   }
 
   printf(" = ");

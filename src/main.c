@@ -91,6 +91,10 @@ typedef enum {
 } ExpressionType;
 
 typedef struct {
+  Symbol name;
+} AstType;
+
+typedef struct {
   ExpressionType type;
 } AstExpression;
 
@@ -106,10 +110,10 @@ typedef struct {
 
 typedef struct {
   AstExpression base;
-  String* name;
+  Symbol name;
   ParserScope* scope;
   List* arguments;
-  List* returns;
+  AstType returns;
   List* body;
   List* instructions;
 } FunctionExpression;
@@ -127,15 +131,9 @@ typedef struct {
   AstExpression* rhs;
 } BinaryOpExpression;
 
-
 typedef struct {
-  Token* type;
-  Token* name;
-} ReturnType;
-
-typedef struct {
-  Token* name;
-  Token* type;
+  Symbol name;
+  AstType* type;
   AstExpression* value;
 } AstDeclaration;
 
@@ -197,6 +195,7 @@ typedef struct {
 #include "src/tokenizer.c"
 #include "src/parser.c"
 #include "src/bytecode.c"
+#include "src/output.c"
 
 #ifndef TESTING
 
@@ -277,12 +276,6 @@ int main(int argc, char** argv) {
       TypecheckJob* job = (TypecheckJob*) _job;
 
       // @TODO Implement typechecking.
-      {
-        AstDeclaration* decl = job->declaration;
-        if (decl->type == NULL) {
-          decl->type = &(Token) { TOKEN_IDENTIFIER, *new_string(""), 0, 0, *new_string("void"), NONLITERAL, 1 };
-        }
-      }
 
       pipeline_emit_optimize_job(job->declaration);
 
@@ -315,40 +308,8 @@ int main(int argc, char** argv) {
     } else if (_job->type == JOB_OUTPUT) {
       OutputJob* job = (OutputJob*) _job;
 
-      // @TODO Refactor this into its own method.
-      {
-        // @TODO Inline base types and runtime support here.
-
-        printf("\n");
-        for (size_t i = 0; i < ws.declaration_count; i++) {
-          AstDeclaration* decl = list_get(ws.resolved_declarations, i);
-
-          printf("%s ·%s", to_zero_terminated_string(&decl->type->source),
-                           to_zero_terminated_string(&decl->name->source));
-          if (decl->value && decl->value->type == EXPR_FUNCTION) {
-            printf("()");
-          }
-          printf(";  // Line %zu of ", decl->name->line + 1);
-          print_string(&decl->name->file);
-          printf("\n");
-        }
-
-        printf("\n\n");
-        for (size_t i = 0; i < ws.declaration_count; i++) {
-          AstDeclaration* decl = list_get(ws.resolved_declarations, i);
-
-          printf("%s ·%s", to_zero_terminated_string(&decl->type->source),
-                           to_zero_terminated_string(&decl->name->source));
-          if (decl->value && decl->value->type == EXPR_FUNCTION) {
-            printf("()");
-          }
-          printf(" {\n");
-          printf("}\n");
-        }
-
-        printf("\n\n");
-        printf("int main() { ·main(); }\n");
-      }
+      // @Lazy Make sure the declarations are passed in the job.
+      output_c_code_for_declarations(ws.resolved_declarations);
 
       did_work = 1;
 

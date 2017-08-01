@@ -210,65 +210,33 @@ void* parse_argument_list() {
   return arguments;
 }
 
-void* parse_return_type() {
-  Token* name = NULL;
-  Token* type = NULL;
-
-  if (accept(TOKEN_IDENTIFIER)) {
-    type = ACCEPTED;
-
-    if (accept_op(OP_DECLARE)) {
-      if (accept(TOKEN_IDENTIFIER)) {
-        name = type;
-        type = ACCEPTED;
-      } else {
-        error("Expected type in return type declaration");
-        return NULL;
-      }
-    } else {
-      // Type-only return type.
-    }
-  } else {
-    error("Expected type in return type declaration");
+void* parse_type() {
+  if (!accept(TOKEN_IDENTIFIER)) {
+    error("Unknown expression; expected a type identifier");
     return NULL;
   }
 
-  ReturnType* return_type = malloc(sizeof(ReturnType));
-  return_type->type = type;
-  return_type->name = name;
-
-  return return_type;
+  AstType* type = malloc(sizeof(AstType));
+  type->name = symbol_get(&ACCEPTED->source);
+  return type;
 }
 
-void* parse_return_list() {
-  List* returns = new_list(1, 8);
+void* parse_return_type() {
+  // @TODO Handle named return values.
+  // @TODO Handle multiple return values.
 
-  if (accept_op(OP_OPEN_PAREN)) {
-    ReturnType* type = parse_return_type();
-    if (type == NULL) return returns;
-
-    list_add(returns, type);
-
-    while (accept_op(OP_COMMA)) {
-      ReturnType* type = parse_return_type();
-      if (type == NULL) return returns;
-      list_add(returns, type);
-    }
-
-    if (!accept_op(OP_CLOSE_PAREN)) {
-      error("Unbalanced parens in return type list");
-      return returns;
-    }
-  } else if (accept(TOKEN_IDENTIFIER)) {
-    ReturnType* type = malloc(sizeof(ReturnType));
-    type->type = ACCEPTED;
-    type->name = NULL;
-    list_add(returns, type);
+  if (peek(TOKEN_IDENTIFIER)) {
+    return parse_type();
+  } else if (peek_op(OP_OPEN_BRACE)) {
+    AstType* type = malloc(sizeof(AstType));
+    String* name = new_string("void");  // @TODO Really?  We're allocating here?
+    type->name = symbol_get(name);
+    free(name);
+    return type;
   } else {
-    // Void return
+    error("Expected return type, got whatever this is...");
+    return NULL;
   }
-
-  return returns;
 }
 
 void* parse_function_expression() {
@@ -278,7 +246,7 @@ void* parse_function_expression() {
 
   accept_op(OP_FUNC_ARROW);
 
-  List* returns = parse_return_list();
+  AstType* returns = parse_return_type();
 
   if (!accept_op(OP_OPEN_BRACE)) {
     // @Leak args, returns
@@ -295,8 +263,10 @@ void* parse_function_expression() {
   FunctionExpression* expr = calloc(1, sizeof(FunctionExpression));
   expr->base.type = EXPR_FUNCTION;
   expr->arguments = args;
-  expr->returns = returns;
+  expr->returns = *returns;
   expr->body = body;
+
+  free(returns);
 
   return expr;
 }
@@ -389,15 +359,6 @@ void* parse_expression() {
   return result;
 }
 
-void* parse_type() {
-  if (!accept(TOKEN_IDENTIFIER)) {
-    error("Unknown expression; expected a type identifier");
-    return NULL;
-  }
-
-  return ACCEPTED;
-}
-
 void* parse_directive() {
   // @TODO Actually process this directive.
   accept(TOKEN_DIRECTIVE);
@@ -405,12 +366,11 @@ void* parse_directive() {
 }
 
 void* parse_declaration() {
-  Token* name = NULL;
-  Token* type = NULL;
+  AstType* type = NULL;
   AstExpression* value = NULL;
 
   accept(TOKEN_IDENTIFIER);
-  name = ACCEPTED;
+  Symbol name = symbol_get(&ACCEPTED->source);
 
   if (accept_op(OP_DECLARE)) {
     type = parse_type();
@@ -428,12 +388,13 @@ void* parse_declaration() {
     }
   }
 
+  // Naming the function expression.
   // @Lazy Is this the best place to handle this?
   if (value != NULL && value->type == EXPR_FUNCTION) {
-    ((FunctionExpression*) value)->name = &name->source;
+    ((FunctionExpression*) value)->name = name;
   }
 
-  AstDeclaration* decl = malloc(sizeof(AstDeclaration));
+  AstDeclaration* decl = calloc(1, sizeof(AstDeclaration));
   decl->name = name;
   decl->type = type;
   decl->value = value;
