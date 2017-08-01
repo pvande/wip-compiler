@@ -15,7 +15,13 @@ void output_function_declaration(AstDeclaration* decl) {
   printf(" ");
   output_mangled_name(decl->name);
   printf("(");
-  // Output arguments list.
+  for (int i = 0; i < fn->arguments->size; i++) {
+    if (i > 0) printf(", ");
+    AstDeclaration* arg = list_get(fn->arguments, i);
+    output_symbol(arg->type->name);
+    printf(" ");
+    output_symbol(arg->name);
+  }
   printf(")");
 }
 
