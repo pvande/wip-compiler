@@ -133,87 +133,85 @@ void print_list(List* list) {
   printf("]");
 }
 
-void print_declaration();
-
 void print_token(Token* token) {
   printf("%s", to_zero_terminated_string(&token->source));
 }
 
-void print_ast_type(AstType* type) {
-  print_symbol(type->name);
-}
-
-void print_expression(AstExpression* _expr) {
-  if (_expr->type == EXPR_IDENT) {
-    IdentifierExpression* expr = (void*) _expr;
-    print_token(expr->identifier);
-    return;
-  } else if (_expr->type == EXPR_LITERAL) {
-    LiteralExpression* expr = (void*) _expr;
-    print_token(expr->literal);
-    return;
-  } else if (_expr->type == EXPR_FUNCTION) {
-    FunctionExpression* expr = (void*) _expr;
-    printf("(");
-    for (int i = 0; i < expr->arguments->size; i++) {
-      if (i > 0) printf(", ");
-      print_declaration(list_get(expr->arguments, i));
-    }
-    printf(")");
-    printf(" => ");
-
-    print_ast_type(&expr->returns);
-
-    printf(" {}");
-  }
-
-  printf("(");
-  if (_expr->type == EXPR_UNARY_OP) {
-    UnaryOpExpression* expr = (void*) _expr;
-    if (expr->operator->source.data[0] != '(') print_token(expr->operator);
-    print_expression(expr->rhs);
-  } else if (_expr->type == EXPR_BINARY_OP) {
-    BinaryOpExpression* expr = (void*) _expr;
-    print_expression(expr->lhs);
-    printf(" ");
-    print_token(expr->operator);
-    printf(" ");
-    print_expression(expr->rhs);
-  }
-  printf(")");
-}
-
-void print_declaration(AstDeclaration* decl) {
-  print_symbol(decl->name);
-  printf(" : ");
-
-  if (decl->type == NULL) {
-    printf("___");
-  } else {
-    print_ast_type(decl->type);
-  }
-
-  printf(" = ");
-
-  if (decl->value == NULL) {
-    printf("NULL");
-  } else {
-    print_expression(decl->value);
-  }
-}
-
-void print_declaration_list(List* list) {
-  printf("[\n");
-  for (int i = 0; i < list->size; i++) {
-    AstDeclaration* decl = list_get(list, i);
-    printf("    ");
-    print_declaration(decl);
-    printf("\n");
-  }
-  printf("  ]");
-}
-
-void print_scope(ParserScope* scope) {
-  printf("\n\nScope: ");
-  print_declaration_list(scope->declarations);
-}
+// void print_ast_type(AstType* type) {
+//   print_symbol(type->name);
+// }
+//
+// void print_expression(AstExpression* _expr) {
+//   if (_expr->type == EXPR_IDENT) {
+//     IdentifierExpression* expr = (void*) _expr;
+//     print_token(expr->identifier);
+//     return;
+//   } else if (_expr->type == EXPR_LITERAL) {
+//     LiteralExpression* expr = (void*) _expr;
+//     print_token(expr->literal);
+//     return;
+//   } else if (_expr->type == EXPR_FUNCTION) {
+//     FunctionExpression* expr = (void*) _expr;
+//     printf("(");
+//     for (int i = 0; i < expr->arguments->size; i++) {
+//       if (i > 0) printf(", ");
+//       print_declaration(list_get(expr->arguments, i));
+//     }
+//     printf(")");
+//     printf(" => ");
+//
+//     print_ast_type(&expr->returns);
+//
+//     printf(" {}");
+//   }
+//
+//   printf("(");
+//   if (_expr->type == EXPR_UNARY_OP) {
+//     UnaryOpExpression* expr = (void*) _expr;
+//     if (expr->operator->source.data[0] != '(') print_token(expr->operator);
+//     print_expression(expr->rhs);
+//   } else if (_expr->type == EXPR_BINARY_OP) {
+//     BinaryOpExpression* expr = (void*) _expr;
+//     print_expression(expr->lhs);
+//     printf(" ");
+//     print_token(expr->operator);
+//     printf(" ");
+//     print_expression(expr->rhs);
+//   }
+//   printf(")");
+// }
+//
+// void print_declaration(AstDeclaration* decl) {
+//   print_symbol(decl->name);
+//   printf(" : ");
+//
+//   if (decl->type == NULL) {
+//     printf("___");
+//   } else {
+//     print_ast_type(decl->type);
+//   }
+//
+//   printf(" = ");
+//
+//   if (decl->value == NULL) {
+//     printf("NULL");
+//   } else {
+//     print_expression(decl->value);
+//   }
+// }
+//
+// void print_declaration_list(List* list) {
+//   printf("[\n");
+//   for (int i = 0; i < list->size; i++) {
+//     AstDeclaration* decl = list_get(list, i);
+//     printf("    ");
+//     print_declaration(decl);
+//     printf("\n");
+//   }
+//   printf("  ]");
+// }
+//
+// void print_scope(ParserScope* scope) {
+//   printf("\n\nScope: ");
+//   print_declaration_list(scope->declarations);
+// }

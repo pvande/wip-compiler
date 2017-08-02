@@ -102,63 +102,80 @@ typedef enum {
   STATEMENT_LOOP,
 } StatementType;
 
-typedef struct {
-  Symbol name;
-} AstType;
+typedef enum {
+  NODE_ASSIGNMENT,
+  NODE_BLOCK,
+  NODE_CONDITIONAL,
+  NODE_DECLARATION,
+  NODE_EXPRESSION,
+  NODE_FOREACH,
+} AstNodeType;
 
 typedef struct {
-  ExpressionType type;
-} AstExpression;
+  AstNodeType node_type;
 
-typedef struct {
-  AstExpression base;
-  Token* identifier;
-} IdentifierExpression;
+} AstNode;
 
-typedef struct {
-  AstExpression base;
-  Token* literal;
-} LiteralExpression;
 
-typedef struct {
-  AstExpression base;
-  Symbol name;
-  ParserScope* scope;
-  List* arguments;
-  AstType returns;
-  List* body;
-  List* instructions;
-} FunctionExpression;
-
-typedef struct {
-  AstExpression base;
-  Token* operator;
-  AstExpression* rhs;
-} UnaryOpExpression;
-
-typedef struct {
-  AstExpression base;
-  Token* operator;
-  AstExpression* lhs;
-  AstExpression* rhs;
-} BinaryOpExpression;
-
-typedef struct {
-  AstExpression base;
-  Symbol function;
-  List* arguments;
-} CallExpression;
-
-typedef struct {
-  Symbol name;
-  AstType* type;
-  AstExpression* value;
-} AstDeclaration;
-
-typedef struct {
-  StatementType type;
-  void* data;
-} AstStatement;
+/// -----------------
+// typedef struct {
+//   Symbol name;
+// } AstType;
+//
+// typedef struct {
+//   ExpressionType type;
+// } AstExpression;
+//
+// typedef struct {
+//   AstExpression base;
+//   Token* identifier;
+// } IdentifierExpression;
+//
+// typedef struct {
+//   AstExpression base;
+//   Token* literal;
+// } LiteralExpression;
+//
+// typedef struct {
+//   AstExpression base;
+//   Symbol name;
+//   ParserScope* scope;
+//   List* arguments;
+//   AstType returns;
+//   List* body;
+//   List* instructions;
+// } FunctionExpression;
+//
+// typedef struct {
+//   AstExpression base;
+//   Token* operator;
+//   AstExpression* rhs;
+// } UnaryOpExpression;
+//
+// typedef struct {
+//   AstExpression base;
+//   Token* operator;
+//   AstExpression* lhs;
+//   AstExpression* rhs;
+// } BinaryOpExpression;
+//
+// typedef struct {
+//   AstExpression base;
+//   Symbol function;
+//   List* arguments;
+// } CallExpression;
+//
+// typedef struct {
+//   Symbol name;
+//   AstType* type;
+//   AstExpression* value;
+// } AstDeclaration;
+//
+// typedef struct {
+//   StatementType type;
+//   void* data;
+// } AstStatement;
+/// -----------------
 
 #include "src/debug.c"
 
