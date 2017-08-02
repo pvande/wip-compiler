@@ -13,6 +13,7 @@ int __failed_assertions = 0;
 
 #include "tests/table.c"
 #include "tests/list.c"
+#include "tests/pool.c"
 
 int main() {
   printf("\nTABLE TESTS\n");
@@ -20,6 +21,9 @@ int main() {
 
   printf("\nLIST TESTS\n");
   run_all_list_tests();
+
+  printf("\nPOOL TESTS\n");
+  run_all_pool_tests();
 
   printf("\n\e[0;32m%d\e[0m tests, \e[0;32m%d\e[0m assertions, \e[0;31m%d\e[0m failures\n", __tests_run, __assertions, __failed_assertions);
   return 0;

@@ -15,6 +15,7 @@
 #include "src/file.c"
 #include "src/table.c"
 #include "src/list.c"
+#include "src/pool.c"
 #include "src/queue.c"
 #include "src/stack.c"
 #include "src/symbol.c"
