@@ -229,3 +229,9 @@ TokenizedFile* tokenize_string(String* file, String* input) {
 
   return result;
 }
+
+bool perform_lex_job(LexJob* job) {
+  TokenizedFile* tokens = tokenize_string(job->filename, job->source);
+  pipeline_emit_parse_job(job->filename, tokens);
+  return 1;
+}
