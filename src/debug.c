@@ -60,10 +60,12 @@ void print_symbol(Symbol sym) {
   String*: print_string, \
   size_t: __print_size_t, \
   TokenType: __print_int, \
-  int: __print_int \
+  int: __print_int, \
+  long: __print_long \
 )(V)
 #define GEN_PRINT(TYPE, SPECIFIER_STR) int __print_##TYPE(TYPE x) { return printf(SPECIFIER_STR, x);}
 GEN_PRINT(size_t, "%ju");
+GEN_PRINT(long, "%zu");
 GEN_PRINT(int, "%d");
 
 void print_pointer(void* x) {

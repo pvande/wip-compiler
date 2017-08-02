@@ -86,8 +86,55 @@ void test_pool_get() {
   ASSERT_STR_EQ(expected, new_string("hey"), "correctly allocates adjacent slots");
 }
 
+void test_pool_to_array() {
+  Pool* pool;
+  char* c;
+
+  // Initially only stores one byte; buckets will be at random memory locations.
+  pool = new_pool(1, 1, 1);
+  *((char*) pool_get(pool)) = 'h';
+  *((char*) pool_get(pool)) = 'e';
+  *((char*) pool_get(pool)) = 'l';
+  void* ptr = malloc(100);  // Just to ensure the allocations *cannot* be adjacent.
+  *((char*) pool_get(pool)) = 'l';
+  *((char*) pool_get(pool)) = 'o';
+  *((char*) pool_get(pool)) = '!';
+  *((char*) pool_get(pool)) = '\0';
+  free(ptr);
+
+  TEST("Converting a multi-byte pool to an array of bytes");
+  c = pool_to_array(pool);
+  ASSERT_EQ(strcmp(c, "hello!"), 0, "correctly returns a byte sequence as a unified array");
+  free_pool(pool);
+  ASSERT_EQ(strcmp(c, "hello!"), 0, "copies values into the new array");
+  free(c);
+
+  // Initially only stores one byte; buckets will be at random memory locations.
+  pool = new_pool(1, 1, 3);
+  *((char*) pool_get(pool)) = 'h';  // Bucket 0
+  *((char*) pool_get(pool)) = 'e';  // Bucket 0
+  *((char*) pool_get(pool)) = 'l';  // Bucket 0
+  *((char*) pool_get(pool)) = 'l';  // Bucket 1
+  *((char*) pool_get(pool)) = 'o';  // Bucket 1
+  *((char*) pool_get(pool)) = '!';  // Bucket 1
+  c = pool_get(pool);  // Creates Bucket 2
+  *(c + 0) = '\0';
+  *(c + 1) = '\xFF';
+  *(c + 2) = '\xFF';
+
+  // Pool now has a length of 7, but has 9 bucket slots allocated.
+
+  TEST("Converting a multi-byte pool to an array of bytes omits unoccupied bucket slots");
+  c = pool_to_array(pool);
+  ASSERT_EQ(strcmp(c, "hello!"), 0, "correctly returns a byte sequence as a unified array");
+  ASSERT_NOT_EQ(c[7], '\xAA', "does not copy slot 7 into the new array");
+  ASSERT_NOT_EQ(c[8], '\xAA', "does not copy slot 8 into the new array");
+  free(c);
+}
+
 
 void run_all_pool_tests() {
   test_pool_creation();
   test_pool_get();
+  test_pool_to_array();
 }

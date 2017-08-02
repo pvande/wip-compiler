@@ -46,6 +46,28 @@ void* pool_get(Pool* pool) {
   return (void*) (((size_t) pool->buckets[bucket]) + (bucket_idx * pool->slot_size));
 }
 
+void* pool_to_array(Pool* pool) {
+  char* array = malloc(pool->length * pool->slot_size);
+
+  size_t bucket_count = pool->capacity / pool->bucket_size;
+  size_t items_remaining = pool->length;
+  for (size_t i = 0; i < bucket_count; i++) {
+    size_t items_to_copy;
+    if (items_remaining >= pool->bucket_size) {
+      items_to_copy = pool->bucket_size;
+    } else {
+      items_to_copy = items_remaining;
+    }
+
+    size_t offset = i * pool->bucket_size;
+    memcpy(&array[offset], pool->buckets[i], items_to_copy * pool->slot_size);
+
+    items_remaining -= pool->bucket_size;
+  }
+
+  return (void*) array;
+}
+
 void free_pool(Pool* pool) {
   size_t bucket_count = pool->capacity / pool->bucket_size;
 
