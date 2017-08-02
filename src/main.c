@@ -214,6 +214,7 @@ typedef struct {
 #include "src/debug.c"
 
 #include "src/pipeline.c"
+#include "src/read.c"
 #include "src/tokenizer.c"
 #include "src/parser.c"
 #include "src/bytecode.c"
@@ -256,84 +257,71 @@ int main(int argc, char** argv) {
 
     if (_job->type == JOB_READ) {
       ReadJob* job = (ReadJob*) _job;
+      did_work = perform_read_job(job);
 
-      // @Lazy `filename.data` may not be naturally zero-terminated.
-      char* file = to_zero_terminated_string(job->filename);
-      String* source = file_read_all(file);
-      free(file);
+    // } else if (_job->type == JOB_LEX) {
+    //   LexJob* job = (LexJob*) _job;
+    //
+    //   TokenizedFile* tokens = tokenize_string(job->filename, job->source);
+    //   pipeline_emit_parse_job(job->filename, tokens);
+    //   did_work = 1;
+    //
+    // } else if (_job->type == JOB_PARSE) {
+    //   ParseJob* job = (ParseJob*) _job;
+    //
+    //   ParserScope* file_scope = calloc(1, sizeof(ParserScope));
+    //   file_scope->declarations = new_list(4, 32);
+    //
+    //   parse_file(job->tokens, file_scope);
+    //
+    //   // ws.declaration_count += file_scope->declarations->size;
+    //   // for (int i = 0; i < ws.declaration_count; i++) {
+    //   //   AstDeclaration* decl = list_get(file_scope->declarations, i);
+    //   //   pipeline_emit_typecheck_job(decl);
+    //   // }
+    //
+    //   did_work = 1;
 
-      if (source == NULL) {
-        // @TODO: Record an error about not being able to find this file.
-        free(job);
-        continue;
-      }
-
-      pipeline_emit_lex_job(job->filename, source);
-      did_work = 1;
-
-    } else if (_job->type == JOB_LEX) {
-      LexJob* job = (LexJob*) _job;
-
-      TokenizedFile* tokens = tokenize_string(job->filename, job->source);
-      pipeline_emit_parse_job(job->filename, tokens);
-      did_work = 1;
-
-    } else if (_job->type == JOB_PARSE) {
-      ParseJob* job = (ParseJob*) _job;
-
-      ParserScope* file_scope = calloc(1, sizeof(ParserScope));
-      file_scope->declarations = new_list(4, 32);
-
-      parse_file(job->tokens, file_scope);
-
-      ws.declaration_count += file_scope->declarations->size;
-      for (int i = 0; i < ws.declaration_count; i++) {
-        AstDeclaration* decl = list_get(file_scope->declarations, i);
-        pipeline_emit_typecheck_job(decl);
-      }
-
-      did_work = 1;
-
-    } else if (_job->type == JOB_TYPECHECK) {
-      TypecheckJob* job = (TypecheckJob*) _job;
-
-      // @TODO Implement typechecking.
-
-      pipeline_emit_optimize_job(job->declaration);
-
-      did_work = 1;
-
-    } else if (_job->type == JOB_OPTIMIZE) {
-      OptimizeJob* job = (OptimizeJob*) _job;
-
-      // @TODO Implement optimizations.
-
-      pipeline_emit_bytecode_job(job->declaration);
-
-      did_work = 1;
-
-    } else if (_job->type == JOB_BYTECODE) {
-      BytecodeJob* job = (BytecodeJob*) _job;
-
-      // @Lazy Make sure the declarations are passed in the job.
-      // @TODO Implement optimizations.
-      List* instructions = bytecode_generate(job->declaration);
-
-      list_add(ws.resolved_declarations, job->declaration);
-
-      if (ws.declaration_count == ws.resolved_declarations->size) {
-        pipeline_emit_output_job(ws.resolved_declarations);
-      }
-
-      did_work = 1;
-
-    } else if (_job->type == JOB_OUTPUT) {
-      OutputJob* job = (OutputJob*) _job;
-
-      // @Lazy Make sure the declarations are passed in the job.
-      output_c_code_for_declarations(ws.resolved_declarations);
-
-      did_work = 1;
+    // } else if (_job->type == JOB_TYPECHECK) {
+    //   TypecheckJob* job = (TypecheckJob*) _job;
+    //
+    //   // @TODO Implement typechecking.
+    //
+    //   pipeline_emit_optimize_job(job->declaration);
+    //
+    //   did_work = 1;
+    //
+    // } else if (_job->type == JOB_OPTIMIZE) {
+    //   OptimizeJob* job = (OptimizeJob*) _job;
+    //
+    //   // @TODO Implement optimizations.
+    //
+    //   pipeline_emit_bytecode_job(job->declaration);
+    //
+    //   did_work = 1;
+    //
+    // } else if (_job->type == JOB_BYTECODE) {
+    //   BytecodeJob* job = (BytecodeJob*) _job;
+    //
+    //   // @Lazy Make sure the declarations are passed in the job.
+    //   // @TODO Implement optimizations.
+    //   List* instructions = bytecode_generate(job->declaration);
+    //
+    //   list_add(ws.resolved_declarations, job->declaration);
+    //
+    //   if (ws.declaration_count == ws.resolved_declarations->size) {
+    //     pipeline_emit_output_job(ws.resolved_declarations);
+    //   }
+    //
+    //   did_work = 1;
+    //
+    // } else if (_job->type == JOB_OUTPUT) {
+    //   OutputJob* job = (OutputJob*) _job;
+    //
+    //   // @Lazy Make sure the declarations are passed in the job.
+    //   // output_c_code_for_declarations(ws.resolved_declarations);
+    //
+    //   did_work = 1;
 
     } else if (_job->type == JOB_SENTINEL) {
       if (!did_work) break;
