@@ -15,7 +15,7 @@ ParserState __parser_state;
 
 #define ACCEPTED       (&__parser_state.list.tokens[__parser_state.pos - 1])
 #define TOKEN          (__parser_state.list.tokens[__parser_state.pos])
-#define TOKENS_REMAIN  (__parser_state.pos < __parser_state.list.count)
+#define TOKENS_REMAIN  (__parser_state.pos < __parser_state.list.length)
 #define CURRENT_LINE   (__parser_state.list.lines[TOKEN.line])
 #define CURRENT_SCOPE  (__parser_state.current_scope)
 
@@ -510,4 +510,9 @@ void parse_file(TokenizedFile* list, ParserScope* global) {
   };
 
   parse_namespace();
+}
+
+
+bool perform_parse_job(ParseJob* job) {
+  return 1;
 }

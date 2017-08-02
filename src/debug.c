@@ -87,9 +87,9 @@ void print_tokenized_file(TokenizedFile* list){
   }
 
   TokenizedFile t = *list;
-  printf("List [ %ju ]\n", t.count);
+  printf("List [ %ju ]\n", t.length);
 
-  for (uintmax_t i = 0; i < t.count; i++) {
+  for (uintmax_t i = 0; i < t.length; i++) {
     inspect_token(t.tokens[i]);
   }
 }

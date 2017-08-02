@@ -61,7 +61,7 @@ typedef struct {
   String* lines;
 
   Token* tokens;
-  size_t count;
+  size_t length;
 } TokenizedFile;
 
 
@@ -160,58 +160,6 @@ typedef struct {
   void* data;
 } AstStatement;
 
-
-typedef enum {
-  JOB_SENTINEL,
-  JOB_READ,
-  JOB_LEX,
-  JOB_PARSE,
-  JOB_TYPECHECK,
-  JOB_OPTIMIZE,
-  JOB_BYTECODE,
-  JOB_OUTPUT,
-} JobType;
-
-typedef struct {
-  JobType type;
-} Job;
-
-typedef struct {
-  Job base;
-  String* filename;
-} ReadJob;
-
-typedef struct {
-  Job base;
-  String* filename;
-  String* source;
-} LexJob;
-
-typedef struct {
-  Job base;
-  String* filename;
-  TokenizedFile* tokens;
-} ParseJob;
-
-typedef struct {
-  Job base;
-  AstDeclaration* declaration;
-} TypecheckJob;
-
-typedef struct {
-  Job base;
-  AstDeclaration* declaration;
-} OptimizeJob;
-
-typedef struct {
-  Job base;
-  AstDeclaration* declaration;
-} BytecodeJob;
-
-typedef struct {
-  Job base;
-} OutputJob;
-
 #include "src/debug.c"
 
 #include "src/pipeline.c"
@@ -249,7 +197,7 @@ int main(int argc, char** argv) {
   sigaction(SIGSEGV, &action, NULL);
 
   initialize_pipeline();
-  pipeline_emit_read_job(new_string(argv[1]));
+  pipeline_emit_read_job((String) { strlen(argv[1]), argv[1] });
 
   CompilationWorkspace ws = { new_list(4, 64), 0 };
 
