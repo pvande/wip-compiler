@@ -214,8 +214,9 @@ typedef struct {
 #include "src/debug.c"
 
 #include "src/pipeline.c"
-#include "src/read.c"
-#include "src/tokenizer.c"
+
+#include "src/reader.c"
+#include "src/lexer.c"
 #include "src/parser.c"
 #include "src/bytecode.c"
 #include "src/output.c"
