@@ -29,7 +29,7 @@ size_t queue_length(Queue* queue) {
 }
 
 void queue_add(Queue* queue, void* value) {
-  list_add((List*) queue, value);
+  list_append((List*) queue, value);
 }
 
 void* queue_pull(Queue* queue) {

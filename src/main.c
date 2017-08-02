@@ -253,20 +253,16 @@ int main(int argc, char** argv) {
 
   int did_work = 1;
   while (pipeline_has_jobs()) {
-    Job* _job = pipeline_take_job();
+    Job* job = pipeline_take_job();
 
-    if (_job->type == JOB_READ) {
-      ReadJob* job = (ReadJob*) _job;
-      did_work = perform_read_job(job);
+    if (job->type == JOB_READ) {
+      did_work = perform_read_job((ReadJob*) job);
 
-    // } else if (_job->type == JOB_LEX) {
-    //   LexJob* job = (LexJob*) _job;
-    //
-    //   TokenizedFile* tokens = tokenize_string(job->filename, job->source);
-    //   pipeline_emit_parse_job(job->filename, tokens);
-    //   did_work = 1;
-    //
-    // } else if (_job->type == JOB_PARSE) {
+    } else if (job->type == JOB_LEX) {
+      did_work = perform_lex_job((LexJob*) job);
+
+    } else if (job->type == JOB_PARSE) {
+      did_work = perform_parse_job((ParseJob*) job);
     //   ParseJob* job = (ParseJob*) _job;
     //
     //   ParserScope* file_scope = calloc(1, sizeof(ParserScope));
@@ -323,14 +319,14 @@ int main(int argc, char** argv) {
     //
     //   did_work = 1;
 
-    } else if (_job->type == JOB_SENTINEL) {
+    } else if (job->type == JOB_SENTINEL) {
       if (!did_work) break;
       did_work = 0;
-      pipeline_emit(_job);
+      pipeline_emit(job);
       continue;
     }
 
-    free(_job);
+    free(job);
   }
 
   return 0;

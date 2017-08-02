@@ -117,7 +117,7 @@ List* slurp_return_list() {
   List* tokens = new_list(1, 8);  // @TODO Validate these numbers.
 
   while(!peek_op(OP_OPEN_BRACE)) {
-    list_add(tokens, &TOKEN);
+    list_append(tokens, &TOKEN);
     ADVANCE();
   }
 
@@ -135,7 +135,7 @@ List* slurp_code_block() {
     if (peek_op(OP_OPEN_BRACE)) braces += 1;
     if (peek_op(OP_CLOSE_BRACE)) braces -= 1;
 
-    list_add(tokens, &TOKEN);
+    list_append(tokens, &TOKEN);
     ADVANCE();
   }
 
@@ -207,7 +207,7 @@ void* parse_declaration_tuple() {
       error("Got a NULL declaration when we shouldn't have");
       return declarations;
     }
-    list_add(declarations, decl);
+    list_append(declarations, decl);
   } while (accept_op(OP_COMMA));
 
   if (!accept_op(OP_CLOSE_PAREN)) {
@@ -234,7 +234,7 @@ void* parse_expression_tuple() {
       error("Got a NULL expression when we shouldn't have");
       return expressions;
     }
-    list_add(expressions, decl);
+    list_append(expressions, decl);
   } while (accept_op(OP_COMMA));
 
   if (!accept_op(OP_CLOSE_PAREN)) {
@@ -290,14 +290,14 @@ void* parse_code_block() {
       stmt->type = STATEMENT_DECLARATION;
       stmt->data = decl;
 
-      list_add(body, stmt);
+      list_append(body, stmt);
     } else {
       AstExpression* expr = parse_expression();
       AstStatement* stmt = calloc(1, sizeof(AstStatement));
       stmt->type = STATEMENT_EXPRESSION;
       stmt->data = expr;
 
-      list_add(body, stmt);
+      list_append(body, stmt);
     }
     accept(TOKEN_NEWLINE);
   }
@@ -494,7 +494,7 @@ void parse_namespace() {
 
       // @TODO Figure this out better.
       ParserScope* scope = CURRENT_SCOPE;
-      list_add(scope->declarations, decl);
+      list_append(scope->declarations, decl);
     } else {
       error("Unrecognized code in top-level context");
       while (accept(TOKEN_NEWLINE));

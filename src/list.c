@@ -13,7 +13,7 @@ void initialize_list(List* list, size_t bucket_count, size_t bucket_size) {
   list->size = 0;
   list->buckets = malloc(bucket_count * sizeof(void*));
 
-  for (int i = 0; i < bucket_count; i++) {
+  for (size_t i = 0; i < bucket_count; i++) {
     list->buckets[i] = malloc(bucket_size * sizeof(void*));
   }
 }
@@ -35,7 +35,7 @@ void* list_get(List* list, size_t idx) {
   return list->buckets[bucket][bucket_idx];
 }
 
-size_t list_add(List* list, void* value) {
+size_t list_append(List* list, void* value) {
   if (list->size >= list->capacity) {
     size_t bucket_count = list->capacity / list->bucket_size;
     list->buckets = realloc(list->buckets, (bucket_count + 1) * sizeof(void*));
@@ -49,4 +49,12 @@ size_t list_add(List* list, void* value) {
   list->size += 1;
   list->buckets[bucket][bucket_idx] = value;
   return list->size;
+}
+
+void free_list(List* list) {
+  size_t bucket_count = list->capacity / list->bucket_size;
+
+  for (size_t i = 0; i < bucket_count; i++) free(list->buckets[i]);
+  free(list->buckets);
+  free(list);
 }

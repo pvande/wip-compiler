@@ -29,7 +29,7 @@ size_t stack_length(Stack* stack) {
 }
 
 void stack_push(Stack* stack, void* value) {
-  list_add((List*) stack, value);
+  list_append((List*) stack, value);
 }
 
 void* stack_pop(Stack* stack) {
@@ -38,4 +38,8 @@ void* stack_pop(Stack* stack) {
   stack->list.size -= 1;
 
   return ptr;
+}
+
+void free_stack(Stack* stack) {
+  free_list((List*) stack);
 }

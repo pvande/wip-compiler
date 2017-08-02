@@ -56,6 +56,7 @@ void print_symbol(Symbol sym) {
 
 #define PRINT(V) _Generic((V), \
   void*: print_pointer, \
+  List*: print_pointer, \
   String*: print_string, \
   size_t: __print_size_t, \
   TokenType: __print_int, \
