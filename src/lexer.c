@@ -21,9 +21,8 @@ TokenizedFile* tokenize_string(String* file, String* input) {
   // likely *way* more memory than we actually need, but it's at least cheap and
   // fairly reliable.
   size_t input_length = input->length;
-  Token* tokens = calloc(input_length + 1, sizeof(Token));
-  String* lines = calloc(input_length, sizeof(String));
-  size_t token_idx = 0;
+  Pool* tokens = new_pool(sizeof(Token), 128, 32);
+  Pool* lines = new_pool(sizeof(String), 128, 32);
 
   size_t token_start = 0; // Position in the file where the current token began.
   size_t file_pos = 0;    // Position in the file we're currently parsing.
@@ -70,12 +69,12 @@ TokenizedFile* tokenize_string(String* file, String* input) {
       case '@':
         ADVANCE('@');
         SLURP_IDENT();
-        tokens[token_idx++] = (Token) { TOKEN_DIRECTIVE, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_DIRECTIVE, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case '#':
         ADVANCE('#');
         SLURP_IDENT();
-        tokens[token_idx++] = (Token) { TOKEN_TAG, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_TAG, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case ' ':
       case '\t':
@@ -85,17 +84,16 @@ TokenizedFile* tokenize_string(String* file, String* input) {
         break;
       case '\n':
         {
-          size_t _line_no = line_no;
           while (file_pos < input_length && IS_NEWLINE(THIS)) {
-            lines[_line_no++] = *substring(input, line_start, file_pos - line_start);
+            *((String*) pool_get(lines)) = (String) { file_pos - line_start, input->data + line_start };
+            line_no += 1;
             line_start = file_pos + 1;
             ADVANCE(THIS);
             SLURP_WHITESPACE();
           }
 
-          tokens[token_idx++] = (Token) { TOKEN_NEWLINE, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+          *((Token*) pool_get(tokens)) = (Token) { TOKEN_NEWLINE, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
 
-          line_no = _line_no;
           line_pos = 0;
           break;
         }
@@ -109,7 +107,7 @@ TokenizedFile* tokenize_string(String* file, String* input) {
           ADVANCE('"');
         }
 
-        tokens[token_idx++] = (Token) { TOKEN_LITERAL, *file, line_no, line_pos - LENGTH, SOURCE, LITERAL_STRING, input->data[token_start] == input->data[file_pos - 1] };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_LITERAL, *file, line_no, line_pos - LENGTH, SOURCE, LITERAL_STRING, input->data[token_start] == input->data[file_pos - 1] };
         break;
       case '0'...'9':
         {
@@ -139,7 +137,7 @@ TokenizedFile* tokenize_string(String* file, String* input) {
             }
           }
 
-          tokens[token_idx++] = (Token) { TOKEN_LITERAL, *file, line_no, line_pos - LENGTH, SOURCE, literal_type, 1 };
+          *((Token*) pool_get(tokens)) = (Token) { TOKEN_LITERAL, *file, line_no, line_pos - LENGTH, SOURCE, literal_type, 1 };
         }
         break;
       case ',':
@@ -148,18 +146,18 @@ TokenizedFile* tokenize_string(String* file, String* input) {
       case '{':
       case '}':
         ADVANCE(THIS);
-        tokens[token_idx++] = (Token) { TOKEN_SYNTAX_OPERATOR, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_SYNTAX_OPERATOR, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case ':':
         SLURP_OPERATOR();
-        tokens[token_idx++] = (Token) { TOKEN_SYNTAX_OPERATOR, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_SYNTAX_OPERATOR, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case '/':
         if (NEXT == '/') {
           SLURP_TO_EOL();
           // @TODO This can potentially lead to back-to-back newlines, despite
           //       our best efforts.
-          // tokens[token_idx++] = (Token) { TOKEN_COMMENT, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+          // *((Token*) pool_get(tokens)) = (Token) { TOKEN_COMMENT, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
           break;
         } else {
           // Continue to process as an operator.
@@ -174,33 +172,22 @@ TokenizedFile* tokenize_string(String* file, String* input) {
       case '|':
       case '~':
         SLURP_OPERATOR();
-        tokens[token_idx++] = (Token) { TOKEN_OPERATOR, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_OPERATOR, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       default:
         SLURP_IDENT();
-        tokens[token_idx++] = (Token) { TOKEN_IDENTIFIER, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_IDENTIFIER, *file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
     }
   }
 
+  // @TODO Do we need to make sure the token stream ends with a newline?
   TokenizedFile* result = malloc(sizeof(TokenizedFile));
   result->file = *file;
-
-  if (token_idx) {
-    if (tokens[token_idx - 1].type != TOKEN_NEWLINE) {
-      tokens[token_idx++] = (Token) { TOKEN_IDENTIFIER, *file, line_no, line_pos - LENGTH, *new_string("\n"), NONLITERAL, 1 };
-      token_idx += 1;
-    }
-
-    result->count = token_idx;
-    result->tokens = realloc(tokens, result->count * sizeof(Token));
-    result->lines = realloc(lines, result->count * sizeof(String));
-  } else {
-    result->count = 0;
-    result->tokens = NULL;
-    result->lines = NULL;
-    free(tokens);
-    free(lines);
-  }
+  result->count = tokens->length;
+  result->tokens = pool_to_array(tokens);
+  result->lines = pool_to_array(lines);
+  free(tokens);
+  free(lines);
 
   #undef THIS
   #undef LAST
@@ -229,6 +216,7 @@ TokenizedFile* tokenize_string(String* file, String* input) {
 
   return result;
 }
+
 
 bool perform_lex_job(LexJob* job) {
   TokenizedFile* tokens = tokenize_string(job->filename, job->source);
