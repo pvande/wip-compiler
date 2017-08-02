@@ -16,6 +16,7 @@
 #include "src/table.c"
 #include "src/list.c"
 #include "src/queue.c"
+#include "src/stack.c"
 #include "src/symbol.c"
 
 typedef char bool;
@@ -88,7 +89,17 @@ typedef enum {
   EXPR_FUNCTION,
   EXPR_UNARY_OP,
   EXPR_BINARY_OP,
+  EXPR_CALL,
 } ExpressionType;
+
+typedef enum {
+  STATEMENT_ASSIGNMENT,
+  STATEMENT_BLOCK,
+  STATEMENT_CONDITIONAL,
+  STATEMENT_DECLARATION,
+  STATEMENT_EXPRESSION,
+  STATEMENT_LOOP,
+} StatementType;
 
 typedef struct {
   Symbol name;
@@ -132,10 +143,21 @@ typedef struct {
 } BinaryOpExpression;
 
 typedef struct {
+  AstExpression base;
+  Symbol function;
+  List* arguments;
+} CallExpression;
+
+typedef struct {
   Symbol name;
   AstType* type;
   AstExpression* value;
 } AstDeclaration;
+
+typedef struct {
+  StatementType type;
+  void* data;
+} AstStatement;
 
 
 typedef enum {

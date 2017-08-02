@@ -46,7 +46,7 @@ TokenizedFile* tokenize_string(String* file, String* input) {
   #define IS_OPERATOR(T)      (OPERATORS[T - 32] == 1)
   #define IS_RESERVED_OP(T)   (OPERATORS[T - 32] == 2)
   #define IS_NONINITIAL_OP(T) (OPERATORS[T - 32])
-  #define IS_IDENTIFIER(T)    (!(IS_WHITESPACE(T) || IS_NEWLINE(T) || IS_OPERATOR(T) || IS_RESERVED_OP(T)))
+  #define IS_IDENTIFIER(T)    (!(IS_WHITESPACE(T) || IS_NEWLINE(T) || IS_NONINITIAL_OP(T)))
 
   #define ADVANCE(EXPECTED)   do { assert(EXPECTED == THIS); file_pos += 1; line_pos += 1; } while (0)
 

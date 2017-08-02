@@ -1,4 +1,4 @@
-# Grammar
+# Grammar (WIP)
 
     NAMESPACE = ((DECLARATION | NS_DIRECTIVE) "\n")*
     NS_DIRECTIVE = "@import" String
