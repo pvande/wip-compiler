@@ -16,6 +16,7 @@
 #include "src/table.c"
 #include "src/list.c"
 #include "src/queue.c"
+#include "src/stack.c"
 #include "src/symbol.c"
 
 typedef char bool;
