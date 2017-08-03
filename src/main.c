@@ -70,24 +70,6 @@ typedef struct {
 
 
 typedef enum {
-  EXPR_LITERAL,
-  EXPR_IDENT,
-  EXPR_FUNCTION,
-  EXPR_UNARY_OP,
-  EXPR_BINARY_OP,
-  EXPR_CALL,
-} ExpressionType;
-
-typedef enum {
-  STATEMENT_ASSIGNMENT,
-  STATEMENT_BLOCK,
-  STATEMENT_CONDITIONAL,
-  STATEMENT_DECLARATION,
-  STATEMENT_EXPRESSION,
-  STATEMENT_LOOP,
-} StatementType;
-
-typedef enum {
   NODE_ASSIGNMENT,
   NODE_BRANCH,
   NODE_COMPOUND,
@@ -98,9 +80,14 @@ typedef enum {
   NODE_TYPE,
 } AstNodeType;
 
-// typedef enum {
-//   NODE_IS_FUNCTION_DECLARATION = (1 << 0),
-// } AstNodeFlags;
+typedef enum {
+  EXPR_LITERAL   = (1 << 0),
+  EXPR_IDENT     = (1 << 1),
+  // EXPR_FUNCTION  = (1 << 2),
+  // EXPR_UNARY_OP  = (1 << 3),
+  // EXPR_BINARY_OP = (1 << 4),
+  // EXPR_CALL      = (1 << 5),
+} AstNodeFlags;
 
 typedef struct {
   size_t line;
@@ -109,12 +96,13 @@ typedef struct {
 
 typedef struct AstNode {
   AstNodeType type;
-  // AstNodeFlags flags;
+  AstNodeFlags flags;
 
   FileAddress from;
   FileAddress to;
 
   Symbol ident;
+  String source;
   struct AstNode* lhs;
   struct AstNode* rhs;
 

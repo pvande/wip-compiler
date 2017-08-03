@@ -214,8 +214,25 @@ void parse_type(ParserState* state, AstNode* type) {
   }
 }
 
+
+// EXPRESSION = Literal
+//            | Identifier    @TODO
+void parse_expression(ParserState* state, AstNode* expr) {
+  expr->to = (FileAddress) { TOKEN.line, TOKEN.pos + TOKEN.source.length };
+
+  if (accept(state, TOKEN_LITERAL)) {
+    expr->flags |= EXPR_LITERAL;
+    expr->source = ACCEPTED.source;
+  } else if (accept(state, TOKEN_IDENTIFIER)) {
+    expr->flags |= EXPR_IDENT;
+    expr->ident = symbol_get(&ACCEPTED.source);
+  } else {
+    expr->error = new_string("Expected an expression");
+  }
+}
+
 // DECLARATION = Identifier ":" TYPE
-//             | Identifier ":" TYPE "=" EXPRESSION    @TODO
+//             | Identifier ":" TYPE "=" EXPRESSION
 //             | Identifier ":=" EXPRESSION            @TODO
 void parse_declaration(ParserState* state, AstNode* decl) {
   {
@@ -233,6 +250,7 @@ void parse_declaration(ParserState* state, AstNode* decl) {
     // Grab the TYPE.  Parse errors may reasonably occur here.
     decl->lhs = pool_get(state->nodes);
     decl->lhs->type = NODE_TYPE;
+    decl->flags = 0;
     decl->lhs->from = (FileAddress) { TOKEN.line, TOKEN.pos };
 
     parse_type(state, decl->lhs);
@@ -243,6 +261,35 @@ void parse_declaration(ParserState* state, AstNode* decl) {
   }
 
   decl->to = (FileAddress) { ACCEPTED.line, ACCEPTED.pos + ACCEPTED.source.length };
+
+
+  if (accept_op(state, OP_ASSIGN)) {
+    AstNode* value = pool_get(state->nodes);
+    value->type = NODE_EXPRESSION;
+    value->flags = 0;
+    value->from = (FileAddress) { TOKEN.line, TOKEN.pos };
+
+    parse_expression(state, value);
+
+    AstNode* assignment = pool_get(state->nodes);
+    assignment->type = NODE_ASSIGNMENT;
+    assignment->flags = 0;
+    assignment->ident = decl->ident;
+    assignment->rhs = value;
+    assignment->from = decl->from;
+    assignment->to = value->to;
+
+    AstNode* compound = pool_get(state->nodes);
+    compound->type = NODE_COMPOUND;
+    compound->flags = 0;
+    compound->from = decl->from;
+    compound->to = assignment->to;
+    compound->lhs = pool_get(state->nodes);
+    *compound->lhs = *decl;
+    compound->rhs = assignment;
+
+    *decl = *compound;
+  }
 }
 
 //  TOP_LEVEL = DECLARATION
@@ -255,6 +302,7 @@ void parse_top_level(ParserState* state) {
     } else if (test_declaration(state)) {
       AstNode* decl = pool_get(state->nodes);
       decl->type = NODE_DECLARATION;
+      decl->flags = 0;
       decl->from = (FileAddress) { TOKEN.line, TOKEN.pos };
 
       parse_declaration(state, decl);
@@ -264,6 +312,7 @@ void parse_top_level(ParserState* state) {
       } else {
         AstNode* error = pool_get(state->nodes);
         error->type = NODE_RECOVERY;
+        error->flags = 0;
         error->from = (FileAddress) { TOKEN.line, TOKEN.pos };
         error->error = new_string("Unexpected code following declaration");
         error->lhs = decl;
