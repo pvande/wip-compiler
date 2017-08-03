@@ -57,7 +57,7 @@ typedef struct {
 } Token;
 
 typedef struct {
-  String file;
+  String filename;
   String* lines;
 
   Token* tokens;
@@ -89,8 +89,8 @@ typedef enum {
 
 typedef enum {
   NODE_ASSIGNMENT,
-  NODE_BLOCK,
-  NODE_CONDITIONAL,
+  NODE_BRANCH,
+  NODE_COMPOUND,
   NODE_DECLARATION,
   NODE_EXPRESSION,
   NODE_FOREACH,
@@ -101,8 +101,22 @@ typedef enum {
 } AstNodeFlags;
 
 typedef struct {
+  size_t line;
+  size_t pos;
+} FileAddress;
+
+typedef struct AstNode {
   AstNodeType node_type;
   AstNodeFlags flags;
+
+  FileAddress from;
+  FileAddress to;
+
+  Symbol ident;
+  struct AstNode* lhs;
+  struct AstNode* rhs;
+
+  String* error;
 } AstNode;
 
 

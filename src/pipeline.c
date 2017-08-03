@@ -86,7 +86,7 @@ void pipeline_emit_lex_job(String filename, String source) {
 }
 
 void pipeline_emit_parse_job(TokenizedFile* tokens) {
-  fprintf(stderr, "Emitting FileParseJob for %zu tokens of ", tokens->length); print_string(&tokens->file); printf("\n");
+  fprintf(stderr, "Emitting FileParseJob for %zu tokens of ", tokens->length); print_string(&tokens->filename); printf("\n");
 
   // @Lazy We should use a pool allocator.
   ParseJob* job = malloc(sizeof(ParseJob));

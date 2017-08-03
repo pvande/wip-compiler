@@ -134,7 +134,14 @@ void print_list(List* list) {
 }
 
 void print_token(Token* token) {
-  printf("%s", to_zero_terminated_string(&token->source));
+  printf("«Token(%d) file=\"%s\" line=%zu pos=%zu source=\"%s\" literal_type=%d is_well_formed=%d»",
+         token->type,
+         to_zero_terminated_string(&token->file),
+         token->line,
+         token->pos,
+         to_zero_terminated_string(&token->source),
+         token->literal_type,
+         token->is_well_formed);
 }
 
 // void print_ast_type(AstType* type) {

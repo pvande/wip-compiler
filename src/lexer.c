@@ -16,10 +16,6 @@ const char OPERATORS[256 - 32] = {
 // @Precondition: file data is never freed.
 // @Precondition: input data is never freed.
 void tokenize_string(String* input, TokenizedFile* result) {
-  // @Lazy: We're allocating as much memory as we could ever possibly need, in
-  // the hopes that we can avoid ever having to reallocate mid-routine.  This is
-  // likely *way* more memory than we actually need, but it's at least cheap and
-  // fairly reliable.
   size_t input_length = input->length;
   Pool* tokens = new_pool(sizeof(Token), 128, 32);
   Pool* lines = new_pool(sizeof(String), 128, 32);
@@ -69,12 +65,12 @@ void tokenize_string(String* input, TokenizedFile* result) {
       case '@':
         ADVANCE('@');
         SLURP_IDENT();
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_DIRECTIVE, result->file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_DIRECTIVE, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case '#':
         ADVANCE('#');
         SLURP_IDENT();
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_TAG, result->file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_TAG, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case ' ':
       case '\t':
@@ -84,17 +80,21 @@ void tokenize_string(String* input, TokenizedFile* result) {
         break;
       case '\n':
         {
-          while (file_pos < input_length && IS_NEWLINE(THIS)) {
-            *((String*) pool_get(lines)) = (String) { file_pos - line_start, input->data + line_start };
-            line_no += 1;
-            line_start = file_pos + 1;
-            ADVANCE(THIS);
-            SLURP_WHITESPACE();
-          }
+          // while (file_pos < input_length && IS_NEWLINE(THIS)) {
+          //   *((String*) pool_get(lines)) = (String) { file_pos - line_start, input->data + line_start };
+          //   line_no += 1;
+          //   line_start = file_pos + 1;
+          //   ADVANCE(THIS);
+          //   SLURP_WHITESPACE();
+          // }
 
-          *((Token*) pool_get(tokens)) = (Token) { TOKEN_NEWLINE, result->file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
-
+          *((String*) pool_get(lines)) = (String) { file_pos - line_start, input->data + line_start };
+          *((Token*) pool_get(tokens)) = (Token) { TOKEN_NEWLINE, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+          line_no += 1;
+          line_start = file_pos + 1;
           line_pos = 0;
+          ADVANCE(THIS);
+          SLURP_WHITESPACE();
           break;
         }
       case '"':
@@ -107,7 +107,7 @@ void tokenize_string(String* input, TokenizedFile* result) {
           ADVANCE('"');
         }
 
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_LITERAL, result->file, line_no, line_pos - LENGTH, SOURCE, LITERAL_STRING, input->data[token_start] == input->data[file_pos - 1] };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_LITERAL, result->filename, line_no, line_pos - LENGTH, SOURCE, LITERAL_STRING, input->data[token_start] == input->data[file_pos - 1] };
         break;
       case '0'...'9':
         {
@@ -137,7 +137,7 @@ void tokenize_string(String* input, TokenizedFile* result) {
             }
           }
 
-          *((Token*) pool_get(tokens)) = (Token) { TOKEN_LITERAL, result->file, line_no, line_pos - LENGTH, SOURCE, literal_type, 1 };
+          *((Token*) pool_get(tokens)) = (Token) { TOKEN_LITERAL, result->filename, line_no, line_pos - LENGTH, SOURCE, literal_type, 1 };
         }
         break;
       case ',':
@@ -146,18 +146,15 @@ void tokenize_string(String* input, TokenizedFile* result) {
       case '{':
       case '}':
         ADVANCE(THIS);
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_SYNTAX_OPERATOR, result->file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_SYNTAX_OPERATOR, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case ':':
         SLURP_OPERATOR();
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_SYNTAX_OPERATOR, result->file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_SYNTAX_OPERATOR, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case '/':
         if (NEXT == '/') {
           SLURP_TO_EOL();
-          // @TODO This can potentially lead to back-to-back newlines, despite
-          //       our best efforts.
-          // *((Token*) pool_get(tokens)) = (Token) { TOKEN_COMMENT, result->file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
           break;
         } else {
           // Continue to process as an operator.
@@ -172,11 +169,11 @@ void tokenize_string(String* input, TokenizedFile* result) {
       case '|':
       case '~':
         SLURP_OPERATOR();
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_OPERATOR, result->file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_OPERATOR, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       default:
         SLURP_IDENT();
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_IDENTIFIER, result->file, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_IDENTIFIER, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
     }
   }
 
@@ -216,7 +213,7 @@ void tokenize_string(String* input, TokenizedFile* result) {
 
 bool perform_lex_job(LexJob* job) {
   TokenizedFile* result = malloc(sizeof(TokenizedFile));
-  result->file = job->filename;
+  result->filename = job->filename;
 
   tokenize_string(&job->source, result);
   pipeline_emit_parse_job(result);

@@ -1,4 +1,5 @@
 // ** Constant Operators ** //
+
 DEFINE_STR(OP_DECLARE, ":");
 DEFINE_STR(OP_DECLARE_ASSIGN, ":=");
 DEFINE_STR(OP_ASSIGN, "=");
@@ -13,36 +14,43 @@ DEFINE_STR(OP_COMMA, ",");
 
 typedef struct ParserScope {
   struct ParserScope* parent;
-  Pool* declarations;
+  List* declarations;
 } ParserScope;
 
 typedef struct {
-  TokenizedFile tokens;
+  TokenizedFile data;
   size_t pos;
 
+  Pool* nodes;
   ParserScope* scope;
 } ParserState;
 
 
 void* new_parser_scope() {
   ParserScope* scope = malloc(sizeof(ParserScope));
-  scope->declarations = new_pool(sizeof(AstNode), 1, 32);
+  scope->declarations = new_list(1, 32);
   return scope;
 }
 
-void* new_parser_state(TokenizedFile* tokens) {
+void* new_parser_state(TokenizedFile* file) {
   ParserState* state = malloc(sizeof(ParserState));
+  state->data = *file;
   state->pos = 0;
+  state->nodes = new_pool(sizeof(AstNode), 16, 64);
   state->scope = new_parser_scope();
   return state;
 }
 
-// // ** State Manipulation Primitives ** //
-//
+// ** State Manipulation Primitives ** //
+
+bool tokens_remain(ParserState* state) {
+  return state->pos < state->data.length;
+}
+
 // ParserState __parser_state;
 //
-// #define ACCEPTED       (&__parser_state.list.tokens[__parser_state.pos - 1])
-// #define TOKEN          (__parser_state.list.tokens[__parser_state.pos])
+#define ACCEPTED       (state->data.tokens[state->pos - 1])
+#define TOKEN          (state->data.tokens[state->pos])
 // #define TOKENS_REMAIN  (__parser_state.pos < __parser_state.list.length)
 // #define CURRENT_LINE   (__parser_state.list.lines[TOKEN.line])
 // #define CURRENT_SCOPE  (__parser_state.current_scope)
@@ -50,61 +58,61 @@ void* new_parser_state(TokenizedFile* tokens) {
 // #define ADVANCE()      (__parser_state.pos += 1)
 // #define BEGIN()        const size_t __mark__ = __parser_state.pos;
 // #define ROLLBACK()     (__parser_state.pos = __mark__)
-//
-//
-// // ** Parsing Primitives ** //
-//
-// int peek(TokenType type) {
-//   return TOKEN.type == type;
-// }
-//
-// int peek_syntax_op(String* op) {
-//   if (TOKEN.type != TOKEN_SYNTAX_OPERATOR) return 0;
-//   return string_equals(op, &TOKEN.source);
-// }
-//
-// int peek_nonsyntax_op(String* op) {
-//   if (TOKEN.type != TOKEN_OPERATOR) return 0;
-//   return string_equals(op, &TOKEN.source);
-// }
-//
-// int peek_op(String* op) {
-//   return peek_syntax_op(op) || peek_nonsyntax_op(op);
-// }
-//
+
+
+// ** Parsing Primitives ** //
+
+int peek(ParserState* state, TokenType type) {
+  return TOKEN.type == type;
+}
+
+int peek_syntax_op(ParserState* state, String* op) {
+  if (TOKEN.type != TOKEN_SYNTAX_OPERATOR) return 0;
+  return string_equals(op, &TOKEN.source);
+}
+
+int peek_nonsyntax_op(ParserState* state, String* op) {
+  if (TOKEN.type != TOKEN_OPERATOR) return 0;
+  return string_equals(op, &TOKEN.source);
+}
+
+int peek_op(ParserState* state, String* op) {
+  return peek_syntax_op(state, op) || peek_nonsyntax_op(state, op);
+}
+
 // int peek_directive(String* name) {
 //   if (TOKEN.type != TOKEN_DIRECTIVE) return 0;
 //   return string_equals(name, &TOKEN.source);
 // }
-//
-// int accept(TokenType type) {
-//   if (!peek(type)) return 0;
-//
-//   ADVANCE();
-//   return 1;
-// }
-//
-// int accept_op(String* op) {
-//   if (!peek_op(op)) return 0;
-//
-//   ADVANCE();
-//   return 1;
-// }
-//
-// int accept_syntax_op(String* op) {
-//   if (!peek_syntax_op(op)) return 0;
-//
-//   ADVANCE();
-//   return 1;
-// }
-//
-// int accept_nonsyntax_op(String* op) {
-//   if (!peek_nonsyntax_op(op)) return 0;
-//
-//   ADVANCE();
-//   return 1;
-// }
-//
+
+int accept(ParserState* state, TokenType type) {
+  if (!peek(state, type)) return 0;
+
+  state->pos += 1;
+  return 1;
+}
+
+int accept_syntax_op(ParserState* state, String* op) {
+  if (!peek_syntax_op(state, op)) return 0;
+
+  state->pos += 1;
+  return 1;
+}
+
+int accept_nonsyntax_op(ParserState* state, String* op) {
+  if (!peek_nonsyntax_op(state, op)) return 0;
+
+  state->pos += 1;
+  return 1;
+}
+
+int accept_op(ParserState* state, String* op) {
+  if (!peek_op(state, op)) return 0;
+
+  state->pos += 1;
+  return 1;
+}
+
 // int accept_directive(String* name) {
 //   if (!peek_directive(name)) return 0;
 //
@@ -169,21 +177,21 @@ void* new_parser_state(TokenizedFile* tokens) {
 //
 //   return tokens;
 // }
-//
-// // ** Lookahead Operations ** //
-//
-// int test_declaration() {
-//   int result = 0;
-//
-//   BEGIN();
-//   if (accept(TOKEN_IDENTIFIER)) {
-//     result = peek_op(OP_DECLARE) || peek_op(OP_DECLARE_ASSIGN);
-//   }
-//   ROLLBACK();
-//
-//   return result;
-// }
-//
+
+// ** Lookahead Operations ** //
+
+int test_declaration(ParserState* state) {
+  int result = 0;
+
+  size_t mark = state->pos;
+  if (accept(state, TOKEN_IDENTIFIER)) {
+    result = peek_op(state, OP_DECLARE);
+  }
+  state->pos = mark;
+
+  return result;
+}
+
 // int test_directive() {
 //   return peek(TOKEN_DIRECTIVE);
 // }
@@ -213,12 +221,38 @@ void* new_parser_state(TokenizedFile* tokens) {
 //
 //   return result;
 // }
-//
-//
-// // ** Parser States ** //
-// void* parse_declaration();
-// void* parse_expression();
-//
+
+
+// ** Parser States ** //
+
+// TYPE = Identifier
+void parse_type(ParserState* state, AstNode* type) {
+  type->from = (FileAddress) { TOKEN.line, TOKEN.pos };
+  type->to   = (FileAddress) { TOKEN.line, TOKEN.pos + TOKEN.source.length };
+
+  if (accept(state, TOKEN_IDENTIFIER)) {
+    type->ident = symbol_get(&ACCEPTED.source);
+  } else {
+    type->error = new_string("Expected a type identifier");
+  }
+}
+
+// DECLARATION = Identifier ":" TYPE
+//             | Identifier ":" TYPE "=" EXPRESSION    @TODO
+//             | Identifier ":=" EXPRESSION            @TODO
+void parse_declaration(ParserState* state, AstNode* decl) {
+  assert(accept(state, TOKEN_IDENTIFIER));
+  decl->ident = symbol_get(&ACCEPTED.source);
+  decl->from = (FileAddress) { ACCEPTED.line, ACCEPTED.pos };
+
+  assert(accept_op(state, OP_DECLARE));
+
+  decl->lhs = pool_get(state->nodes);
+  parse_type(state, decl->lhs);
+
+  decl->to = (FileAddress) { ACCEPTED.line, ACCEPTED.pos + ACCEPTED.source.length };
+}
+
 // void* parse_declaration_tuple() {
 //   if (!accept_op(OP_OPEN_PAREN)) {
 //     error("Expected argument list");
@@ -271,17 +305,6 @@ void* new_parser_state(TokenizedFile* tokens) {
 //   }
 //
 //   return expressions;
-// }
-//
-// void* parse_type() {
-//   if (!accept(TOKEN_IDENTIFIER)) {
-//     error("Unknown expression; expected a type identifier");
-//     return NULL;
-//   }
-//
-//   AstType* type = malloc(sizeof(AstType));
-//   type->name = symbol_get(&ACCEPTED->source);
-//   return type;
 // }
 //
 // void* parse_return_type() {
@@ -461,43 +484,6 @@ void* new_parser_state(TokenizedFile* tokens) {
 //   return NULL;
 // }
 //
-// void* parse_declaration() {
-//   AstType* type = NULL;
-//   AstExpression* value = NULL;
-//
-//   accept(TOKEN_IDENTIFIER);
-//   Symbol name = symbol_get(&ACCEPTED->source);
-//
-//   if (accept_op(OP_DECLARE)) {
-//     type = parse_type();
-//     if (type == NULL) {
-//       return NULL;
-//     }
-//
-//     if (accept_op(OP_ASSIGN)) {
-//       value = parse_expression();
-//     }
-//   } else if (accept_op(OP_DECLARE_ASSIGN)) {
-//     value = parse_expression();
-//     if (value == NULL) {
-//       return NULL;
-//     }
-//   }
-//
-//   // Naming the function expression.
-//   // @Lazy Is this the best place to handle this?
-//   if (value != NULL && value->type == EXPR_FUNCTION) {
-//     ((FunctionExpression*) value)->name = name;
-//   }
-//
-//   AstDeclaration* decl = calloc(1, sizeof(AstDeclaration));
-//   decl->name = name;
-//   decl->type = type;
-//   decl->value = value;
-//
-//   return decl;
-// }
-//
 // void parse_namespace() {
 //   while (TOKENS_REMAIN) {
 //     if (accept(TOKEN_NEWLINE)) {
@@ -522,7 +508,7 @@ void* new_parser_state(TokenizedFile* tokens) {
 //
 //       // @TODO Figure this out better.
 //       ParserScope* scope = CURRENT_SCOPE;
-//       list_append(scope->declarations, decl);
+//       list_append(scope->nodes, decl);
 //     } else {
 //       error("Unrecognized code in top-level context");
 //       while (accept(TOKEN_NEWLINE));
@@ -530,18 +516,54 @@ void* new_parser_state(TokenizedFile* tokens) {
 //   }
 // }
 
-void parse_file(TokenizedFile* list, ParserScope* global) {
-  // __parser_state = (ParserState) {
-  //   .list = *list,
-  //   .pos = 0,
-  //   .current_scope = global,
-  // };
-  //
-  // parse_namespace();
+//  TOP_LEVEL = DECLARATION
+//            | TOP_LEVEL_DIRECTIVE    @TODO
+void parse_top_level(ParserState* state) {
+  while (tokens_remain(state)) {
+    if (accept(state, TOKEN_NEWLINE)) {
+      // Move on, nothing to see here.
+
+//     } else if (test_directive()) {
+//       void* directive = parse_directive();
+//
+//       // @TODO Actually implement these directives.
+//       error("Hey, got a directive");
+
+    } else if (test_declaration(state)) {
+      AstNode* decl = pool_get(state->nodes);
+      parse_declaration(state, decl);
+
+      // if (decl == NULL) {
+      //   error("Malformed declaration");
+      //   while (accept(TOKEN_NEWLINE));
+      //   continue;
+      // }
+      //
+      // if (!accept(TOKEN_NEWLINE)) {
+      //   error("Expected end of declaration");
+      //   continue;
+      // }
+
+      // // @TODO Figure this out better.
+      // ParserScope* scope = CURRENT_SCOPE;
+      // list_append(scope->nodes, decl);
+
+    } else {
+      printf("Unrecognized code in top-level context\n");
+      for (int i = state->pos; i < state->data.length; i++) {
+        print_token(&state->data.tokens[i]); printf("\n");
+      }
+    }
+  }
 }
 
 bool perform_parse_job(ParseJob* job) {
   ParserState* state = new_parser_state(job->tokens);
+  for (int i = state->pos; i < state->data.length; i++) {
+    print_token(&state->data.tokens[i]); printf("\n");
+  }
+
+  parse_top_level(state);
 
   return 1;
 }
