@@ -93,7 +93,9 @@ typedef enum {
   NODE_COMPOUND,
   NODE_DECLARATION,
   NODE_EXPRESSION,
-  NODE_FOREACH,
+  NODE_LOOP,
+  NODE_RECOVERY,
+  NODE_TYPE,
 } AstNodeType;
 
 typedef enum {
@@ -106,7 +108,7 @@ typedef struct {
 } FileAddress;
 
 typedef struct AstNode {
-  AstNodeType node_type;
+  AstNodeType type;
   AstNodeFlags flags;
 
   FileAddress from;

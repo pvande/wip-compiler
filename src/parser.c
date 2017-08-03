@@ -241,14 +241,21 @@ void parse_type(ParserState* state, AstNode* type) {
 //             | Identifier ":" TYPE "=" EXPRESSION    @TODO
 //             | Identifier ":=" EXPRESSION            @TODO
 void parse_declaration(ParserState* state, AstNode* decl) {
+  // The Identifier should already be guaranteed by `test_declaration`.
   assert(accept(state, TOKEN_IDENTIFIER));
   decl->ident = symbol_get(&ACCEPTED.source);
   decl->from = (FileAddress) { ACCEPTED.line, ACCEPTED.pos };
 
+  // OP_DECLARE should also be guaranteed by `test_declaration`.
   assert(accept_op(state, OP_DECLARE));
 
+  // Grab the TYPE.  Parse errors may reasonably occur here.
   decl->lhs = pool_get(state->nodes);
+  decl->lhs->type = NODE_TYPE;
   parse_type(state, decl->lhs);
+  if (decl->lhs->error != NULL) {
+    decl->error = new_string("Variable declaration requires a type identifier");
+  }
 
   decl->to = (FileAddress) { ACCEPTED.line, ACCEPTED.pos + ACCEPTED.source.length };
 }
@@ -523,45 +530,33 @@ void parse_top_level(ParserState* state) {
     if (accept(state, TOKEN_NEWLINE)) {
       // Move on, nothing to see here.
 
-//     } else if (test_directive()) {
-//       void* directive = parse_directive();
-//
-//       // @TODO Actually implement these directives.
-//       error("Hey, got a directive");
-
     } else if (test_declaration(state)) {
       AstNode* decl = pool_get(state->nodes);
+      decl->type = NODE_DECLARATION;
       parse_declaration(state, decl);
 
-      // if (decl == NULL) {
-      //   error("Malformed declaration");
-      //   while (accept(TOKEN_NEWLINE));
-      //   continue;
-      // }
-      //
-      // if (!accept(TOKEN_NEWLINE)) {
-      //   error("Expected end of declaration");
-      //   continue;
-      // }
+      if (accept(state, TOKEN_NEWLINE)) {
+        list_append(state->scope->declarations, decl);
+      } else {
+        AstNode* error = pool_get(state->nodes);
+        error->type = NODE_RECOVERY;
+        error->error = new_string("Unexpected code following declaration");
+        error->lhs = decl;
+        error->from = (FileAddress) { TOKEN.line, TOKEN.pos };
+        while (!peek(state, TOKEN_NEWLINE)) state->pos += 1;
+        error->to = (FileAddress) { TOKEN.line, TOKEN.pos };
 
-      // // @TODO Figure this out better.
-      // ParserScope* scope = CURRENT_SCOPE;
-      // list_append(scope->nodes, decl);
+        list_append(state->scope->declarations, error);
+      }
 
     } else {
       printf("Unrecognized code in top-level context\n");
-      for (int i = state->pos; i < state->data.length; i++) {
-        print_token(&state->data.tokens[i]); printf("\n");
-      }
     }
   }
 }
 
 bool perform_parse_job(ParseJob* job) {
   ParserState* state = new_parser_state(job->tokens);
-  for (int i = state->pos; i < state->data.length; i++) {
-    print_token(&state->data.tokens[i]); printf("\n");
-  }
 
   parse_top_level(state);
 
