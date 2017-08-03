@@ -25,7 +25,7 @@ Stack* new_stack(size_t bucket_count, size_t bucket_size) {
 }
 
 size_t stack_length(Stack* stack) {
-  return stack->list.size - stack->position;
+  return stack->list.length - stack->position;
 }
 
 void stack_push(Stack* stack, void* value) {
@@ -35,7 +35,7 @@ void stack_push(Stack* stack, void* value) {
 void* stack_pop(Stack* stack) {
   void* ptr = list_get((List*) stack, stack->position);
   stack->position -= 1;
-  stack->list.size -= 1;
+  stack->list.length -= 1;
 
   return ptr;
 }
