@@ -202,9 +202,10 @@ int test_declaration(ParserState* state) {
 // ** Parser States ** //
 
 // TYPE = Identifier
+//      | TYPE_TUPLE "=>" TYPE          @TODO
+//      | TYPE_TUPLE "=>" TYPE_TUPLE    @TODO
 void parse_type(ParserState* state, AstNode* type) {
-  type->from = (FileAddress) { TOKEN.line, TOKEN.pos };
-  type->to   = (FileAddress) { TOKEN.line, TOKEN.pos + TOKEN.source.length };
+  type->to = (FileAddress) { TOKEN.line, TOKEN.pos + TOKEN.source.length };
 
   if (accept(state, TOKEN_IDENTIFIER)) {
     type->ident = symbol_get(&ACCEPTED.source);
@@ -255,6 +256,7 @@ void parse_top_level(ParserState* state) {
       AstNode* decl = pool_get(state->nodes);
       decl->type = NODE_DECLARATION;
       decl->from = (FileAddress) { TOKEN.line, TOKEN.pos };
+
       parse_declaration(state, decl);
 
       if (accept(state, TOKEN_NEWLINE)) {
@@ -262,10 +264,13 @@ void parse_top_level(ParserState* state) {
       } else {
         AstNode* error = pool_get(state->nodes);
         error->type = NODE_RECOVERY;
+        error->from = (FileAddress) { TOKEN.line, TOKEN.pos };
         error->error = new_string("Unexpected code following declaration");
         error->lhs = decl;
-        error->from = (FileAddress) { TOKEN.line, TOKEN.pos };
+
+        // @TODO More robustly seek past the error.
         while (!peek(state, TOKEN_NEWLINE)) state->pos += 1;
+
         error->to = (FileAddress) { TOKEN.line, TOKEN.pos };
 
         list_append(state->scope->declarations, error);
