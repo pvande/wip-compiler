@@ -199,6 +199,21 @@ int test_declaration(ParserState* state) {
 // }
 
 
+// ** Helpers ** //
+
+void* get_node(ParserState* state, AstNodeType type) {
+  AstNode* node = pool_get(state->nodes);
+  node->type = type;
+  node->flags = 0;
+  node->from.line = TOKEN.line;
+  node->from.pos = TOKEN.pos;
+  node->to.line = -1;
+  node->to.pos = -1;
+  node->error = NULL;
+
+  return node;
+}
+
 // ** Parser States ** //
 
 // TYPE = Identifier
@@ -248,11 +263,7 @@ void parse_declaration(ParserState* state, AstNode* decl) {
 
   {
     // Grab the TYPE.  Parse errors may reasonably occur here.
-    decl->lhs = pool_get(state->nodes);
-    decl->lhs->type = NODE_TYPE;
-    decl->flags = 0;
-    decl->lhs->from = (FileAddress) { TOKEN.line, TOKEN.pos };
-
+    decl->lhs = get_node(state, NODE_TYPE);
     parse_type(state, decl->lhs);
 
     if (decl->lhs->error != NULL) {
@@ -264,28 +275,23 @@ void parse_declaration(ParserState* state, AstNode* decl) {
 
 
   if (accept_op(state, OP_ASSIGN)) {
-    AstNode* value = pool_get(state->nodes);
-    value->type = NODE_EXPRESSION;
-    value->flags = 0;
-    value->from = (FileAddress) { TOKEN.line, TOKEN.pos };
-
+    AstNode* value = get_node(state, NODE_EXPRESSION);
     parse_expression(state, value);
 
-    AstNode* assignment = pool_get(state->nodes);
-    assignment->type = NODE_ASSIGNMENT;
-    assignment->flags = 0;
+    AstNode* assignment = get_node(state, NODE_ASSIGNMENT);
     assignment->ident = decl->ident;
     assignment->rhs = value;
     assignment->from = decl->from;
     assignment->to = value->to;
 
-    AstNode* compound = pool_get(state->nodes);
-    compound->type = NODE_COMPOUND;
-    compound->flags = 0;
+    AstNode* compound = get_node(state, NODE_COMPOUND);
     compound->from = decl->from;
     compound->to = assignment->to;
+
+    // @TODO Do we need a node-cloning helper?
     compound->lhs = pool_get(state->nodes);
     *compound->lhs = *decl;
+
     compound->rhs = assignment;
 
     *decl = *compound;
@@ -300,20 +306,13 @@ void parse_top_level(ParserState* state) {
       // Move on, nothing to see here.
 
     } else if (test_declaration(state)) {
-      AstNode* decl = pool_get(state->nodes);
-      decl->type = NODE_DECLARATION;
-      decl->flags = 0;
-      decl->from = (FileAddress) { TOKEN.line, TOKEN.pos };
-
+      AstNode* decl = get_node(state, NODE_DECLARATION);
       parse_declaration(state, decl);
 
       if (accept(state, TOKEN_NEWLINE)) {
         list_append(state->scope->declarations, decl);
       } else {
-        AstNode* error = pool_get(state->nodes);
-        error->type = NODE_RECOVERY;
-        error->flags = 0;
-        error->from = (FileAddress) { TOKEN.line, TOKEN.pos };
+        AstNode* error = get_node(state, NODE_RECOVERY);
         error->error = new_string("Unexpected code following declaration");
         error->lhs = decl;
 
