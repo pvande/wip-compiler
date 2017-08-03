@@ -90,6 +90,23 @@ void test_pool_to_array() {
   Pool* pool;
   char* c;
 
+  pool = new_pool(sizeof(String), 1, 1);
+  *((String*) pool_get(pool)) = *new_string("First!");
+  *((String*) pool_get(pool)) = *new_string("Second!");
+  *((String*) pool_get(pool)) = *new_string("Last!");
+
+  TEST("Converting a pool of structs yields an equivalent array of structs");
+  String* str = pool_to_array(pool);
+  RAW(str, sizeof(String) * 3);
+  print_pointer(&str[0]); printf("\n");
+  print_pointer(&str[1]); printf("\n");
+  print_pointer(&str[2]); printf("\n");
+  ASSERT_STR_EQ(&str[0], new_string("First!"), "correctly returns the assigned struct");
+  ASSERT_STR_EQ(&str[1], new_string("Second!"), "correctly returns the assigned struct");
+  ASSERT_STR_EQ(&str[2], new_string("Last!"), "correctly returns the assigned struct");
+  free_pool(pool);
+  free(str);
+
   // Initially only stores one byte; buckets will be at random memory locations.
   pool = new_pool(1, 1, 1);
   *((char*) pool_get(pool)) = 'h';

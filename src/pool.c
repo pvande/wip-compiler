@@ -1,10 +1,11 @@
 typedef struct {
   size_t capacity;
   size_t bucket_size;
-  size_t slot_size;
   size_t length;
 
   void*** buckets;
+
+  size_t slot_size;
 } Pool;
 
 void initialize_pool(Pool* pool, size_t slot_size, size_t bucket_count, size_t bucket_size) {
@@ -59,7 +60,7 @@ void* pool_to_array(Pool* pool) {
       items_to_copy = items_remaining;
     }
 
-    size_t offset = i * pool->bucket_size;
+    size_t offset = i * pool->bucket_size * pool->slot_size;
     memcpy(&array[offset], pool->buckets[i], items_to_copy * pool->slot_size);
 
     items_remaining -= pool->bucket_size;
