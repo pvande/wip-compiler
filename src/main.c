@@ -66,22 +66,7 @@ typedef struct {
 
 
 typedef struct {
-  List* resolved_declarations;
-  size_t declaration_count;
 } CompilationWorkspace;
-
-typedef struct ParserScope {
-  List* declarations;
-
-  struct ParserScope* parent_scope;
-} ParserScope;
-
-typedef struct {
-  TokenizedFile list;
-  size_t pos;
-
-  ParserScope* current_scope;
-} ParserState;
 
 
 typedef enum {
@@ -111,9 +96,13 @@ typedef enum {
   NODE_FOREACH,
 } AstNodeType;
 
+typedef enum {
+  NODE_IS_FUNCTION_DECLARATION = (1 << 0),
+} AstNodeFlags;
+
 typedef struct {
   AstNodeType node_type;
-
+  AstNodeFlags flags;
 } AstNode;
 
 
@@ -215,8 +204,6 @@ int main(int argc, char** argv) {
 
   initialize_pipeline();
   pipeline_emit_read_job((String) { strlen(argv[1]), argv[1] });
-
-  CompilationWorkspace ws = { new_list(4, 64), 0 };
 
   int did_work = 1;
   while (pipeline_has_jobs()) {

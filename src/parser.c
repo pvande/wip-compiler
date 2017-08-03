@@ -9,6 +9,34 @@ DEFINE_STR(OP_OPEN_BRACE, "{");
 DEFINE_STR(OP_CLOSE_BRACE, "}");
 DEFINE_STR(OP_COMMA, ",");
 
+// ** Local Data Structures ** //
+
+typedef struct ParserScope {
+  struct ParserScope* parent;
+  Pool* declarations;
+} ParserScope;
+
+typedef struct {
+  TokenizedFile tokens;
+  size_t pos;
+
+  ParserScope* scope;
+} ParserState;
+
+
+void* new_parser_scope() {
+  ParserScope* scope = malloc(sizeof(ParserScope));
+  scope->declarations = new_pool(sizeof(AstNode), 1, 32);
+  return scope;
+}
+
+void* new_parser_state(TokenizedFile* tokens) {
+  ParserState* state = malloc(sizeof(ParserState));
+  state->pos = 0;
+  state->scope = new_parser_scope();
+  return state;
+}
+
 // // ** State Manipulation Primitives ** //
 //
 // ParserState __parser_state;
@@ -512,7 +540,8 @@ void parse_file(TokenizedFile* list, ParserScope* global) {
   // parse_namespace();
 }
 
-
 bool perform_parse_job(ParseJob* job) {
-  // return 1;
+  ParserState* state = new_parser_state(job->tokens);
+
+  return 1;
 }
