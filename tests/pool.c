@@ -97,10 +97,6 @@ void test_pool_to_array() {
 
   TEST("Converting a pool of structs yields an equivalent array of structs");
   String* str = pool_to_array(pool);
-  RAW(str, sizeof(String) * 3);
-  print_pointer(&str[0]); printf("\n");
-  print_pointer(&str[1]); printf("\n");
-  print_pointer(&str[2]); printf("\n");
   ASSERT_STR_EQ(&str[0], new_string("First!"), "correctly returns the assigned struct");
   ASSERT_STR_EQ(&str[1], new_string("Second!"), "correctly returns the assigned struct");
   ASSERT_STR_EQ(&str[2], new_string("Last!"), "correctly returns the assigned struct");
