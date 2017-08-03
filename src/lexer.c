@@ -92,8 +92,8 @@ void tokenize_string(String* input, TokenizedFile* result) {
           *((Token*) pool_get(tokens)) = (Token) { TOKEN_NEWLINE, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
           line_no += 1;
           line_start = file_pos + 1;
-          line_pos = 0;
           ADVANCE(THIS);
+          line_pos = 0;
           SLURP_WHITESPACE();
           break;
         }

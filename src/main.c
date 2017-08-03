@@ -98,9 +98,9 @@ typedef enum {
   NODE_TYPE,
 } AstNodeType;
 
-typedef enum {
-  NODE_IS_FUNCTION_DECLARATION = (1 << 0),
-} AstNodeFlags;
+// typedef enum {
+//   NODE_IS_FUNCTION_DECLARATION = (1 << 0),
+// } AstNodeFlags;
 
 typedef struct {
   size_t line;
@@ -109,7 +109,7 @@ typedef struct {
 
 typedef struct AstNode {
   AstNodeType type;
-  AstNodeFlags flags;
+  // AstNodeFlags flags;
 
   FileAddress from;
   FileAddress to;

@@ -41,24 +41,36 @@ void* new_parser_state(TokenizedFile* file) {
   return state;
 }
 
+// ** Local Debugging Tools ** //
+
+void print_ast_node_as_tree(ParserState* state, AstNode* node) {
+  if (node->lhs != NULL) print_ast_node_as_tree(state, node->lhs);
+  if (node->rhs != NULL) print_ast_node_as_tree(state, node->rhs);
+
+  String* line = &state->data.lines[node->from.line];
+
+  for (int i = 0; i < node->from.pos; i++) {
+    printf("%c", line->data[i]);
+  }
+  printf("\e[0;41m");
+  for (int i = node->from.pos; i < node->to.pos; i++) {
+    printf("%c", line->data[i]);
+  }
+  printf("\e[0m");
+  for (int i = node->to.pos; i < line->length; i++) {
+    printf("%c", line->data[i]);
+  }
+  printf("\n");
+}
+
 // ** State Manipulation Primitives ** //
 
 bool tokens_remain(ParserState* state) {
   return state->pos < state->data.length;
 }
 
-// ParserState __parser_state;
-//
-#define ACCEPTED       (state->data.tokens[state->pos - 1])
-#define TOKEN          (state->data.tokens[state->pos])
-// #define TOKENS_REMAIN  (__parser_state.pos < __parser_state.list.length)
-// #define CURRENT_LINE   (__parser_state.list.lines[TOKEN.line])
-// #define CURRENT_SCOPE  (__parser_state.current_scope)
-//
-// #define ADVANCE()      (__parser_state.pos += 1)
-// #define BEGIN()        const size_t __mark__ = __parser_state.pos;
-// #define ROLLBACK()     (__parser_state.pos = __mark__)
-
+#define ACCEPTED (state->data.tokens[state->pos - 1])
+#define TOKEN    (state->data.tokens[state->pos])
 
 // ** Parsing Primitives ** //
 
@@ -79,11 +91,6 @@ int peek_nonsyntax_op(ParserState* state, String* op) {
 int peek_op(ParserState* state, String* op) {
   return peek_syntax_op(state, op) || peek_nonsyntax_op(state, op);
 }
-
-// int peek_directive(String* name) {
-//   if (TOKEN.type != TOKEN_DIRECTIVE) return 0;
-//   return string_equals(name, &TOKEN.source);
-// }
 
 int accept(ParserState* state, TokenType type) {
   if (!peek(state, type)) return 0;
@@ -113,37 +120,6 @@ int accept_op(ParserState* state, String* op) {
   return 1;
 }
 
-// int accept_directive(String* name) {
-//   if (!peek_directive(name)) return 0;
-//
-//   ADVANCE();
-//   return 1;
-// }
-//
-// void error(char* msg) {
-//   char* filename = to_zero_terminated_string(&TOKEN.file);
-//   char* line_str = to_zero_terminated_string(&CURRENT_LINE);
-//   size_t line_no = TOKEN.line;
-//
-//   char* bold = "\e[1;37m";
-//   char* code = "\e[0;36m";
-//   char* err = "\e[0;31m";
-//   char* reset = "\e[0m";
-//
-//   printf("Error: %s\n", msg);
-//   printf("In %s%s%s on line %s%zu%s\n\n", bold, filename, reset, bold, TOKEN.line + 1, reset);
-//   printf("> %s%s%s\n", code, line_str, reset);
-//
-//   for (int i = 0; i < CURRENT_LINE.length; i++) line_str[i] = ' ';
-//   for (int i = TOKEN.pos; i < TOKEN.pos + TOKEN.source.length; i++) line_str[i] = '^';
-//
-//   printf("  %s%s%s\n\n", err, line_str, reset);
-//
-//   free(filename);
-//   free(line_str);
-// }
-//
-//
 // // ** Apathetic Parsing ** //
 //
 // // @Lazy We should be able to parse this fully in the initial pass, since no
@@ -241,24 +217,83 @@ void parse_type(ParserState* state, AstNode* type) {
 //             | Identifier ":" TYPE "=" EXPRESSION    @TODO
 //             | Identifier ":=" EXPRESSION            @TODO
 void parse_declaration(ParserState* state, AstNode* decl) {
-  // The Identifier should already be guaranteed by `test_declaration`.
-  assert(accept(state, TOKEN_IDENTIFIER));
-  decl->ident = symbol_get(&ACCEPTED.source);
-  decl->from = (FileAddress) { ACCEPTED.line, ACCEPTED.pos };
+  {
+    // The Identifier should already be guaranteed by `test_declaration`.
+    assert(accept(state, TOKEN_IDENTIFIER));
+    decl->ident = symbol_get(&ACCEPTED.source);
+  }
 
-  // OP_DECLARE should also be guaranteed by `test_declaration`.
-  assert(accept_op(state, OP_DECLARE));
+  {
+    // OP_DECLARE should also be guaranteed by `test_declaration`.
+    assert(accept_op(state, OP_DECLARE));
+  }
 
-  // Grab the TYPE.  Parse errors may reasonably occur here.
-  decl->lhs = pool_get(state->nodes);
-  decl->lhs->type = NODE_TYPE;
-  parse_type(state, decl->lhs);
-  if (decl->lhs->error != NULL) {
-    decl->error = new_string("Variable declaration requires a type identifier");
+  {
+    // Grab the TYPE.  Parse errors may reasonably occur here.
+    decl->lhs = pool_get(state->nodes);
+    decl->lhs->type = NODE_TYPE;
+    decl->lhs->from = (FileAddress) { TOKEN.line, TOKEN.pos };
+
+    parse_type(state, decl->lhs);
+
+    if (decl->lhs->error != NULL) {
+      decl->error = new_string("Variable declaration requires a type identifier");
+    }
   }
 
   decl->to = (FileAddress) { ACCEPTED.line, ACCEPTED.pos + ACCEPTED.source.length };
 }
+
+//  TOP_LEVEL = DECLARATION
+//            | TOP_LEVEL_DIRECTIVE    @TODO
+void parse_top_level(ParserState* state) {
+  while (tokens_remain(state)) {
+    if (accept(state, TOKEN_NEWLINE)) {
+      // Move on, nothing to see here.
+
+    } else if (test_declaration(state)) {
+      AstNode* decl = pool_get(state->nodes);
+      decl->type = NODE_DECLARATION;
+      decl->from = (FileAddress) { TOKEN.line, TOKEN.pos };
+      parse_declaration(state, decl);
+
+      if (accept(state, TOKEN_NEWLINE)) {
+        list_append(state->scope->declarations, decl);
+      } else {
+        AstNode* error = pool_get(state->nodes);
+        error->type = NODE_RECOVERY;
+        error->error = new_string("Unexpected code following declaration");
+        error->lhs = decl;
+        error->from = (FileAddress) { TOKEN.line, TOKEN.pos };
+        while (!peek(state, TOKEN_NEWLINE)) state->pos += 1;
+        error->to = (FileAddress) { TOKEN.line, TOKEN.pos };
+
+        list_append(state->scope->declarations, error);
+      }
+
+    } else {
+      printf("Unrecognized code in top-level context\n");
+    }
+  }
+}
+
+
+bool perform_parse_job(ParseJob* job) {
+  ParserState* state = new_parser_state(job->tokens);
+
+  parse_top_level(state);
+
+  List* declarations = state->scope->declarations;
+  for (size_t i = 0; i < declarations->length; i++) {
+    AstNode* node = list_get(declarations, i);
+    print_ast_node_as_tree(state, node);
+    printf("\n");
+  }
+
+  return 1;
+}
+
+
 
 // void* parse_declaration_tuple() {
 //   if (!accept_op(OP_OPEN_PAREN)) {
@@ -522,43 +557,3 @@ void parse_declaration(ParserState* state, AstNode* decl) {
 //     }
 //   }
 // }
-
-//  TOP_LEVEL = DECLARATION
-//            | TOP_LEVEL_DIRECTIVE    @TODO
-void parse_top_level(ParserState* state) {
-  while (tokens_remain(state)) {
-    if (accept(state, TOKEN_NEWLINE)) {
-      // Move on, nothing to see here.
-
-    } else if (test_declaration(state)) {
-      AstNode* decl = pool_get(state->nodes);
-      decl->type = NODE_DECLARATION;
-      parse_declaration(state, decl);
-
-      if (accept(state, TOKEN_NEWLINE)) {
-        list_append(state->scope->declarations, decl);
-      } else {
-        AstNode* error = pool_get(state->nodes);
-        error->type = NODE_RECOVERY;
-        error->error = new_string("Unexpected code following declaration");
-        error->lhs = decl;
-        error->from = (FileAddress) { TOKEN.line, TOKEN.pos };
-        while (!peek(state, TOKEN_NEWLINE)) state->pos += 1;
-        error->to = (FileAddress) { TOKEN.line, TOKEN.pos };
-
-        list_append(state->scope->declarations, error);
-      }
-
-    } else {
-      printf("Unrecognized code in top-level context\n");
-    }
-  }
-}
-
-bool perform_parse_job(ParseJob* job) {
-  ParserState* state = new_parser_state(job->tokens);
-
-  parse_top_level(state);
-
-  return 1;
-}
