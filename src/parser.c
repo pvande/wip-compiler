@@ -10,6 +10,10 @@ DEFINE_STR(OP_OPEN_BRACE, "{");
 DEFINE_STR(OP_CLOSE_BRACE, "}");
 DEFINE_STR(OP_COMMA, ",");
 
+// ** Constant Strings ** //
+
+DEFINE_STR(STR_VOID, "void");
+
 // ** Local Data Structures ** //
 
 typedef struct ParserScope {
