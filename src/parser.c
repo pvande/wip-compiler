@@ -156,14 +156,39 @@ int accept_op(ParserState* state, String* op) {
 
 // ** Lookahead Operations ** //
 
-int test_declaration(ParserState* state) {
-  int result = 0;
+bool skim_tuple(ParserState* state) {
+  size_t depth = 0;
+
+  if (!peek_op(state, OP_OPEN_PAREN)) return 0;
+
+  do {
+    if (peek_op(state, OP_OPEN_PAREN)) depth += 1;
+    if (peek_op(state, OP_CLOSE_PAREN)) depth -= 1;
+    state->pos += 1;
+  } while (tokens_remain(state) && depth > 0);
+
+  return depth < 1;
+}
+
+bool test_declaration(ParserState* state) {
+  bool result = 0;
 
   size_t mark = state->pos;
   if (accept(state, TOKEN_IDENTIFIER)) {
     result = peek_op(state, OP_DECLARE);
   }
   state->pos = mark;
+
+  return result;
+}
+
+bool test_function(ParserState* state) {
+  bool result = 0;
+
+  size_t mark = state->pos;
+  result = skim_tuple(state) && peek_op(state, OP_FUNC_ARROW);
+  state->pos = mark;
+  printf("Hello?  %d\n", result);
 
   return result;
 }
@@ -231,7 +256,8 @@ void parse_type(ParserState* state, AstNode* type) {
 
 
 // EXPRESSION = Literal
-//            | Identifier    @TODO
+//            | Identifier
+//            | FUNCTION
 void parse_expression(ParserState* state, AstNode* expr) {
   expr->to = (FileAddress) { TOKEN.line, TOKEN.pos + TOKEN.source.length };
 
@@ -241,6 +267,10 @@ void parse_expression(ParserState* state, AstNode* expr) {
   } else if (accept(state, TOKEN_IDENTIFIER)) {
     expr->flags |= EXPR_IDENT;
     expr->ident = symbol_get(&ACCEPTED.source);
+  } else if (test_function(state)) {
+    expr->flags |= EXPR_FUNCTION;
+    expr->lhs = pool_get(state->nodes);  // Args tuple
+    expr->rhs = pool_get(state->nodes);  // Returns tuple
   } else {
     expr->error = new_string("Expected an expression");
   }
@@ -263,10 +293,10 @@ void parse_declaration(ParserState* state, AstNode* decl) {
 
   {
     // Grab the TYPE.  Parse errors may reasonably occur here.
-    decl->lhs = get_node(state, NODE_TYPE);
-    parse_type(state, decl->lhs);
+    decl->rhs = get_node(state, NODE_TYPE);
+    parse_type(state, decl->rhs);
 
-    if (decl->lhs->error != NULL) {
+    if (decl->rhs->error != NULL) {
       decl->error = new_string("Variable declaration requires a type identifier");
     }
   }
@@ -285,6 +315,7 @@ void parse_declaration(ParserState* state, AstNode* decl) {
     assignment->to = value->to;
 
     AstNode* compound = get_node(state, NODE_COMPOUND);
+    compound->flags = COMPOUND_DECL_ASSIGN;
     compound->from = decl->from;
     compound->to = assignment->to;
 

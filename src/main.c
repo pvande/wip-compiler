@@ -69,24 +69,28 @@ typedef struct {
 } CompilationWorkspace;
 
 
+// Update docs/parser/node-usage.md when this changes.
 typedef enum {
   NODE_ASSIGNMENT,
-  NODE_BRANCH,
+  // NODE_BRANCH,
   NODE_COMPOUND,
   NODE_DECLARATION,
   NODE_EXPRESSION,
-  NODE_LOOP,
+  // NODE_LOOP,
   NODE_RECOVERY,
   NODE_TYPE,
+  NODE_TUPLE,
 } AstNodeType;
 
+// Update docs/parser/node-usage.md when this changes.
 typedef enum {
-  EXPR_LITERAL   = (1 << 0),
-  EXPR_IDENT     = (1 << 1),
-  // EXPR_FUNCTION  = (1 << 2),
-  // EXPR_UNARY_OP  = (1 << 3),
-  // EXPR_BINARY_OP = (1 << 4),
-  // EXPR_CALL      = (1 << 5),
+  COMPOUND_DECL_ASSIGN = (1 << 0),
+  EXPR_LITERAL         = (1 << 1),
+  EXPR_IDENT           = (1 << 2),
+  EXPR_FUNCTION        = (1 << 3),
+  // EXPR_UNARY_OP  = (1 << 4),
+  // EXPR_BINARY_OP = (1 << 5),
+  // EXPR_CALL      = (1 << 6),
 } AstNodeFlags;
 
 typedef struct {
@@ -94,19 +98,21 @@ typedef struct {
   size_t pos;
 } FileAddress;
 
+// Update docs/parser/node-usage.md when this changes.
 typedef struct AstNode {
   AstNodeType type;
-  AstNodeFlags flags;
+  AstNodeFlags flags;   // 0
 
-  FileAddress from;
-  FileAddress to;
+  FileAddress from;     // CURRENT_LOCATION
+  FileAddress to;       // ---
 
-  Symbol ident;
-  String source;
-  struct AstNode* lhs;
-  struct AstNode* rhs;
+  Symbol ident;         // ---
+  String source;        // ---
+  struct AstNode* lhs;  // ---
+  List* body;           // ---
+  struct AstNode* rhs;  // ---
 
-  String* error;
+  String* error;        // NULL
 } AstNode;
 
 
