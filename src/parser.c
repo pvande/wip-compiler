@@ -82,6 +82,8 @@ void print_ast_node_type(AstNode* node) {
 }
 
 void print_ast_node_as_tree(ParserState* state, AstNode* node) {
+  if (node == NULL) return;
+
   String* line = &state->data.lines[node->from.line];
 
   for (int i = 0; i < node->from.pos; i++) {
@@ -202,7 +204,7 @@ bool test_declaration(ParserState* state) {
 
   size_t mark = state->pos;
   if (accept(state, TOKEN_IDENTIFIER)) {
-    result = peek_op(state, OP_DECLARE);
+    result = peek_op(state, OP_DECLARE) || peek_op(state, OP_DECLARE_ASSIGN);
   }
   state->pos = mark;
 
@@ -438,63 +440,61 @@ AstNode* parse_expression(ParserState* state) {
 
 // DECLARATION = Identifier ":" TYPE
 //             | Identifier ":" TYPE "=" EXPRESSION
-//             | Identifier ":=" EXPRESSION            @TODO
+//             | Identifier ":=" EXPRESSION
 AstNode* parse_declaration(ParserState* state) {
-  AstNode* decl = init_node(pool_get(state->nodes), NODE_DECLARATION);
-  decl->from = token_start(TOKEN);
+  FileAddress decl_start = token_start(TOKEN);
+  Symbol name;
+  AstNode* type = NULL;
+  AstNode* value = NULL;
 
   {
     // The Identifier should already be guaranteed by `test_declaration`.
     assert(accept(state, TOKEN_IDENTIFIER));
-    decl->ident = symbol_get(&ACCEPTED.source);
+    name = symbol_get(&ACCEPTED.source);
   }
 
-  {
-    // OP_DECLARE should also be guaranteed by `test_declaration`.
-    assert(accept_op(state, OP_DECLARE));
+  if (accept_op(state, OP_DECLARE)) {
+    type = parse_type(state);
+  } else {
+    assert(accept_op(state, OP_DECLARE_ASSIGN));
   }
 
-  {
-    // Grab the TYPE.  Parse errors may reasonably occur here.
-    decl->rhs = parse_type(state);
+  if (type == NULL || accept_op(state, OP_ASSIGN)) {
+    value = parse_expression(state);
 
-    if (decl->rhs->error != NULL) {
-      decl->error = new_string("Variable declaration requires a type identifier");
-    }
+    // @TODO Do decl/assigns really need to be compound, or could Assignments
+    // be made directly to declaration nodes?
+    AstNode* compound = init_node(pool_get(state->nodes), NODE_COMPOUND);
+    compound->flags = COMPOUND_DECL_ASSIGN;
+    compound->from = decl_start;
+    compound->to = token_end(ACCEPTED);
+    compound->body_length = 2;
+    compound->body = malloc(2 * sizeof(AstNode));
+
+    AstNode* decl = init_node(&compound->body[0], NODE_DECLARATION);
+    decl->from = decl_start;
+    decl->to = token_end(ACCEPTED);
+    decl->ident = name;
+    decl->rhs = type;
+
+    AstNode* assignment = init_node(&compound->body[1], NODE_ASSIGNMENT);
+    assignment->from = decl_start;
+    assignment->to = token_end(ACCEPTED);
+    assignment->ident = name;
+    assignment->rhs = value;
+
+    // @TODO Bubble up errors.
+    return compound;
+  } else {
+    AstNode* decl = init_node(pool_get(state->nodes), NODE_DECLARATION);
+    decl->from = decl_start;
+    decl->to = token_end(ACCEPTED);
+    decl->ident = name;
+    decl->rhs = type;
+
+    // @TODO Bubble up errors.
+    return decl;
   }
-
-  decl->to = token_end(ACCEPTED);
-
-  if (!accept_op(state, OP_ASSIGN)) return decl;
-
-  // Since we already have a pool-allocated node for the declaration, but we
-  // need two contiguous nodes for the COMPOUND node we're building, we'll do
-  // some clever work and swap the two.  If we allocate the COMPOUND body, then
-  // we'll have space to copy the declaration data; that will free up the `decl`
-  // node to be re-initialized and used as the memory for the COMPOUND node.
-  // All in all, this works, but there's probably a cleaner way to structure all
-  // of this.  This may also have to be rewritten when we implement the untyped
-  // decl/assign operator.
-  //     - pvande, Aug 4, 2017
-  AstNode* body = malloc(2 * sizeof(AstNode));
-  body[0] = *decl;
-
-  AstNode* assignment = init_node(&body[1], NODE_ASSIGNMENT);
-
-  // @TODO Find a way to unify this with `parse_expression`.
-  // @Gross @Leak @FixMe Find a way to avoid the extra allocations here.
-  AstNode* expr = parse_expression(state);
-  *assignment = *expr;
-
-  // @TODO Bubble up errors.
-  AstNode* compound = init_node(decl, NODE_COMPOUND);
-  compound->flags = COMPOUND_DECL_ASSIGN;
-  compound->from = body[0].from;
-  compound->to = body[1].to;
-  compound->body_length = 2;
-  compound->body = body;
-
-  return compound;
 }
 
 AstNode* parse_top_level_delcaration(ParserState* state) {

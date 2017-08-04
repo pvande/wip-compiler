@@ -104,7 +104,7 @@ typedef struct AstNode {
   AstNodeType type;
   AstNodeFlags flags;   // 0
 
-  FileAddress from;     // CURRENT_LOCATION
+  FileAddress from;     // ---
   FileAddress to;       // ---
 
   Symbol ident;         // ---
@@ -113,7 +113,7 @@ typedef struct AstNode {
   struct AstNode* rhs;  // ---
 
   size_t body_length;   // ---
-  struct AstNode* body;        // ---
+  struct AstNode* body; // ---
 
   String* error;        // NULL
 } AstNode;
