@@ -121,6 +121,14 @@ bool tokens_remain(ParserState* state) {
   return state->pos < state->data.length;
 }
 
+FileAddress token_start(Token t) {
+  return (FileAddress) { t.line, t.pos };
+}
+
+FileAddress token_end(Token t) {
+  return (FileAddress) { t.line, t.pos + t.source.length };
+}
+
 #define ACCEPTED (state->data.tokens[state->pos - 1])
 #define TOKEN    (state->data.tokens[state->pos])
 
@@ -235,17 +243,14 @@ AstNode* parse_declaration(ParserState* state);
 //      | TYPE_TUPLE "=>" TYPE_TUPLE    @TODO
 AstNode* parse_type(ParserState* state) {
   AstNode* type = init_node(pool_get(state->nodes), NODE_TYPE);
-  type->from.line = TOKEN.line;
-  type->from.pos  = TOKEN.pos;
+  type->from = token_start(TOKEN);
 
   if (accept(state, TOKEN_IDENTIFIER)) {
-    type->to.line = ACCEPTED.line;
-    type->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
-    type->ident   = symbol_get(&ACCEPTED.source);
+    type->ident = symbol_get(&ACCEPTED.source);
+    type->to = token_end(ACCEPTED);
   } else {
-    type->to.line = TOKEN.line;
-    type->to.pos  = TOKEN.pos + TOKEN.source.length;
-    type->error   = new_string("Expected a type identifier");
+    type->error = new_string("Expected a type identifier");
+    type->to = token_end(TOKEN);
   }
 
   return type;
@@ -256,8 +261,7 @@ AstNode* parse_type(ParserState* state) {
 //            | "(" TYPE ("," TYPE)* ")"
 AstNode* parse_type_tuple(ParserState* state) {
   AstNode* tuple = init_node(pool_get(state->nodes), NODE_TUPLE);
-  tuple->from.line = TOKEN.line;
-  tuple->from.pos  = TOKEN.pos;
+  tuple->from = token_start(TOKEN);
 
   assert(accept_op(state, OP_OPEN_PAREN));
 
@@ -267,10 +271,8 @@ AstNode* parse_type_tuple(ParserState* state) {
     while (accept(state, TOKEN_IDENTIFIER)) {
       // @TODO Find a way to unify this with `parse_type`.
       AstNode* node = init_node(pool_get(pool), NODE_TYPE);
-      node->from.line = ACCEPTED.line;
-      node->from.pos  = ACCEPTED.pos;
-      node->to.line = ACCEPTED.line;
-      node->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
+      node->from = token_start(ACCEPTED);
+      node->to = token_end(ACCEPTED);
       node->ident = symbol_get(&ACCEPTED.source);
 
       if (!accept_op(state, OP_COMMA)) break;
@@ -284,8 +286,7 @@ AstNode* parse_type_tuple(ParserState* state) {
 
   bool balanced_parens = accept_op(state, OP_CLOSE_PAREN);
 
-  tuple->to.line = ACCEPTED.line;
-  tuple->to.pos = ACCEPTED.pos + ACCEPTED.source.length;
+  tuple->to = token_end(ACCEPTED);
 
   if (balanced_parens) return tuple;
 
@@ -300,11 +301,10 @@ AstNode* parse_type_tuple(ParserState* state) {
 
     AstNode* error = init_node(pool_get(state->nodes), NODE_RECOVERY);
     error->from = tuple->to;
+    error->to = token_end(ACCEPTED);
     error->lhs = tuple;
     error->error = new_string("Unable to parse function argument declarations");
 
-    error->to.line = ACCEPTED.line;
-    error->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
     return error;
   }
 }
@@ -314,8 +314,7 @@ AstNode* parse_type_tuple(ParserState* state) {
 //                   | "(" DECLARATION ("," DECLARATION)* ")"
 AstNode* parse_declaration_tuple(ParserState* state) {
   AstNode* tuple = init_node(pool_get(state->nodes), NODE_TUPLE);
-  tuple->from.line = TOKEN.line;
-  tuple->from.pos  = TOKEN.pos;
+  tuple->from = token_start(TOKEN);
 
   assert(accept_op(state, OP_OPEN_PAREN));
 
@@ -339,10 +338,8 @@ AstNode* parse_declaration_tuple(ParserState* state) {
   }
 
   bool balanced_parens = accept_op(state, OP_CLOSE_PAREN);
-  printf("%d\n", balanced_parens);
 
-  tuple->to.line = ACCEPTED.line;
-  tuple->to.pos = ACCEPTED.pos + ACCEPTED.source.length;
+  tuple->to = token_end(ACCEPTED);
 
   if (balanced_parens) return tuple;
 
@@ -357,12 +354,10 @@ AstNode* parse_declaration_tuple(ParserState* state) {
 
     AstNode* error = init_node(pool_get(state->nodes), NODE_RECOVERY);
     error->from = tuple->to;
+    error->to = token_end(ACCEPTED);
     error->lhs = tuple;
     error->error = new_string("Unable to parse function argument declarations");
 
-    error->to.line = ACCEPTED.line;
-    error->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
-    print_ast_node_as_tree(state, error);
     return error;
   }
 }
@@ -370,8 +365,7 @@ AstNode* parse_declaration_tuple(ParserState* state) {
 // CODE_BLOCK = "{" "}"
 AstNode* parse_code_block(ParserState* state) {
   AstNode* block = init_node(pool_get(state->nodes), NODE_COMPOUND);
-  block->from.line = TOKEN.line;
-  block->from.pos  = TOKEN.pos;
+  block->from = token_start(TOKEN);
 
   // @TODO A lot more...
   accept_op(state, OP_OPEN_BRACE);
@@ -379,8 +373,7 @@ AstNode* parse_code_block(ParserState* state) {
 
   block->body_length = 0;
 
-  block->to.line = ACCEPTED.line;
-  block->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
+  block->to = token_end(ACCEPTED);
   return block;
 }
 
@@ -394,8 +387,7 @@ AstNode* parse_code_block(ParserState* state) {
 AstNode* parse_function(ParserState* state) {
   AstNode* func = init_node(pool_get(state->nodes), NODE_EXPRESSION);
   func->flags = EXPR_FUNCTION;
-  func->from.line = TOKEN.line;
-  func->from.pos  = TOKEN.pos;
+  func->from = token_start(TOKEN);
 
   func->lhs = parse_declaration_tuple(state);
 
@@ -406,8 +398,7 @@ AstNode* parse_function(ParserState* state) {
   func->body_length = 1;
   func->body = parse_code_block(state);
 
-  func->to.line = ACCEPTED.line;
-  func->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
+  func->to = token_end(ACCEPTED);
   return func;
 }
 
@@ -418,38 +409,29 @@ AstNode* parse_expression(ParserState* state) {
   if (accept(state, TOKEN_LITERAL)) {
     // @TODO Extract this?
     AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
-    expr->from.line = TOKEN.line;
-    expr->from.pos  = TOKEN.pos;
-
     expr->flags = EXPR_LITERAL;
+    expr->from = token_start(ACCEPTED);
+    expr->to = token_end(ACCEPTED);
     expr->source = ACCEPTED.source;
-
-    expr->to.line = ACCEPTED.line;
-    expr->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
     return expr;
+
   } else if (accept(state, TOKEN_IDENTIFIER)) {
     // @TODO Extract this?
     AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
-    expr->from.line = TOKEN.line;
-    expr->from.pos  = TOKEN.pos;
-
     expr->flags = EXPR_IDENT;
+    expr->from = token_start(ACCEPTED);
+    expr->to = token_end(ACCEPTED);
     expr->ident = symbol_get(&ACCEPTED.source);
-
-    expr->to.line = ACCEPTED.line;
-    expr->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
     return expr;
+
   } else if (test_function(state)) {
     return parse_function(state);
+
   } else {
     AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
-    expr->from.line = TOKEN.line;
-    expr->from.pos  = TOKEN.pos;
-
+    expr->from = token_start(TOKEN);
+    expr->to = token_end(TOKEN);
     expr->error = new_string("Expected an expression");
-
-    expr->to.line = TOKEN.line;
-    expr->to.pos  = TOKEN.pos + TOKEN.source.length;
     return expr;
   }
 }
@@ -459,8 +441,7 @@ AstNode* parse_expression(ParserState* state) {
 //             | Identifier ":=" EXPRESSION            @TODO
 AstNode* parse_declaration(ParserState* state) {
   AstNode* decl = init_node(pool_get(state->nodes), NODE_DECLARATION);
-  decl->from.line = TOKEN.line;
-  decl->from.pos  = TOKEN.pos;
+  decl->from = token_start(TOKEN);
 
   {
     // The Identifier should already be guaranteed by `test_declaration`.
@@ -482,8 +463,7 @@ AstNode* parse_declaration(ParserState* state) {
     }
   }
 
-  decl->to.line = ACCEPTED.line;
-  decl->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
+  decl->to = token_end(ACCEPTED);
 
   if (!accept_op(state, OP_ASSIGN)) return decl;
 
@@ -500,8 +480,6 @@ AstNode* parse_declaration(ParserState* state) {
   body[0] = *decl;
 
   AstNode* assignment = init_node(&body[1], NODE_ASSIGNMENT);
-  assignment->from.line = TOKEN.line;
-  assignment->from.pos  = TOKEN.pos;
 
   // @TODO Find a way to unify this with `parse_expression`.
   // @Gross @Leak @FixMe Find a way to avoid the extra allocations here.
@@ -527,16 +505,14 @@ AstNode* parse_top_level_delcaration(ParserState* state) {
   {
     // Error recovery
     AstNode* error = init_node(decl, NODE_RECOVERY);
-    error->from.line = TOKEN.line;
-    error->from.pos  = TOKEN.pos;
+    error->from = token_start(TOKEN);
     error->lhs = decl;
     error->error = new_string("Unexpected code following declaration");
 
     // @TODO More robustly seek past the error.
     while (!peek(state, TOKEN_NEWLINE)) state->pos += 1;
 
-    error->to.line = TOKEN.line;
-    error->to.pos  = TOKEN.pos + TOKEN.source.length;
+    error->to = token_end(TOKEN);
     return error;
   }
 }
