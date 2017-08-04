@@ -214,8 +214,7 @@ bool test_function(ParserState* state) {
 
 // ** Helpers ** //
 
-void* get_node(Pool* pool, AstNodeType type) {
-  AstNode* node = pool_get(pool);
+void* init_node(AstNode* node, AstNodeType type) {
   node->type = type;
   node->flags = 0;
   node->to.line = -1;
@@ -229,48 +228,69 @@ void* get_node(Pool* pool, AstNodeType type) {
 
 // ** Parser States ** //
 
-void parse_declaration(ParserState* state, AstNode* decl);
+AstNode* parse_declaration(ParserState* state);
 
 // TYPE = Identifier
 //      | TYPE_TUPLE "=>" TYPE          @TODO
 //      | TYPE_TUPLE "=>" TYPE_TUPLE    @TODO
-void parse_type(ParserState* state, AstNode* type) {
-  type->to = (FileAddress) { TOKEN.line, TOKEN.pos + TOKEN.source.length };
+AstNode* parse_type(ParserState* state) {
+  AstNode* type = init_node(pool_get(state->nodes), NODE_TYPE);
+  type->from.line = TOKEN.line;
+  type->from.pos  = TOKEN.pos;
 
   if (accept(state, TOKEN_IDENTIFIER)) {
-    type->ident = symbol_get(&ACCEPTED.source);
+    type->to.line = ACCEPTED.line;
+    type->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
+    type->ident   = symbol_get(&ACCEPTED.source);
   } else {
-    type->error = new_string("Expected a type identifier");
+    type->to.line = TOKEN.line;
+    type->to.pos  = TOKEN.pos + TOKEN.source.length;
+    type->error   = new_string("Expected a type identifier");
   }
+
+  return type;
 }
 
+// @TODO Find a way to unify this method with `parse_declaration_tuple`.
 // TYPE_TUPLE = "(" ")"
 //            | "(" TYPE ("," TYPE)* ")"
-void parse_type_tuple(ParserState* state, AstNode* tuple) {
-  Pool* pool = new_pool(sizeof(AstNode), 2, 4);
+AstNode* parse_type_tuple(ParserState* state) {
+  AstNode* tuple = init_node(pool_get(state->nodes), NODE_TUPLE);
+  tuple->from.line = TOKEN.line;
+  tuple->from.pos  = TOKEN.pos;
 
   assert(accept_op(state, OP_OPEN_PAREN));
 
-  while (accept(state, TOKEN_IDENTIFIER)) {
-    AstNode* node = get_node(pool, NODE_TYPE);
-    node->from = (FileAddress) { ACCEPTED.line, ACCEPTED.pos };
-    node->to = (FileAddress) { ACCEPTED.line, ACCEPTED.pos + ACCEPTED.source.length };
-    node->ident = symbol_get(&ACCEPTED.source);
+  {
+    Pool* pool = new_pool(sizeof(AstNode), 2, 4);
 
-    if (!accept_op(state, OP_COMMA)) break;
+    while (accept(state, TOKEN_IDENTIFIER)) {
+      // @TODO Find a way to unify this with `parse_type`.
+      AstNode* node = init_node(pool_get(pool), NODE_TYPE);
+      node->from.line = ACCEPTED.line;
+      node->from.pos  = ACCEPTED.pos;
+      node->to.line = ACCEPTED.line;
+      node->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
+      node->ident = symbol_get(&ACCEPTED.source);
+
+      if (!accept_op(state, OP_COMMA)) break;
+    }
+
+    tuple->body_length = pool->length;
+    tuple->body = pool_to_array(pool);
+
+    free_pool(pool);
   }
 
-  tuple->to = (FileAddress) { ACCEPTED.line, ACCEPTED.pos + ACCEPTED.source.length + peek_op(state, OP_CLOSE_PAREN) };
-  tuple->body_length = pool->length;
-  tuple->body = pool_to_array(pool);
-  free_pool(pool);
+  bool balanced_parens = accept_op(state, OP_CLOSE_PAREN);
 
-  if (!accept_op(state, OP_CLOSE_PAREN)) {
-    AstNode* error = tuple;
+  tuple->to.line = ACCEPTED.line;
+  tuple->to.pos = ACCEPTED.pos + ACCEPTED.source.length;
 
-    AstNode* temp = get_node(state->nodes, NODE_TUPLE);
-    *temp = *tuple;
+  if (balanced_parens) return tuple;
 
+  {
+    // Error recovery
     size_t depth = 1;
     do {
       if (peek_op(state, OP_OPEN_PAREN)) depth += 1;
@@ -278,43 +298,56 @@ void parse_type_tuple(ParserState* state, AstNode* tuple) {
       state->pos += 1;
     } while (tokens_remain(state) && depth > 0);
 
-    error->type = NODE_RECOVERY;
-    error->flags = 0;
-    error->lhs = temp;
-    error->to = (FileAddress) { ACCEPTED.line, ACCEPTED.pos + ACCEPTED.source.length };
-    error->body_length = 0;
+    AstNode* error = init_node(pool_get(state->nodes), NODE_RECOVERY);
+    error->from = tuple->to;
+    error->lhs = tuple;
     error->error = new_string("Unable to parse function argument declarations");
+
+    error->to.line = ACCEPTED.line;
+    error->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
+    return error;
   }
 }
 
+// @TODO Find a way to unify this method with `parse_type_tuple`.
 // DECLARATION_TUPLE = "(" ")"
 //                   | "(" DECLARATION ("," DECLARATION)* ")"
-void parse_declaration_tuple(ParserState* state, AstNode* tuple) {
-  Pool* pool = new_pool(sizeof(AstNode), 2, 4);
+AstNode* parse_declaration_tuple(ParserState* state) {
+  AstNode* tuple = init_node(pool_get(state->nodes), NODE_TUPLE);
+  tuple->from.line = TOKEN.line;
+  tuple->from.pos  = TOKEN.pos;
 
   assert(accept_op(state, OP_OPEN_PAREN));
 
-  while (test_declaration(state)) {
-    AstNode* node = get_node(pool, NODE_DECLARATION);
-    node->from.line = TOKEN.line;
-    node->from.pos = TOKEN.pos;
+  {
+    Pool* pool = new_pool(sizeof(AstNode), 2, 4);
 
-    parse_declaration(state, node);
+    while (test_declaration(state)) {
+      AstNode* node = init_node(pool_get(pool), NODE_DECLARATION);
 
-    if (!accept_op(state, OP_COMMA)) break;
+      // @TODO Find a way to unify this with `parse_declaration`.
+      // @Gross @Leak @FixMe Find a way to avoid the extra allocations here.
+      *node = *parse_declaration(state);
+
+      if (!accept_op(state, OP_COMMA)) break;
+    }
+
+    tuple->body_length = pool->length;
+    tuple->body = pool_to_array(pool);
+
+    free_pool(pool);
   }
 
-  tuple->to = (FileAddress) { ACCEPTED.line, ACCEPTED.pos + ACCEPTED.source.length + peek_op(state, OP_CLOSE_PAREN) };
-  tuple->body_length = pool->length;
-  tuple->body = pool_to_array(pool);
-  free_pool(pool);
+  bool balanced_parens = accept_op(state, OP_CLOSE_PAREN);
+  printf("%d\n", balanced_parens);
 
-  if (!accept_op(state, OP_CLOSE_PAREN)) {
-    AstNode* error = tuple;
+  tuple->to.line = ACCEPTED.line;
+  tuple->to.pos = ACCEPTED.pos + ACCEPTED.source.length;
 
-    AstNode* temp = get_node(state->nodes, NODE_TUPLE);
-    *temp = *tuple;
+  if (balanced_parens) return tuple;
 
+  {
+    // Error recovery
     size_t depth = 1;
     do {
       if (peek_op(state, OP_OPEN_PAREN)) depth += 1;
@@ -322,78 +355,113 @@ void parse_declaration_tuple(ParserState* state, AstNode* tuple) {
       state->pos += 1;
     } while (tokens_remain(state) && depth > 0);
 
-    error->type = NODE_RECOVERY;
-    error->flags = 0;
-    error->lhs = temp;
-    error->to = (FileAddress) { ACCEPTED.line, ACCEPTED.pos + ACCEPTED.source.length };
-    error->body_length = 0;
+    AstNode* error = init_node(pool_get(state->nodes), NODE_RECOVERY);
+    error->from = tuple->to;
+    error->lhs = tuple;
     error->error = new_string("Unable to parse function argument declarations");
+
+    error->to.line = ACCEPTED.line;
+    error->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
+    print_ast_node_as_tree(state, error);
+    return error;
   }
 }
 
 // CODE_BLOCK = "{" "}"
-void parse_code_block(ParserState* state, AstNode* block) {
+AstNode* parse_code_block(ParserState* state) {
+  AstNode* block = init_node(pool_get(state->nodes), NODE_COMPOUND);
+  block->from.line = TOKEN.line;
+  block->from.pos  = TOKEN.pos;
+
   // @TODO A lot more...
   accept_op(state, OP_OPEN_BRACE);
   accept_op(state, OP_CLOSE_BRACE);
 
-  block->to = (FileAddress) { ACCEPTED.line, ACCEPTED.pos + ACCEPTED.source.length };
   block->body_length = 0;
+
+  block->to.line = ACCEPTED.line;
+  block->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
+  return block;
 }
 
+// @TODO Bubble up errors from lhs.
+// @TODO Bubble up errors from rhs.
+// @TODO Bubble up errors from body.
 // FUNCTION = DECLARATION_TUPLE "=>" TYPE_TUPLE CODE_BLOCK
 //          | DECLARATION_TUPLE "=>" NAMED_TYPE_TUPLE CODE_BLOCK    @TODO
 //          | DECLARATION_TUPLE "=>" TYPE CODE_BLOCK                @TODO
 //          | DECLARATION_TUPLE "=>" CODE_BLOCK                     @TODO
-void parse_function(ParserState* state, AstNode* func) {
-  // @TODO Bubble up errors from lhs.
-  func->lhs = get_node(state->nodes, NODE_TUPLE);  // Arguments
-  func->lhs->from.line = TOKEN.line;
-  func->lhs->from.pos = TOKEN.pos;
-  parse_declaration_tuple(state, func->lhs);
+AstNode* parse_function(ParserState* state) {
+  AstNode* func = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+  func->flags = EXPR_FUNCTION;
+  func->from.line = TOKEN.line;
+  func->from.pos  = TOKEN.pos;
+
+  func->lhs = parse_declaration_tuple(state);
 
   assert(accept_op(state, OP_FUNC_ARROW));
 
-  // @TODO Bubble up errors from rhs.
-  func->rhs = get_node(state->nodes, NODE_TUPLE);  // Returns
-  func->rhs->from.line = TOKEN.line;
-  func->rhs->from.pos = TOKEN.pos;
-  parse_type_tuple(state, func->rhs);
+  func->rhs = parse_type_tuple(state);
 
-  // @TODO Bubble up errors from rhs.
-  func->body = get_node(state->nodes, NODE_COMPOUND);  // Returns
   func->body_length = 1;
-  func->body->from.line = TOKEN.line;
-  func->body->from.pos = TOKEN.pos;
-  parse_code_block(state, func->body);
+  func->body = parse_code_block(state);
+
+  func->to.line = ACCEPTED.line;
+  func->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
+  return func;
 }
 
 // EXPRESSION = Literal
 //            | Identifier
 //            | FUNCTION
-void parse_expression(ParserState* state, AstNode* expr) {
+AstNode* parse_expression(ParserState* state) {
   if (accept(state, TOKEN_LITERAL)) {
-    expr->flags |= EXPR_LITERAL;
+    // @TODO Extract this?
+    AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+    expr->from.line = TOKEN.line;
+    expr->from.pos  = TOKEN.pos;
+
+    expr->flags = EXPR_LITERAL;
     expr->source = ACCEPTED.source;
-    expr->to = (FileAddress) { ACCEPTED.line, ACCEPTED.pos + ACCEPTED.source.length };
+
+    expr->to.line = ACCEPTED.line;
+    expr->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
+    return expr;
   } else if (accept(state, TOKEN_IDENTIFIER)) {
-    expr->flags |= EXPR_IDENT;
+    // @TODO Extract this?
+    AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+    expr->from.line = TOKEN.line;
+    expr->from.pos  = TOKEN.pos;
+
+    expr->flags = EXPR_IDENT;
     expr->ident = symbol_get(&ACCEPTED.source);
-    expr->to = (FileAddress) { ACCEPTED.line, ACCEPTED.pos + ACCEPTED.source.length };
+
+    expr->to.line = ACCEPTED.line;
+    expr->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
+    return expr;
   } else if (test_function(state)) {
-    expr->flags |= EXPR_FUNCTION;
-    parse_function(state, expr);
-    expr->to = (FileAddress) { ACCEPTED.line, ACCEPTED.pos + ACCEPTED.source.length };
+    return parse_function(state);
   } else {
+    AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+    expr->from.line = TOKEN.line;
+    expr->from.pos  = TOKEN.pos;
+
     expr->error = new_string("Expected an expression");
-    expr->to = (FileAddress) { TOKEN.line, TOKEN.pos + TOKEN.source.length };
+
+    expr->to.line = TOKEN.line;
+    expr->to.pos  = TOKEN.pos + TOKEN.source.length;
+    return expr;
   }
 }
 
 // DECLARATION = Identifier ":" TYPE
 //             | Identifier ":" TYPE "=" EXPRESSION
 //             | Identifier ":=" EXPRESSION            @TODO
-void parse_declaration(ParserState* state, AstNode* decl) {
+AstNode* parse_declaration(ParserState* state) {
+  AstNode* decl = init_node(pool_get(state->nodes), NODE_DECLARATION);
+  decl->from.line = TOKEN.line;
+  decl->from.pos  = TOKEN.pos;
+
   {
     // The Identifier should already be guaranteed by `test_declaration`.
     assert(accept(state, TOKEN_IDENTIFIER));
@@ -407,104 +475,97 @@ void parse_declaration(ParserState* state, AstNode* decl) {
 
   {
     // Grab the TYPE.  Parse errors may reasonably occur here.
-    decl->rhs = get_node(state->nodes, NODE_TYPE);
-    decl->rhs->from.line = TOKEN.line;
-    decl->rhs->from.pos = TOKEN.pos;
-    parse_type(state, decl->rhs);
+    decl->rhs = parse_type(state);
 
     if (decl->rhs->error != NULL) {
       decl->error = new_string("Variable declaration requires a type identifier");
     }
   }
 
-  decl->to = (FileAddress) { ACCEPTED.line, ACCEPTED.pos + ACCEPTED.source.length };
+  decl->to.line = ACCEPTED.line;
+  decl->to.pos  = ACCEPTED.pos + ACCEPTED.source.length;
 
-  if (accept_op(state, OP_ASSIGN)) {
-    AstNode* compound = decl;
-    AstNode* body = malloc(2 * sizeof(AstNode));
-    body[0] = *decl;
+  if (!accept_op(state, OP_ASSIGN)) return decl;
 
-    AstNode* value = get_node(state->nodes, NODE_EXPRESSION);
-    value->from.line = TOKEN.line;
-    value->from.pos = TOKEN.pos;
-    parse_expression(state, value);
+  // Since we already have a pool-allocated node for the declaration, but we
+  // need two contiguous nodes for the COMPOUND node we're building, we'll do
+  // some clever work and swap the two.  If we allocate the COMPOUND body, then
+  // we'll have space to copy the declaration data; that will free up the `decl`
+  // node to be re-initialized and used as the memory for the COMPOUND node.
+  // All in all, this works, but there's probably a cleaner way to structure all
+  // of this.  This may also have to be rewritten when we implement the untyped
+  // decl/assign operator.
+  //     - pvande, Aug 4, 2017
+  AstNode* body = malloc(2 * sizeof(AstNode));
+  body[0] = *decl;
 
-    // @TODO Extract a proper initializer for node data...
-    AstNode* assignment = &body[1];
-    assignment->type = NODE_ASSIGNMENT;
-    assignment->flags = 0;
-    assignment->body_length = 0;
-    assignment->ident = decl->ident;
-    assignment->rhs = value;
-    assignment->from = decl->from;
-    assignment->to = value->to;
-    assignment->error = NULL;
+  AstNode* assignment = init_node(&body[1], NODE_ASSIGNMENT);
+  assignment->from.line = TOKEN.line;
+  assignment->from.pos  = TOKEN.pos;
 
-    compound->type = NODE_COMPOUND;
-    compound->flags |= COMPOUND_DECL_ASSIGN;
-    compound->body_length = 2;
-    compound->body = body;
-    compound->from = decl->from;
-    compound->to = assignment->to;
-    compound->error = NULL;
-  }
+  // @TODO Find a way to unify this with `parse_expression`.
+  // @Gross @Leak @FixMe Find a way to avoid the extra allocations here.
+  AstNode* expr = parse_expression(state);
+  *assignment = *expr;
+
+  // @TODO Bubble up errors.
+  AstNode* compound = init_node(decl, NODE_COMPOUND);
+  compound->flags = COMPOUND_DECL_ASSIGN;
+  compound->from = body[0].from;
+  compound->to = body[1].to;
+  compound->body_length = 2;
+  compound->body = body;
+
+  return compound;
 }
 
-void parse_top_level_delcaration(ParserState* state, AstNode* decl) {
-  parse_declaration(state, decl);
+AstNode* parse_top_level_delcaration(ParserState* state) {
+  AstNode* decl = parse_declaration(state);
 
-  if (!accept(state, TOKEN_NEWLINE)) {
-    AstNode* error = decl;
+  if (accept(state, TOKEN_NEWLINE)) return decl;
 
-    AstNode* temp = get_node(state->nodes, NODE_DECLARATION);
-    *temp = *decl;
+  {
+    // Error recovery
+    AstNode* error = init_node(decl, NODE_RECOVERY);
+    error->from.line = TOKEN.line;
+    error->from.pos  = TOKEN.pos;
+    error->lhs = decl;
+    error->error = new_string("Unexpected code following declaration");
 
     // @TODO More robustly seek past the error.
     while (!peek(state, TOKEN_NEWLINE)) state->pos += 1;
 
-    error->type = NODE_RECOVERY;
-    error->flags = 0;
-    error->body_length = 0;
-    error->lhs = temp;
-    error->to = (FileAddress) { TOKEN.line, TOKEN.pos + TOKEN.source.length };
-    error->error = new_string("Unexpected code following declaration");
+    error->to.line = TOKEN.line;
+    error->to.pos  = TOKEN.pos + TOKEN.source.length;
+    return error;
   }
 }
 
 //  TOP_LEVEL = DECLARATION
 //            | TOP_LEVEL_DIRECTIVE    @TODO
-void parse_top_level(ParserState* state) {
+bool perform_parse_job(ParseJob* job) {
+  ParserState* state = new_parser_state(job->tokens);
+
   while (tokens_remain(state)) {
     if (accept(state, TOKEN_NEWLINE)) {
       // Move on, nothing to see here.
 
     } else if (test_declaration(state)) {
-      AstNode* decl = get_node(state->nodes, NODE_DECLARATION);
-      decl->from.line = TOKEN.line;
-      decl->from.pos = TOKEN.pos;
-
-      parse_top_level_delcaration(state, decl);
-
-      list_append(state->scope->declarations, decl);
+      AstNode* decl = parse_top_level_delcaration(state);
+      // list_append(state->scope->declarations, decl);
+      print_ast_node_as_tree(state, decl);
 
     } else {
       printf("Unrecognized code in top-level context\n");
     }
   }
-}
 
-
-bool perform_parse_job(ParseJob* job) {
-  ParserState* state = new_parser_state(job->tokens);
-
-  parse_top_level(state);
-
-  List* declarations = state->scope->declarations;
-  for (size_t i = 0; i < declarations->length; i++) {
-    AstNode* node = list_get(declarations, i);
-    print_ast_node_as_tree(state, node);
-    printf("\n");
-  }
+  // List* declarations = state->scope->declarations;
+  // for (size_t i = 0; i < declarations->length; i++) {
+  //   AstNode* node = list_get(declarations, i);
+  //   print_ast_node_as_tree(state, node);
+  //   printf("\n");
+  // }
 
   return 1;
 }
