@@ -122,7 +122,7 @@ void test_pool_to_array() {
   ASSERT_EQ(strcmp(c, "hello!"), 0, "copies values into the new array");
   free(c);
 
-  // Initially only stores one byte; buckets will be at random memory locations.
+  // Initially stores only three bytes in one bucket.
   pool = new_pool(1, 1, 3);
   *((char*) pool_get(pool)) = 'h';  // Bucket 0
   *((char*) pool_get(pool)) = 'e';  // Bucket 0
@@ -140,8 +140,26 @@ void test_pool_to_array() {
   TEST("Converting a multi-byte pool to an array of bytes omits unoccupied bucket slots");
   c = pool_to_array(pool);
   ASSERT_EQ(strcmp(c, "hello!"), 0, "correctly returns a byte sequence as a unified array");
-  ASSERT_NOT_EQ(c[7], '\xAA', "does not copy slot 7 into the new array");
-  ASSERT_NOT_EQ(c[8], '\xAA', "does not copy slot 8 into the new array");
+  ASSERT_NOT_EQ(c[7], '\xFF', "does not copy slot 7 into the new array");
+  ASSERT_NOT_EQ(c[8], '\xFF', "does not copy slot 8 into the new array");
+  free_pool(pool);
+  free(c);
+
+  // Initially stores three bytes in three different buckets.
+  pool = new_pool(1, 3, 1);
+  pool->length = 1;
+  *((char*) pool->buckets[0]) = '#';
+  *((char*) pool->buckets[1]) = '\xFF';
+  *((char*) pool->buckets[2]) = '\xFF';
+
+  // Pool now has a length of 7, but has 9 bucket slots allocated.
+
+  TEST("Converting a multi-byte pool to an array of bytes omits unoccupied buckets");
+  c = pool_to_array(pool);
+  ASSERT_EQ(c[0], '#', "correctly returns the relevant bytes");
+  ASSERT_NOT_EQ(c[1], '\xFF', "does not copy slot 1 into the new array");
+  ASSERT_NOT_EQ(c[2], '\xFF', "does not copy slot 2 into the new array");
+  free_pool(pool);
   free(c);
 }
 

@@ -64,6 +64,8 @@ void* pool_to_array(Pool* pool) {
     memcpy(&array[offset], pool->buckets[i], items_to_copy * pool->slot_size);
 
     items_remaining -= pool->bucket_size;
+
+    if (items_to_copy < pool->bucket_size) break;
   }
 
   return (void*) array;

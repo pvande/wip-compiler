@@ -61,12 +61,14 @@ void print_symbol(Symbol sym) {
   size_t: __print_size_t, \
   TokenType: __print_int, \
   int: __print_int, \
+  char: __print_char, \
   long: __print_long \
 )(V)
 #define GEN_PRINT(TYPE, SPECIFIER_STR) int __print_##TYPE(TYPE x) { return printf(SPECIFIER_STR, x);}
 GEN_PRINT(size_t, "%ju");
 GEN_PRINT(long, "%zu");
 GEN_PRINT(int, "%d");
+GEN_PRINT(char, "%c");
 
 void print_pointer(void* x) {
   printf("0x%0X", (unsigned int) x);
