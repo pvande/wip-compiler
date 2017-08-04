@@ -1,4 +1,4 @@
-## AstNode
+## AstNode  (STATUS: out of date)
 
 This struct represents a single node in the AST; all nodes in the tree will be
 instances of this single struct.  Consequently, there are a number of fields
@@ -19,8 +19,10 @@ be populated (and when).
     Symbol ident;
     String source;
     struct AstNode* lhs;
-    List* body;
     struct AstNode* rhs;
+
+    size_t body_length;
+    struct AstNode* body;
 
     String* error;
 
@@ -63,14 +65,16 @@ Not yet implemented.
 ### NODE_COMPOUND
 
 A compound node represents a decomposition of a more complex syntactical
-construction.  Which construction it represents – and therefore, where data will
-be stored – will be designated by `flags`.
+construction.  Each compound node is composed of multiple simpler nodes, stored
+contiguously in the `body` slot.  Which construction it represents – will be
+designated by the `flags` slot.
 
-#### COMPOUND_DECL_ASSIGN
+Noteworthy `flags` are:
 
-Created when parsing a unified declaration and assignment, the `lhs` of this
-node contains the declaration itself, and the `rhs` contains a well-formed
-assignment.
+* `COMPOUND_CODE_BLOCK` – created for each new block of code, e.g. a function
+  body.
+* `COMPOUND_DECL_ASSIGN` – created for statements that both declare and
+  immediately assign to a new variable.
 
 ### NODE_DECLARATION
 

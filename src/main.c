@@ -84,10 +84,11 @@ typedef enum {
 
 // Update docs/parser/node-usage.md when this changes.
 typedef enum {
-  COMPOUND_DECL_ASSIGN = (1 << 0),
-  EXPR_LITERAL         = (1 << 1),
-  EXPR_IDENT           = (1 << 2),
-  EXPR_FUNCTION        = (1 << 3),
+  COMPOUND_CODE_BLOCK  = (1 << 0),
+  COMPOUND_DECL_ASSIGN = (1 << 1),
+  EXPR_LITERAL         = (1 << 2),
+  EXPR_IDENT           = (1 << 3),
+  EXPR_FUNCTION        = (1 << 4),
   // EXPR_UNARY_OP  = (1 << 4),
   // EXPR_BINARY_OP = (1 << 5),
   // EXPR_CALL      = (1 << 6),
@@ -109,8 +110,10 @@ typedef struct AstNode {
   Symbol ident;         // ---
   String source;        // ---
   struct AstNode* lhs;  // ---
-  List* body;           // ---
   struct AstNode* rhs;  // ---
+
+  size_t body_length;   // ---
+  struct AstNode* body;        // ---
 
   String* error;        // NULL
 } AstNode;
