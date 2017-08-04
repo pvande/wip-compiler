@@ -16,10 +16,9 @@ String* new_string(char* data) {
 }
 
 char* to_zero_terminated_string(String* str) {
-  char* buffer = calloc(str->length, sizeof(char));
+  char* buffer = calloc(str->length + 1, sizeof(char));
 
   memcpy(buffer, str->data, str->length);
-  buffer[str->length] = '\0';
 
   return buffer;
 }
