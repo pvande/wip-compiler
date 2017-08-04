@@ -86,12 +86,12 @@ typedef enum {
 typedef enum {
   COMPOUND_CODE_BLOCK  = (1 << 0),
   COMPOUND_DECL_ASSIGN = (1 << 1),
-  EXPR_LITERAL         = (1 << 2),
-  EXPR_IDENT           = (1 << 3),
-  EXPR_FUNCTION        = (1 << 4),
-  // EXPR_UNARY_OP  = (1 << 4),
-  // EXPR_BINARY_OP = (1 << 5),
-  // EXPR_CALL      = (1 << 6),
+  EXPR_LITERAL         = (1 << 0),
+  EXPR_IDENT           = (1 << 1),
+  EXPR_FUNCTION        = (1 << 2),
+  // EXPR_UNARY_OP  = (1 << 3),
+  // EXPR_BINARY_OP = (1 << 4),
+  // EXPR_CALL      = (1 << 5),
 } AstNodeFlags;
 
 typedef struct {
