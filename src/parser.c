@@ -361,7 +361,9 @@ AstNode* parse_code_block(ParserState* state) {
 // @TODO Bubble up errors from lhs.
 // @TODO Bubble up errors from rhs.
 // @TODO Bubble up errors from body.
-// FUNCTION = DECLARATION_TUPLE "=>" TYPE_TUPLE CODE_BLOCK
+// FUNCTION = DECLARATION_TUPLE "=>" CODE_BLOCK
+//          | DECLARATION_TUPLE "=>" TYPE CODE_BLOCK
+//          | DECLARATION_TUPLE "=>" TYPE_TUPLE CODE_BLOCK
 //          | DECLARATION_TUPLE "=>" NAMED_TYPE_TUPLE CODE_BLOCK    @TODO
 //          | DECLARATION_TUPLE "=>" TYPE CODE_BLOCK                @TODO
 //          | DECLARATION_TUPLE "=>" CODE_BLOCK                     @TODO
@@ -374,7 +376,38 @@ AstNode* parse_function(ParserState* state) {
 
   assert(accept_op(state, OP_FUNC_ARROW));
 
-  func->rhs = parse_type_tuple(state);
+  if (peek_op(state, OP_OPEN_PAREN)) {
+    func->rhs = parse_type_tuple(state);
+    
+  } else if (peek_op(state, OP_OPEN_BRACE)) {
+    AstNode* type = init_node(pool_get(state->nodes), NODE_TYPE);
+    type->from = token_start(TOKEN);
+    type->to = token_start(TOKEN);
+    type->ident = symbol_get(STR_VOID);
+
+    AstNode* tuple = init_node(pool_get(state->nodes), NODE_TUPLE);
+    tuple->from = type->from;
+    tuple->to = type->to;
+    tuple->body_length = 1;
+    tuple->body = type;
+
+    func->rhs = tuple;
+
+  } else if (test_type(state)) {
+    AstNode* type = parse_type(state);
+
+    AstNode* tuple = init_node(pool_get(state->nodes), NODE_TUPLE);
+    tuple->from = type->from;
+    tuple->to = type->to;
+    tuple->body_length = 1;
+    tuple->body = type;
+
+    func->rhs = tuple;
+
+  } else {
+    // @TODO Actually recover from this error case.
+    assert(0);
+  }
 
   func->body_length = 1;
   func->body = parse_code_block(state);
