@@ -106,6 +106,7 @@ void print_ast_node_as_tree(ParserState* state, AstNode* node) {
   printf("]\n");
 
   if (node->type == NODE_RECOVERY ||
+      node->type == NODE_ASSIGNMENT ||
       (node->type == NODE_EXPRESSION && node->flags == EXPR_FUNCTION)) {
     print_ast_node_as_tree(state, node->lhs);
   }
@@ -440,29 +441,20 @@ AstNode* parse_declaration(ParserState* state) {
   if (type == NULL || accept_op(state, OP_ASSIGN)) {
     value = parse_expression(state);
 
-    // @TODO Do decl/assigns really need to be compound, or could Assignments
-    // be made directly to declaration nodes?
-    AstNode* compound = init_node(pool_get(state->nodes), NODE_COMPOUND);
-    compound->flags = COMPOUND_DECL_ASSIGN;
-    compound->from = decl_start;
-    compound->to = token_end(ACCEPTED);
-    compound->body_length = 2;
-    compound->body = malloc(2 * sizeof(AstNode));
-
-    AstNode* decl = init_node(&compound->body[0], NODE_DECLARATION);
+    AstNode* decl = init_node(pool_get(state->nodes), NODE_DECLARATION);
     decl->from = decl_start;
     decl->to = token_end(ACCEPTED);
     decl->ident = name;
     decl->rhs = type;
 
-    AstNode* assignment = init_node(&compound->body[1], NODE_ASSIGNMENT);
+    AstNode* assignment = init_node(pool_get(state->nodes), NODE_ASSIGNMENT);
     assignment->from = decl_start;
     assignment->to = token_end(ACCEPTED);
-    assignment->ident = name;
+    assignment->lhs = decl;
     assignment->rhs = value;
 
     // @TODO Bubble up errors.
-    return compound;
+    return assignment;
   } else {
     AstNode* decl = init_node(pool_get(state->nodes), NODE_DECLARATION);
     decl->from = decl_start;
@@ -506,7 +498,7 @@ bool perform_parse_job(ParseJob* job) {
 
     } else if (test_declaration(state)) {
       AstNode* decl = parse_top_level_delcaration(state);
-      // list_append(state->scope->declarations, decl);
+      list_append(state->scope->declarations, decl);
       print_ast_node_as_tree(state, decl);
 
     } else {
