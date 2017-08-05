@@ -365,8 +365,6 @@ AstNode* parse_code_block(ParserState* state) {
 //          | DECLARATION_TUPLE "=>" TYPE CODE_BLOCK
 //          | DECLARATION_TUPLE "=>" TYPE_TUPLE CODE_BLOCK
 //          | DECLARATION_TUPLE "=>" NAMED_TYPE_TUPLE CODE_BLOCK    @TODO
-//          | DECLARATION_TUPLE "=>" TYPE CODE_BLOCK                @TODO
-//          | DECLARATION_TUPLE "=>" CODE_BLOCK                     @TODO
 AstNode* parse_function(ParserState* state) {
   AstNode* func = init_node(pool_get(state->nodes), NODE_EXPRESSION);
   func->flags = EXPR_FUNCTION;
@@ -378,7 +376,7 @@ AstNode* parse_function(ParserState* state) {
 
   if (peek_op(state, OP_OPEN_PAREN)) {
     func->rhs = parse_type_tuple(state);
-    
+
   } else if (peek_op(state, OP_OPEN_BRACE)) {
     AstNode* type = init_node(pool_get(state->nodes), NODE_TYPE);
     type->from = token_start(TOKEN);
