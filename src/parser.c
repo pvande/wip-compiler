@@ -203,6 +203,10 @@ bool skim_tuple(ParserState* state) {
   return depth < 1;
 }
 
+bool test_type(ParserState* state) {
+  return peek(state, TOKEN_IDENTIFIER);
+}
+
 bool test_declaration(ParserState* state) {
   bool result = 0;
 
@@ -239,6 +243,52 @@ void* init_node(AstNode* node, AstNodeType type) {
   return node;
 }
 
+AstNode* _parse_tuple(ParserState* state, bool (*more)(ParserState* state), void (*parse_node)(ParserState*, AstNode*)) {
+  AstNode* tuple = init_node(pool_get(state->nodes), NODE_TUPLE);
+  tuple->from = token_start(TOKEN);
+
+  assert(accept_op(state, OP_OPEN_PAREN));
+
+  {
+    Pool* pool = new_pool(sizeof(AstNode), 2, 4);
+
+    while (more(state)) {
+      AstNode* node = pool_get(pool);
+      parse_node(state, node);
+
+      if (!accept_op(state, OP_COMMA)) break;
+    }
+
+    tuple->body_length = pool->length;
+    tuple->body = pool_to_array(pool);
+
+    free_pool(pool);
+  }
+
+  bool balanced_parens = accept_op(state, OP_CLOSE_PAREN);
+
+  tuple->to = token_end(ACCEPTED);
+
+  if (balanced_parens) return tuple;
+
+  {
+    // Error recovery
+    size_t depth = 1;
+    do {
+      if (peek_op(state, OP_OPEN_PAREN)) depth += 1;
+      if (peek_op(state, OP_CLOSE_PAREN)) depth -= 1;
+      state->pos += 1;
+    } while (tokens_remain(state) && depth > 0);
+
+    AstNode* error = init_node(pool_get(state->nodes), NODE_RECOVERY);
+    error->from = tuple->to;
+    error->to = token_end(ACCEPTED);
+    error->lhs = tuple;
+    error->error = new_string("Unable to parse function argument declarations");
+
+    return error;
+  }
+}
 
 // ** Parser States ** //
 
@@ -262,110 +312,34 @@ AstNode* parse_type(ParserState* state) {
   return type;
 }
 
-// @TODO Find a way to unify this method with `parse_declaration_tuple`.
+// @TODO Find a way to unify this with `parse_type`.
+void _parse_type(ParserState* state, AstNode* node) {
+  accept(state, TOKEN_IDENTIFIER);
+
+  init_node(node, NODE_TYPE);
+  node->from = token_start(ACCEPTED);
+  node->to = token_end(ACCEPTED);
+  node->ident = symbol_get(&ACCEPTED.source);
+}
+
 // TYPE_TUPLE = "(" ")"
 //            | "(" TYPE ("," TYPE)* ")"
 AstNode* parse_type_tuple(ParserState* state) {
-  AstNode* tuple = init_node(pool_get(state->nodes), NODE_TUPLE);
-  tuple->from = token_start(TOKEN);
-
-  assert(accept_op(state, OP_OPEN_PAREN));
-
-  {
-    Pool* pool = new_pool(sizeof(AstNode), 2, 4);
-
-    while (accept(state, TOKEN_IDENTIFIER)) {
-      // @TODO Find a way to unify this with `parse_type`.
-      AstNode* node = init_node(pool_get(pool), NODE_TYPE);
-      node->from = token_start(ACCEPTED);
-      node->to = token_end(ACCEPTED);
-      node->ident = symbol_get(&ACCEPTED.source);
-
-      if (!accept_op(state, OP_COMMA)) break;
-    }
-
-    tuple->body_length = pool->length;
-    tuple->body = pool_to_array(pool);
-
-    free_pool(pool);
-  }
-
-  bool balanced_parens = accept_op(state, OP_CLOSE_PAREN);
-
-  tuple->to = token_end(ACCEPTED);
-
-  if (balanced_parens) return tuple;
-
-  {
-    // Error recovery
-    size_t depth = 1;
-    do {
-      if (peek_op(state, OP_OPEN_PAREN)) depth += 1;
-      if (peek_op(state, OP_CLOSE_PAREN)) depth -= 1;
-      state->pos += 1;
-    } while (tokens_remain(state) && depth > 0);
-
-    AstNode* error = init_node(pool_get(state->nodes), NODE_RECOVERY);
-    error->from = tuple->to;
-    error->to = token_end(ACCEPTED);
-    error->lhs = tuple;
-    error->error = new_string("Unable to parse function argument declarations");
-
-    return error;
-  }
+  return _parse_tuple(state, test_type, _parse_type);
 }
 
-// @TODO Find a way to unify this method with `parse_type_tuple`.
+// @TODO Find a way to actually unify this with `parse_declaration`.
+void _parse_declaration(ParserState* state, AstNode* node) {
+  init_node(node, NODE_DECLARATION);
+
+  // @Gross @Leak @FixMe Find a way to avoid the extra allocations here.
+  *node = *parse_declaration(state);
+}
+
 // DECLARATION_TUPLE = "(" ")"
 //                   | "(" DECLARATION ("," DECLARATION)* ")"
 AstNode* parse_declaration_tuple(ParserState* state) {
-  AstNode* tuple = init_node(pool_get(state->nodes), NODE_TUPLE);
-  tuple->from = token_start(TOKEN);
-
-  assert(accept_op(state, OP_OPEN_PAREN));
-
-  {
-    Pool* pool = new_pool(sizeof(AstNode), 2, 4);
-
-    while (test_declaration(state)) {
-      AstNode* node = init_node(pool_get(pool), NODE_DECLARATION);
-
-      // @TODO Find a way to unify this with `parse_declaration`.
-      // @Gross @Leak @FixMe Find a way to avoid the extra allocations here.
-      *node = *parse_declaration(state);
-
-      if (!accept_op(state, OP_COMMA)) break;
-    }
-
-    tuple->body_length = pool->length;
-    tuple->body = pool_to_array(pool);
-
-    free_pool(pool);
-  }
-
-  bool balanced_parens = accept_op(state, OP_CLOSE_PAREN);
-
-  tuple->to = token_end(ACCEPTED);
-
-  if (balanced_parens) return tuple;
-
-  {
-    // Error recovery
-    size_t depth = 1;
-    do {
-      if (peek_op(state, OP_OPEN_PAREN)) depth += 1;
-      if (peek_op(state, OP_CLOSE_PAREN)) depth -= 1;
-      state->pos += 1;
-    } while (tokens_remain(state) && depth > 0);
-
-    AstNode* error = init_node(pool_get(state->nodes), NODE_RECOVERY);
-    error->from = tuple->to;
-    error->to = token_end(ACCEPTED);
-    error->lhs = tuple;
-    error->error = new_string("Unable to parse function argument declarations");
-
-    return error;
-  }
+  return _parse_tuple(state, test_declaration, _parse_declaration);
 }
 
 // CODE_BLOCK = "{" "}"
