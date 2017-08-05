@@ -113,7 +113,8 @@ void print_ast_node_as_tree(ParserState* state, AstNode* node) {
 
   if (node->type == NODE_DECLARATION ||
       node->type == NODE_ASSIGNMENT ||
-      (node->type == NODE_EXPRESSION && node->flags == EXPR_FUNCTION)) {
+      (node->type == NODE_EXPRESSION && node->flags == EXPR_FUNCTION) ||
+      (node->type == NODE_EXPRESSION && node->flags == EXPR_CALL)) {
     print_ast_node_as_tree(state, node->rhs);
   }
 
@@ -208,6 +209,10 @@ bool test_type(ParserState* state) {
   return peek(state, TOKEN_IDENTIFIER);
 }
 
+bool test_not_end_of_tuple(ParserState* state) {
+  return !peek_op(state, OP_CLOSE_PAREN);
+}
+
 bool test_declaration(ParserState* state) {
   bool result = 0;
 
@@ -294,6 +299,7 @@ AstNode* _parse_tuple(ParserState* state, bool (*more)(ParserState* state), void
 // ** Parser States ** //
 
 AstNode* parse_declaration(ParserState* state);
+AstNode* parse_expression(ParserState* state);
 
 // TYPE = Identifier
 //      | TYPE_TUPLE "=>" TYPE          @TODO
@@ -341,6 +347,20 @@ void _parse_declaration(ParserState* state, AstNode* node) {
 //                   | "(" DECLARATION ("," DECLARATION)* ")"
 AstNode* parse_declaration_tuple(ParserState* state) {
   return _parse_tuple(state, test_declaration, _parse_declaration);
+}
+
+// @TODO Find a way to actually unify this with `parse_declaration`.
+void _parse_expression(ParserState* state, AstNode* node) {
+  init_node(node, NODE_EXPRESSION);
+
+  // @Gross @Leak @FixMe Find a way to avoid the extra allocations here.
+  *node = *parse_expression(state);
+}
+
+// EXPRESSION_TUPLE = "(" ")"
+//                   | "(" EXPRESSION ("," EXPRESSION)* ")"
+AstNode* parse_expression_tuple(ParserState* state) {
+  return _parse_tuple(state, test_not_end_of_tuple, _parse_expression);
 }
 
 // CODE_BLOCK = "{" "}"
@@ -415,6 +435,7 @@ AstNode* parse_function(ParserState* state) {
 }
 
 // EXPRESSION = Literal
+//            | Identifier EXPRESSION_TUPLE
 //            | Identifier
 //            | FUNCTION
 AstNode* parse_expression(ParserState* state) {
@@ -428,13 +449,29 @@ AstNode* parse_expression(ParserState* state) {
     return expr;
 
   } else if (accept(state, TOKEN_IDENTIFIER)) {
-    // @TODO Extract this?
-    AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
-    expr->flags = EXPR_IDENT;
-    expr->from = token_start(ACCEPTED);
-    expr->to = token_end(ACCEPTED);
-    expr->ident = symbol_get(&ACCEPTED.source);
-    return expr;
+    Symbol name = symbol_get(&ACCEPTED.source);
+    FileAddress start = token_start(ACCEPTED);
+
+    if (peek_op(state, OP_OPEN_PAREN)) {
+      AstNode* arguments = parse_expression_tuple(state);
+
+      AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+      expr->flags = EXPR_CALL;
+      expr->from = start;
+      expr->to = token_end(ACCEPTED);
+      expr->ident = name;
+      expr->rhs = arguments;
+      return expr;
+
+    } else {
+      // @TODO Extract this?
+      AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+      expr->flags = EXPR_IDENT;
+      expr->from = start;
+      expr->to = token_end(ACCEPTED);
+      expr->ident = name;
+      return expr;
+    }
 
   } else if (test_function(state)) {
     return parse_function(state);

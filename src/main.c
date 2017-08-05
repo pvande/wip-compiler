@@ -91,7 +91,7 @@ typedef enum {
   EXPR_FUNCTION        = (1 << 2),
   // EXPR_UNARY_OP  = (1 << 3),
   // EXPR_BINARY_OP = (1 << 4),
-  // EXPR_CALL      = (1 << 5),
+  EXPR_CALL      = (1 << 5),
 } AstNodeFlags;
 
 typedef struct {
