@@ -83,13 +83,13 @@ variable.  Declarations have three forms:
 
 * `<identifier> : <type>`
 * `<identifier> : <type> = <value>`
-* `<identifier> := <value>`  (@TODO)
+* `<identifier> := <value>`
 
 In all three cases, the `identifier` will be stored in the struct's `ident`
 field.
 
 If the declaration contains a `type`, that type expression will be stored in the
-structs `rhs`; if no type is specified, the `rhs` slot will be explicitly `NULL` (@TODO).
+structs `rhs`; if no type is specified, the `rhs` slot will be explicitly `NULL`.
 
 If a `value` is provided, a separate assignment node will be created.
 
