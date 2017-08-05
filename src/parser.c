@@ -482,7 +482,7 @@ AstNode* parse_top_level_delcaration(ParserState* state) {
 
   {
     // Error recovery
-    AstNode* error = init_node(decl, NODE_RECOVERY);
+    AstNode* error = init_node(pool_get(state->nodes), NODE_RECOVERY);
     error->from = token_start(TOKEN);
     error->lhs = decl;
     error->error = new_string("Unexpected code following declaration");
