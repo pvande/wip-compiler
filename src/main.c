@@ -78,7 +78,6 @@ typedef enum {
   // NODE_LOOP,
   NODE_RECOVERY,
   NODE_TYPE,
-  NODE_TUPLE,
 } AstNodeType;
 
 // Update docs/parser/node-usage.md when this changes.

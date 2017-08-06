@@ -1,5 +1,4 @@
-// @TODO
-// a := () => () {
-//   print("Hi!")
-//   print("Bye!")
-// }
+a := () => () {
+  print("Hi!")
+  print("Bye!")
+}

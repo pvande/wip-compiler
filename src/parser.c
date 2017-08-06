@@ -57,7 +57,7 @@ void print_ast_node_type(AstNode* node) {
     //   printf("BRANCH");
     //   break;
     case NODE_COMPOUND:
-      printf("COMPOUND");
+      printf("COMPOUND(%zu)", node->body_length);
       break;
     case NODE_DECLARATION:
       printf("DECLARATION(");
@@ -78,9 +78,6 @@ void print_ast_node_type(AstNode* node) {
       print_string(symbol_lookup(node->ident));
       printf(")");
       break;
-    case NODE_TUPLE:
-      printf("TUPLE(%zu)", node->body_length);
-      break;
     default:
       printf("UNKNOWN");
   }
@@ -89,22 +86,30 @@ void print_ast_node_type(AstNode* node) {
 void print_ast_node_as_tree(ParserState* state, AstNode* node) {
   if (node == NULL) return;
 
-  String* line = &state->data.lines[node->from.line];
-
-  for (int i = 0; i < node->from.pos; i++) {
-    printf("%c", line->data[i]);
-  }
-  printf("\e[0;41m");
-  for (int i = node->from.pos; i < node->to.pos; i++) {
-    printf("%c", line->data[i]);
-  }
-  printf("\e[0m");
-  for (int i = node->to.pos; i < line->length; i++) {
-    printf("%c", line->data[i]);
-  }
-  printf("  [");
+  printf("[");
   print_ast_node_type(node);
   printf("]\n");
+  for (int line_number = node->from.line; line_number <= node->to.line; line_number++) {
+    String* line = &state->data.lines[line_number];
+    int mark_from = (node->from.line == line_number) ? node->from.pos : 0;
+    int mark_to = (node->to.line == line_number) ? node->to.pos : line->length;
+
+    for (int i = 0; i < mark_from; i++) {
+      printf("%c", line->data[i]);
+    }
+    printf("\e[0;41m");
+    if (node->from.line == line_number) printf("«");
+    for (int i = mark_from; i < mark_to; i++) {
+      printf("%c", line->data[i]);
+    }
+    if (node->to.line == line_number) printf("»");
+    printf("\e[0m");
+    for (int i = mark_to; i < line->length; i++) {
+      printf("%c", line->data[i]);
+    }
+    printf("\n");
+  }
+  printf("\n");
 
   if (node->type == NODE_RECOVERY ||
       node->type == NODE_ASSIGNMENT ||
@@ -214,6 +219,10 @@ bool test_not_end_of_tuple(ParserState* state) {
   return !peek_op(state, OP_CLOSE_PAREN);
 }
 
+bool test_not_end_of_block(ParserState* state) {
+  return !peek_op(state, OP_CLOSE_BRACE);
+}
+
 bool test_declaration(ParserState* state) {
   bool result = 0;
 
@@ -256,10 +265,11 @@ AstNode* _parse_tuple(ParserState* state,
                       String* separator,
                       bool (*more)(ParserState* state),
                       void (*parse_node)(ParserState*, AstNode*)) {
-  AstNode* tuple = init_node(pool_get(state->nodes), NODE_TUPLE);
+  AstNode* tuple = init_node(pool_get(state->nodes), NODE_COMPOUND);
   tuple->from = token_start(TOKEN);
 
   assert(accept_op(state, open_operator));
+  while (accept_op(state, OP_NEWLINE));
 
   {
     Pool* pool = new_pool(sizeof(AstNode), 2, 4);
@@ -269,6 +279,7 @@ AstNode* _parse_tuple(ParserState* state,
       parse_node(state, node);
 
       if (!accept_op(state, separator)) break;
+      while (accept_op(state, OP_NEWLINE));
     }
 
     tuple->body_length = pool->length;
@@ -277,11 +288,11 @@ AstNode* _parse_tuple(ParserState* state,
     free_pool(pool);
   }
 
-  bool balanced_parens = accept_op(state, close_operator);
+  bool properly_balanced = accept_op(state, close_operator);
 
   tuple->to = token_end(ACCEPTED);
 
-  if (balanced_parens) return tuple;
+  if (properly_balanced) return tuple;
 
   {
     // Error recovery
@@ -369,19 +380,21 @@ AstNode* parse_expression_tuple(ParserState* state) {
   return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_not_end_of_tuple, _parse_expression);
 }
 
+void _parse_statement(ParserState* state, AstNode* node) {
+  if (accept_op(state, OP_NEWLINE)) {
+    // Move on, nothing to see here.
+
+  } else if (test_declaration(state)) {
+    _parse_declaration(state, node);
+
+  } else {
+    _parse_expression(state, node);
+  }
+}
+
 // CODE_BLOCK = "{" "}"
 AstNode* parse_code_block(ParserState* state) {
-  AstNode* block = init_node(pool_get(state->nodes), NODE_COMPOUND);
-  block->from = token_start(TOKEN);
-
-  // @TODO A lot more...
-  accept_op(state, OP_OPEN_BRACE);
-  accept_op(state, OP_CLOSE_BRACE);
-
-  block->body_length = 0;
-
-  block->to = token_end(ACCEPTED);
-  return block;
+  return _parse_tuple(state, OP_OPEN_BRACE, OP_CLOSE_BRACE, OP_NEWLINE, test_not_end_of_block, _parse_statement);
 }
 
 // @TODO Bubble up errors from lhs.
@@ -409,7 +422,7 @@ AstNode* parse_function(ParserState* state) {
     type->to = token_start(TOKEN);
     type->ident = symbol_get(STR_VOID);
 
-    AstNode* tuple = init_node(pool_get(state->nodes), NODE_TUPLE);
+    AstNode* tuple = init_node(pool_get(state->nodes), NODE_COMPOUND);
     tuple->from = type->from;
     tuple->to = type->to;
     tuple->body_length = 1;
@@ -420,7 +433,7 @@ AstNode* parse_function(ParserState* state) {
   } else if (test_type(state)) {
     AstNode* type = parse_type(state);
 
-    AstNode* tuple = init_node(pool_get(state->nodes), NODE_TUPLE);
+    AstNode* tuple = init_node(pool_get(state->nodes), NODE_COMPOUND);
     tuple->from = type->from;
     tuple->to = type->to;
     tuple->body_length = 1;
