@@ -278,6 +278,10 @@ AstNode* _parse_tuple(ParserState* state,
       AstNode* node = pool_get(pool);
       parse_node(state, node);
 
+      if (separator != OP_NEWLINE) {
+        while (accept_op(state, OP_NEWLINE));
+      }
+
       if (!accept_op(state, separator)) break;
       while (accept_op(state, OP_NEWLINE));
     }
