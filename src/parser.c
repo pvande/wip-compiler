@@ -9,6 +9,7 @@ DEFINE_STR(OP_CLOSE_PAREN, ")");
 DEFINE_STR(OP_OPEN_BRACE, "{");
 DEFINE_STR(OP_CLOSE_BRACE, "}");
 DEFINE_STR(OP_COMMA, ",");
+DEFINE_STR(OP_NEWLINE, "\n");
 
 // ** Constant Strings ** //
 
@@ -249,11 +250,16 @@ void* init_node(AstNode* node, AstNodeType type) {
   return node;
 }
 
-AstNode* _parse_tuple(ParserState* state, bool (*more)(ParserState* state), void (*parse_node)(ParserState*, AstNode*)) {
+AstNode* _parse_tuple(ParserState* state,
+                      String* open_operator,
+                      String* close_operator,
+                      String* separator,
+                      bool (*more)(ParserState* state),
+                      void (*parse_node)(ParserState*, AstNode*)) {
   AstNode* tuple = init_node(pool_get(state->nodes), NODE_TUPLE);
   tuple->from = token_start(TOKEN);
 
-  assert(accept_op(state, OP_OPEN_PAREN));
+  assert(accept_op(state, open_operator));
 
   {
     Pool* pool = new_pool(sizeof(AstNode), 2, 4);
@@ -262,7 +268,7 @@ AstNode* _parse_tuple(ParserState* state, bool (*more)(ParserState* state), void
       AstNode* node = pool_get(pool);
       parse_node(state, node);
 
-      if (!accept_op(state, OP_COMMA)) break;
+      if (!accept_op(state, separator)) break;
     }
 
     tuple->body_length = pool->length;
@@ -271,7 +277,7 @@ AstNode* _parse_tuple(ParserState* state, bool (*more)(ParserState* state), void
     free_pool(pool);
   }
 
-  bool balanced_parens = accept_op(state, OP_CLOSE_PAREN);
+  bool balanced_parens = accept_op(state, close_operator);
 
   tuple->to = token_end(ACCEPTED);
 
@@ -332,7 +338,7 @@ void _parse_type(ParserState* state, AstNode* node) {
 // TYPE_TUPLE = "(" ")"
 //            | "(" TYPE ("," TYPE)* ")"
 AstNode* parse_type_tuple(ParserState* state) {
-  return _parse_tuple(state, test_type, _parse_type);
+  return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_type, _parse_type);
 }
 
 // @TODO Find a way to actually unify this with `parse_declaration`.
@@ -346,7 +352,7 @@ void _parse_declaration(ParserState* state, AstNode* node) {
 // DECLARATION_TUPLE = "(" ")"
 //                   | "(" DECLARATION ("," DECLARATION)* ")"
 AstNode* parse_declaration_tuple(ParserState* state) {
-  return _parse_tuple(state, test_declaration, _parse_declaration);
+  return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_declaration, _parse_declaration);
 }
 
 // @TODO Find a way to actually unify this with `parse_declaration`.
@@ -360,7 +366,7 @@ void _parse_expression(ParserState* state, AstNode* node) {
 // EXPRESSION_TUPLE = "(" ")"
 //                   | "(" EXPRESSION ("," EXPRESSION)* ")"
 AstNode* parse_expression_tuple(ParserState* state) {
-  return _parse_tuple(state, test_not_end_of_tuple, _parse_expression);
+  return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_not_end_of_tuple, _parse_expression);
 }
 
 // CODE_BLOCK = "{" "}"
@@ -538,7 +544,7 @@ AstNode* parse_declaration(ParserState* state) {
 AstNode* parse_top_level_delcaration(ParserState* state) {
   AstNode* decl = parse_declaration(state);
 
-  if (accept(state, TOKEN_NEWLINE)) return decl;
+  if (accept_op(state, OP_NEWLINE)) return decl;
 
   {
     // Error recovery
@@ -548,9 +554,9 @@ AstNode* parse_top_level_delcaration(ParserState* state) {
     error->error = new_string("Unexpected code following declaration");
 
     // @TODO More robustly seek past the error.
-    while (!peek(state, TOKEN_NEWLINE)) state->pos += 1;
+    while (!peek_op(state, OP_NEWLINE)) state->pos += 1;
 
-    error->to = token_end(TOKEN);
+    error->to = token_end(ACCEPTED);
     return error;
   }
 }
@@ -561,7 +567,7 @@ bool perform_parse_job(ParseJob* job) {
   ParserState* state = new_parser_state(job->tokens);
 
   while (tokens_remain(state)) {
-    if (accept(state, TOKEN_NEWLINE)) {
+    if (accept_op(state, OP_NEWLINE)) {
       // Move on, nothing to see here.
 
     } else if (test_declaration(state)) {

@@ -88,11 +88,11 @@ void tokenize_string(String* input, TokenizedFile* result) {
           //   SLURP_WHITESPACE();
           // }
 
-          *((String*) pool_get(lines)) = (String) { file_pos - line_start, input->data + line_start };
-          *((Token*) pool_get(tokens)) = (Token) { TOKEN_NEWLINE, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
-          line_no += 1;
-          line_start = file_pos + 1;
           ADVANCE(THIS);
+          *((String*) pool_get(lines)) = (String) { file_pos - line_start - 1, input->data + line_start };
+          *((Token*) pool_get(tokens)) = (Token) { TOKEN_SYNTAX_OPERATOR, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+          line_no += 1;
+          line_start = file_pos;
           line_pos = 0;
           SLURP_WHITESPACE();
           break;
