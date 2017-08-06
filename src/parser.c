@@ -83,6 +83,29 @@ void print_ast_node_type(AstNode* node) {
   }
 }
 
+char* _ast_node_type(AstNode* node) {
+  switch (node->type) {
+    case NODE_ASSIGNMENT:
+      return "ASSIGNMENT";
+    // case NODE_BRANCH:
+    //   return "BRANCH";
+    case NODE_COMPOUND:
+      return "COMPOUND";
+    case NODE_DECLARATION:
+      return "DECLARATION";
+    case NODE_EXPRESSION:
+      return "EXPRESSION";
+    // case NODE_LOOP:
+    //   return "LOOP";
+    case NODE_RECOVERY:
+      return "RECOVERY";
+    case NODE_TYPE:
+      return "TYPE";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 void print_ast_node_as_tree(ParserState* state, AstNode* node) {
   if (node == NULL) return;
 
@@ -127,6 +150,67 @@ void print_ast_node_as_tree(ParserState* state, AstNode* node) {
   for (int i = 0; i < node->body_length; i++) {
     print_ast_node_as_tree(state, &node->body[i]);
   }
+}
+
+void print_ast_node_as_dot(ParserState* state, AstNode* node) {
+  if (node == NULL) return;
+
+  String source;
+  source.data = state->data.lines[node->from.line].data + node->from.pos;
+  source.length = 0;
+  if (node->from.line != node->to.line) {
+    source.length += state->data.lines[node->from.line].length - node->from.pos + 1;
+    for (int line_number = node->from.line + 1; line_number < node->to.line; line_number++) {
+      source.length += state->data.lines[line_number].length + 1;
+    }
+    source.length += node->to.pos;
+  } else {
+    source.length += node->to.pos - node->from.pos;
+  }
+
+  printf("node_%zu [shape=record, label=<<TABLE><TR><TD ALIGN=\"center\">%s</TD></TR><TR><TD ALIGN=\"left\">", node->id, _ast_node_type(node));
+  print_dotsafe_string(&source);
+  printf("<BR ALIGN=\"LEFT\"/>");
+  printf("</TD></TR></TABLE>>]\n");
+
+  if (node->type == NODE_RECOVERY ||
+      node->type == NODE_ASSIGNMENT ||
+      (node->type == NODE_EXPRESSION && node->flags == EXPR_FUNCTION)) {
+    print_ast_node_as_dot(state, node->lhs);
+    printf("node_%zu -> node_%zu [label=lhs]\n", node->id, node->lhs->id);
+  }
+
+  if (node->type == NODE_DECLARATION ||
+      node->type == NODE_ASSIGNMENT ||
+      (node->type == NODE_EXPRESSION && node->flags == EXPR_FUNCTION) ||
+      (node->type == NODE_EXPRESSION && node->flags == EXPR_CALL)) {
+    print_ast_node_as_dot(state, node->rhs);
+    if (node->rhs != NULL) {
+      printf("node_%zu -> node_%zu [label=rhs]\n", node->id, node->rhs->id);
+    }
+  }
+
+  if (node->body_length > 0) {
+    printf("subgraph node_%zu_body {\n", node->id);
+    printf("color=grey\n");
+    for (int i = 0; i < node->body_length; i++) {
+      print_ast_node_as_dot(state, &node->body[i]);
+    }
+    printf("}\n");
+    for (int i = 0; i < node->body_length; i++) {
+      printf("node_%zu -> node_%zu [label=body]\n", node->id, node->body[i].id);
+    }
+  }
+}
+
+void print_declaration_list_as_dot(ParserState* state) {
+  printf("digraph G {\n");
+  for (size_t i = 0; i < state->scope->declarations->length; i++) {
+    AstNode* node = list_get(state->scope->declarations, i);
+    print_ast_node_as_dot(state, node);
+    printf("\n");
+  }
+  printf("}\n");
 }
 
 // ** State Manipulation Primitives ** //
@@ -249,8 +333,10 @@ bool test_function(ParserState* state) {
 // ** Helpers ** //
 
 void* init_node(AstNode* node, AstNodeType type) {
+  static size_t serial = 0;
   node->type = type;
   node->flags = 0;
+  node->id = serial++;
   node->to.line = -1;
   node->to.pos = -1;
   node->body_length = 0;
@@ -269,7 +355,7 @@ AstNode* _parse_tuple(ParserState* state,
   tuple->from = token_start(TOKEN);
 
   assert(accept_op(state, open_operator));
-  while (accept_op(state, OP_NEWLINE));
+  while (accept_op(state, OP_NEWLINE)) {}
 
   {
     Pool* pool = new_pool(sizeof(AstNode), 2, 4);
@@ -279,11 +365,11 @@ AstNode* _parse_tuple(ParserState* state,
       parse_node(state, node);
 
       if (separator != OP_NEWLINE) {
-        while (accept_op(state, OP_NEWLINE));
+        while (accept_op(state, OP_NEWLINE)) {}
       }
 
       if (!accept_op(state, separator)) break;
-      while (accept_op(state, OP_NEWLINE));
+      while (accept_op(state, OP_NEWLINE)) {}
     }
 
     tuple->body_length = pool->length;
@@ -590,19 +676,14 @@ bool perform_parse_job(ParseJob* job) {
     } else if (test_declaration(state)) {
       AstNode* decl = parse_top_level_delcaration(state);
       list_append(state->scope->declarations, decl);
-      print_ast_node_as_tree(state, decl);
+      // print_ast_node_as_tree(state, decl);
 
     } else {
       printf("Unrecognized code in top-level context\n");
     }
   }
 
-  // List* declarations = state->scope->declarations;
-  // for (size_t i = 0; i < declarations->length; i++) {
-  //   AstNode* node = list_get(declarations, i);
-  //   print_ast_node_as_tree(state, node);
-  //   printf("\n");
-  // }
+  print_declaration_list_as_dot(state);
 
   return 1;
 }

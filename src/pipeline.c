@@ -64,7 +64,7 @@ Job* pipeline_take_job() {
 }
 
 void pipeline_emit_read_job(String filename) {
-  fprintf(stderr, "Emitting ReadJob for "); print_string(&filename); printf("\n");
+  // fprintf(stderr, "Emitting ReadJob for "); print_string(&filename); printf("\n");
 
   // @Lazy We should use a pool allocator.
   ReadJob* job = malloc(sizeof(ReadJob));
@@ -74,7 +74,7 @@ void pipeline_emit_read_job(String filename) {
 }
 
 void pipeline_emit_lex_job(String filename, String source) {
-  fprintf(stderr, "Emitting LexJob for %zu bytes of ", source.length); print_string(&filename); printf("\n");
+  // fprintf(stderr, "Emitting LexJob for %zu bytes of ", source.length); print_string(&filename); printf("\n");
 
   // @Lazy We should use a pool allocator.
   LexJob* job = malloc(sizeof(LexJob));
@@ -86,7 +86,7 @@ void pipeline_emit_lex_job(String filename, String source) {
 }
 
 void pipeline_emit_parse_job(TokenizedFile* tokens) {
-  fprintf(stderr, "Emitting FileParseJob for %zu tokens of ", tokens->length); print_string(&tokens->filename); printf("\n");
+  // fprintf(stderr, "Emitting FileParseJob for %zu tokens of ", tokens->length); print_string(&tokens->filename); printf("\n");
 
   // @Lazy We should use a pool allocator.
   ParseJob* job = malloc(sizeof(ParseJob));

@@ -39,6 +39,13 @@ void print_escaped_character(unsigned char c) {
   else
     printf("\e[1;30m%s\e[m", ESCAPED[c]);
 }
+
+void print_dotsafe_escaped_character(unsigned char c) {
+  if (ESCAPED[c] == NULL)
+    printf("%c", c);
+  else
+    printf("%s", ESCAPED[c]);
+}
 #define RAW(X, SIZE)  do { for (int i = 0; i < SIZE; i++) { print_escaped_character(((char*) X)[i]); } printf("\n"); } while (0)
 
 void print_string(String* str) {
@@ -48,6 +55,29 @@ void print_string(String* str) {
     print_escaped_character(c);
   }
   printf("\"");
+}
+
+void print_dotsafe_string(String* str) {
+  for (int i = 0; i < str->length; i++) {
+    unsigned char c = str->data[i];
+    if (c == '"') {
+      printf("&quot;");
+    } else if (c == ' ') {
+      printf("&nbsp;");
+    } else if (c == '<') {
+      printf("&lt;");
+    } else if (c == '>') {
+      printf("&gt;");
+    } else if (c == '{') {
+      printf("&#123;");
+    } else if (c == '}') {
+      printf("&#125;");
+    } else if (c == '\n') {
+      printf("<BR ALIGN=\"LEFT\"/>");
+    } else {
+      print_dotsafe_escaped_character(c);
+    }
+  }
 }
 
 void print_symbol(Symbol sym) {

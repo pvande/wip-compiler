@@ -101,6 +101,7 @@ typedef struct {
 typedef struct AstNode {
   AstNodeType type;
   AstNodeFlags flags;   // 0
+  size_t id;            // Serial number
 
   FileAddress from;     // ---
   FileAddress to;       // ---
