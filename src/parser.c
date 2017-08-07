@@ -11,28 +11,19 @@ DEFINE_STR(OP_CLOSE_BRACE, "}");
 DEFINE_STR(OP_COMMA, ",");
 DEFINE_STR(OP_NEWLINE, "\n");
 
-// ** Constant Strings ** //
-
-DEFINE_STR(STR_VOID, "void");
-
 // ** Local Data Structures ** //
-
-typedef struct ParserScope {
-  struct ParserScope* parent;
-  List* declarations;
-} ParserScope;
 
 typedef struct {
   TokenizedFile data;
   size_t pos;
 
   Pool* nodes;
-  ParserScope* scope;
+  Scope* scope;
 } ParserState;
 
 
 void* new_parser_scope() {
-  ParserScope* scope = malloc(sizeof(ParserScope));
+  Scope* scope = malloc(sizeof(Scope));
   scope->declarations = new_list(1, 32);
   return scope;
 }
@@ -174,6 +165,7 @@ void* init_node(AstNode* node, AstNodeType type) {
   node->to.line = -1;
   node->to.pos = -1;
   node->body_length = 0;
+  node->typeclass = NULL;
   node->error = NULL;
 
   return node;
@@ -413,6 +405,7 @@ AstNode* parse_expression(ParserState* state) {
       expr->from = start;
       expr->to = token_end(ACCEPTED);
       expr->ident = name;
+      expr->scope = state->scope;
       return expr;
     }
 
@@ -456,11 +449,9 @@ AstNode* parse_declaration(ParserState* state) {
     decl->from = decl_start;
     decl->to = token_end(ACCEPTED);
     decl->ident = name;
+    decl->rhs = type;
 
-    if (type != NULL) {
-      decl->flags |= DECL_TYPE_PROVIDED;
-      decl->typeclass = type;
-    }
+    list_append(state->scope->declarations, decl);
 
     AstNode* assignment = init_node(pool_get(state->nodes), NODE_ASSIGNMENT);
     assignment->from = decl_start;
@@ -477,12 +468,14 @@ AstNode* parse_declaration(ParserState* state) {
     decl->ident = name;
     decl->rhs = type;
 
+    list_append(state->scope->declarations, decl);
+
     // @TODO Bubble up errors.
     return decl;
   }
 }
 
-AstNode* parse_top_level_delcaration(ParserState* state) {
+AstNode* parse_top_level(ParserState* state) {
   AstNode* decl = parse_declaration(state);
 
   if (accept_op(state, OP_NEWLINE)) return decl;
@@ -512,11 +505,10 @@ bool perform_parse_job(ParseJob* job) {
       // Move on, nothing to see here.
 
     } else if (test_declaration(state)) {
-      AstNode* decl = parse_top_level_delcaration(state);
-      list_append(state->scope->declarations, decl);
+      AstNode* node = parse_top_level(state);
 
-      if (decl->error == NULL) {
-        pipeline_emit_typecheck_job(decl);
+      if (node->error == NULL) {
+        pipeline_emit_typecheck_job(node);
       } else {
         // @TODO Define an error reporting job, and dispatch the `decl` to that.
       }
@@ -528,7 +520,7 @@ bool perform_parse_job(ParseJob* job) {
     }
   }
 
-  print_declaration_list_as_dot(state->data.lines, state->scope->declarations);
+  // print_declaration_list_as_dot(state->data.lines, state->scope->declarations);
 
   return 1;
 }

@@ -20,6 +20,20 @@
 #include "src/stack.c"
 #include "src/symbol.c"
 
+// ** Constant Strings ** //
+
+DEFINE_STR(STR_VOID, "void");
+DEFINE_STR(STR_BYTE, "byte");
+DEFINE_STR(STR_U8,  "u8");
+DEFINE_STR(STR_U16, "u16");
+DEFINE_STR(STR_U32, "u32");
+DEFINE_STR(STR_U64, "u64");
+DEFINE_STR(STR_S8,  "s8");
+DEFINE_STR(STR_S16, "s16");
+DEFINE_STR(STR_S32, "s32");
+DEFINE_STR(STR_S64, "s64");
+DEFINE_STR(STR_INT, "int");
+
 typedef char bool;
 
 typedef enum {
@@ -67,6 +81,10 @@ typedef struct {
 typedef struct {
 } CompilationWorkspace;
 
+typedef struct Scope {
+  struct Scope* parent;
+  List* declarations;
+} Scope;
 
 // Update docs/parser/node-usage.md when this changes.
 typedef enum {
@@ -87,9 +105,9 @@ typedef enum {
   EXPR_LITERAL         = (1 << 0),
   EXPR_IDENT           = (1 << 1),
   EXPR_FUNCTION        = (1 << 2),
-  // EXPR_UNARY_OP  = (1 << 3),
-  // EXPR_BINARY_OP = (1 << 4),
-  EXPR_CALL      = (1 << 5),
+  EXPR_CALL            = (1 << 3),
+  // EXPR_UNARY_OP  = (1 << 4),
+  // EXPR_BINARY_OP = (1 << 5),
 } AstNodeFlags;
 
 typedef struct {
@@ -97,26 +115,34 @@ typedef struct {
   size_t pos;
 } FileAddress;
 
+typedef struct {
+  size_t id;
+  size_t size;
+  String* name;
+} Typeclass;
+
 // Update docs/parser/node-usage.md when this changes.
 typedef struct AstNode {
   AstNodeType type;
-  AstNodeFlags flags;   // 0
-  size_t id;            // Serial number
+  AstNodeFlags flags;         // 0
+  size_t id;                  // Serial number
 
-  FileAddress from;     // ---
-  FileAddress to;       // ---
+  FileAddress from;           // ---
+  FileAddress to;             // ---
 
-  Symbol ident;         // ---
-  String source;        // ---
-  struct AstNode* lhs;  // ---
-  struct AstNode* rhs;  // ---
+  Symbol ident;               // ---
+  String source;              // ---
+  struct AstNode* lhs;        // ---
+  struct AstNode* rhs;        // ---
+  Typeclass* typeclass;       // NULL
 
-  size_t body_length;   // ---
-  struct AstNode* body; // ---
+  size_t body_length;         // ---
+  struct AstNode* body;       // ---
 
-  String* error;        // NULL
+  Scope* scope;               // ---
+
+  String* error;              // NULL
 } AstNode;
-
 
 /// -----------------
 // typedef struct {
@@ -185,6 +211,7 @@ typedef struct AstNode {
 #include "src/reader.c"
 #include "src/lexer.c"
 #include "src/parser.c"
+#include "src/typechecker.c"
 #include "src/bytecode.c"
 #include "src/output.c"
 
@@ -214,8 +241,11 @@ int main(int argc, char** argv) {
   action.sa_sigaction = crashbar;
   sigaction(SIGSEGV, &action, NULL);
 
+  // @TODO Make the pipeline a part of the CompilationWorkspace.
   initialize_pipeline();
   pipeline_emit_read_job((String) { strlen(argv[1]), argv[1] });
+
+  initialize_typechecker();
 
   int did_work = 1;
   while (pipeline_has_jobs()) {
@@ -229,30 +259,15 @@ int main(int argc, char** argv) {
 
     } else if (job->type == JOB_PARSE) {
       did_work = perform_parse_job((ParseJob*) job);
-    //   ParseJob* job = (ParseJob*) _job;
-    //
-    //   ParserScope* file_scope = calloc(1, sizeof(ParserScope));
-    //   file_scope->declarations = new_list(4, 32);
-    //
-    //   parse_file(job->tokens, file_scope);
-    //
-    //   // ws.declaration_count += file_scope->declarations->size;
-    //   // for (int i = 0; i < ws.declaration_count; i++) {
-    //   //   AstDeclaration* decl = list_get(file_scope->declarations, i);
-    //   //   pipeline_emit_typecheck_job(decl);
-    //   // }
-    //
-    //   did_work = 1;
 
-    // } else if (_job->type == JOB_TYPECHECK) {
-    //   TypecheckJob* job = (TypecheckJob*) _job;
-    //
-    //   // @TODO Implement typechecking.
-    //
-    //   pipeline_emit_optimize_job(job->declaration);
-    //
-    //   did_work = 1;
-    //
+    } else if (job->type == JOB_TYPECHECK) {
+      did_work = perform_typecheck_job((TypecheckJob*) job);
+
+      if (!did_work) {
+        pipeline_emit(job);
+        continue;
+      }
+
     // } else if (_job->type == JOB_OPTIMIZE) {
     //   OptimizeJob* job = (OptimizeJob*) _job;
     //
@@ -295,7 +310,13 @@ int main(int argc, char** argv) {
     free(job);
   }
 
-  return 0;
+  if (pipeline_has_jobs()) {
+    fprintf(stderr, "Unable to compile %s.\n", argv[1]);
+    return 1;
+  } else {
+    fprintf(stderr, "Compiled %s.\n", argv[1]);
+    return 0;
+  }
 }
 
 #endif

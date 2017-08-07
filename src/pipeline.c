@@ -31,11 +31,11 @@ typedef struct {
   TokenizedFile* tokens;
 } ParseJob;
 
-// typedef struct {
-//   Job base;
-//   AstDeclaration* declaration;
-// } TypecheckJob;
-//
+typedef struct {
+  Job base;
+  AstNode* declaration;
+} TypecheckJob;
+
 // typedef struct {
 //   Job base;
 //   AstDeclaration* declaration;
@@ -96,18 +96,17 @@ void pipeline_emit_parse_job(TokenizedFile* tokens) {
   pipeline_emit(job);
 }
 
-// void pipeline_emit_typecheck_job(AstDeclaration* decl) {
-//   fprintf(stderr, "Emitting TypecheckJob for "); print_symbol(decl->name);
-//   // printf(" in "); print_symbol(decl->name->file); printf(" line %zu\n", decl->name->line)
-//
-//   // @Lazy We should use a pool allocator.
-//   TypecheckJob* job = malloc(sizeof(TypecheckJob));
-//   job->base.type = JOB_TYPECHECK;
-//   job->declaration = decl;
-//
-//   pipeline_emit(job);
-// }
-//
+void pipeline_emit_typecheck_job(AstNode* decl) {
+  // fprintf(stderr, "Emitting TypecheckJob for "); print_symbol(decl->type == NODE_ASSIGNMENT ? decl->lhs->ident : decl->ident); printf("\n");
+
+  // @Lazy We should use a pool allocator.
+  TypecheckJob* job = malloc(sizeof(TypecheckJob));
+  job->base.type = JOB_TYPECHECK;
+  job->declaration = decl;
+
+  pipeline_emit(job);
+}
+
 // void pipeline_emit_optimize_job(AstDeclaration* decl) {
 //   fprintf(stderr, "Emitting OptimizeJob for "); print_symbol(decl->name);
 //   // printf(" in "); print_symbol(decl->name->file); printf(" line %zu\n", decl->name->line)
