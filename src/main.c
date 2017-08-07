@@ -47,14 +47,12 @@ typedef enum {
 } TokenType;
 
 typedef enum {
-  NONLITERAL      = 0,
-  LITERAL_NUMBER  = (1 << 0),
-  NUMBER_DECIMAL  = (1 << 1) + 1,
-  NUMBER_HEX      = (1 << 2) + 1,
-  NUMBER_BINARY   = (1 << 3) + 1,
-  NUMBER_FRACTION = (1 << 4) + 1,
-
-  LITERAL_STRING  = (1 << 5),
+  NONLITERAL             = 0,
+  IS_DECIMAL_LITERAL     = (1 << 8),
+  IS_HEX_LITERAL         = (1 << 9),
+  IS_BINARY_LITERAL      = (1 << 10),
+  IS_FRACTIONAL_LITERAL  = (1 << 11),
+  IS_STRING_LITERAL      = (1 << 12),
 } TokenLiteralType;
 
 typedef struct {
@@ -121,6 +119,15 @@ typedef struct {
   String* name;
 } Typeclass;
 
+typedef enum {
+  KIND_NUMBER        = (1 << 0),
+  KIND_CAN_BE_SIGNED = (1 << 1),
+  KIND_CAN_BE_U8     = (1 << 2),
+  KIND_CAN_BE_U16    = (1 << 3),
+  KIND_CAN_BE_U32    = (1 << 4),
+  KIND_CAN_BE_U64    = (1 << 5),
+} Typekind;
+
 // Update docs/parser/node-usage.md when this changes.
 typedef struct AstNode {
   AstNodeType type;
@@ -134,12 +141,15 @@ typedef struct AstNode {
   String source;              // ---
   struct AstNode* lhs;        // ---
   struct AstNode* rhs;        // ---
-  Typeclass* typeclass;       // NULL
 
   size_t body_length;         // ---
   struct AstNode* body;       // ---
 
   Scope* scope;               // ---
+
+  Typeclass* typeclass;       // NULL
+  Typekind typekind;          // 0
+  unsigned long long value;   // ---
 
   String* error;              // NULL
 } AstNode;

@@ -107,7 +107,7 @@ void tokenize_string(String* input, TokenizedFile* result) {
           ADVANCE('"');
         }
 
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_LITERAL, result->filename, line_no, line_pos - LENGTH, SOURCE, LITERAL_STRING, input->data[token_start] == input->data[file_pos - 1] };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_LITERAL, result->filename, line_no, line_pos - LENGTH, SOURCE, IS_STRING_LITERAL, input->data[token_start] == input->data[file_pos - 1] };
         break;
       case '0'...'9':
         {
@@ -116,22 +116,22 @@ void tokenize_string(String* input, TokenizedFile* result) {
           if (THIS == '0') {
             ADVANCE('0');
             if (THIS == 'x') {
-              literal_type = NUMBER_HEX;
+              literal_type = IS_HEX_LITERAL;
               ADVANCE('x');
               SLURP_HEX_NUMBER();
             } else if (THIS == 'b') {
-              literal_type = NUMBER_BINARY;
+              literal_type = IS_BINARY_LITERAL;
               ADVANCE('b');
               SLURP_BINARY_NUMBER();
             }
           }
 
           if (!literal_type) {
-            literal_type = NUMBER_DECIMAL;
+            literal_type = IS_DECIMAL_LITERAL;
             SLURP_DECIMAL_NUMBER();
 
             if (THIS == '.') {
-              literal_type = NUMBER_FRACTION;
+              literal_type = IS_FRACTIONAL_LITERAL;
               ADVANCE('.');
               SLURP_DECIMAL_NUMBER();
             }

@@ -166,6 +166,7 @@ void* init_node(AstNode* node, AstNodeType type) {
   node->to.pos = -1;
   node->body_length = 0;
   node->typeclass = NULL;
+  node->typekind = 0;
   node->error = NULL;
 
   return node;
@@ -377,7 +378,7 @@ AstNode* parse_expression(ParserState* state) {
   if (accept(state, TOKEN_LITERAL)) {
     // @TODO Extract this?
     AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
-    expr->flags = EXPR_LITERAL;
+    expr->flags = EXPR_LITERAL | ACCEPTED.literal_type;
     expr->from = token_start(ACCEPTED);
     expr->to = token_end(ACCEPTED);
     expr->source = ACCEPTED.source;
