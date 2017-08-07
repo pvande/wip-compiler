@@ -1,4 +1,5 @@
 // ** Constant Operators ** //
+
 DEFINE_STR(OP_DECLARE, ":");
 DEFINE_STR(OP_DECLARE_ASSIGN, ":=");
 DEFINE_STR(OP_ASSIGN, "=");
@@ -8,506 +9,518 @@ DEFINE_STR(OP_CLOSE_PAREN, ")");
 DEFINE_STR(OP_OPEN_BRACE, "{");
 DEFINE_STR(OP_CLOSE_BRACE, "}");
 DEFINE_STR(OP_COMMA, ",");
+DEFINE_STR(OP_NEWLINE, "\n");
+
+// ** Local Data Structures ** //
+
+typedef struct {
+  TokenizedFile data;
+  size_t pos;
+
+  Pool* nodes;
+  Scope* scope;
+} ParserState;
+
+
+void* new_parser_scope() {
+  Scope* scope = malloc(sizeof(Scope));
+  scope->declarations = new_list(1, 32);
+  return scope;
+}
+
+void* new_parser_state(TokenizedFile* file) {
+  ParserState* state = malloc(sizeof(ParserState));
+  state->data = *file;
+  state->pos = 0;
+  state->nodes = new_pool(sizeof(AstNode), 16, 64);
+  state->scope = new_parser_scope();
+  return state;
+}
+
 
 // ** State Manipulation Primitives ** //
 
-ParserState __parser_state;
+bool tokens_remain(ParserState* state) {
+  return state->pos < state->data.length;
+}
 
-#define ACCEPTED       (&__parser_state.list.tokens[__parser_state.pos - 1])
-#define TOKEN          (__parser_state.list.tokens[__parser_state.pos])
-#define TOKENS_REMAIN  (__parser_state.pos < __parser_state.list.count)
-#define CURRENT_LINE   (__parser_state.list.lines[TOKEN.line])
-#define CURRENT_SCOPE  (__parser_state.current_scope)
+FileAddress token_start(Token t) {
+  return (FileAddress) { t.line, t.pos };
+}
 
-#define ADVANCE()      (__parser_state.pos += 1)
-#define BEGIN()        const size_t __mark__ = __parser_state.pos;
-#define ROLLBACK()     (__parser_state.pos = __mark__)
+FileAddress token_end(Token t) {
+  return (FileAddress) { t.line, t.pos + t.source.length };
+}
 
+#define ACCEPTED (state->data.tokens[state->pos - 1])
+#define TOKEN    (state->data.tokens[state->pos])
 
 // ** Parsing Primitives ** //
 
-int peek(TokenType type) {
+int peek(ParserState* state, TokenType type) {
   return TOKEN.type == type;
 }
 
-int peek_syntax_op(String* op) {
+int peek_syntax_op(ParserState* state, String* op) {
   if (TOKEN.type != TOKEN_SYNTAX_OPERATOR) return 0;
   return string_equals(op, &TOKEN.source);
 }
 
-int peek_nonsyntax_op(String* op) {
+int peek_nonsyntax_op(ParserState* state, String* op) {
   if (TOKEN.type != TOKEN_OPERATOR) return 0;
   return string_equals(op, &TOKEN.source);
 }
 
-int peek_op(String* op) {
-  return peek_syntax_op(op) || peek_nonsyntax_op(op);
+int peek_op(ParserState* state, String* op) {
+  return peek_syntax_op(state, op) || peek_nonsyntax_op(state, op);
 }
 
-int peek_directive(String* name) {
-  if (TOKEN.type != TOKEN_DIRECTIVE) return 0;
-  return string_equals(name, &TOKEN.source);
-}
+int accept(ParserState* state, TokenType type) {
+  if (!peek(state, type)) return 0;
 
-int accept(TokenType type) {
-  if (!peek(type)) return 0;
-
-  ADVANCE();
+  state->pos += 1;
   return 1;
 }
 
-int accept_op(String* op) {
-  if (!peek_op(op)) return 0;
+int accept_syntax_op(ParserState* state, String* op) {
+  if (!peek_syntax_op(state, op)) return 0;
 
-  ADVANCE();
+  state->pos += 1;
   return 1;
 }
 
-int accept_syntax_op(String* op) {
-  if (!peek_syntax_op(op)) return 0;
+int accept_nonsyntax_op(ParserState* state, String* op) {
+  if (!peek_nonsyntax_op(state, op)) return 0;
 
-  ADVANCE();
+  state->pos += 1;
   return 1;
 }
 
-int accept_nonsyntax_op(String* op) {
-  if (!peek_nonsyntax_op(op)) return 0;
+int accept_op(ParserState* state, String* op) {
+  if (!peek_op(state, op)) return 0;
 
-  ADVANCE();
+  state->pos += 1;
   return 1;
 }
 
-int accept_directive(String* name) {
-  if (!peek_directive(name)) return 0;
-
-  ADVANCE();
-  return 1;
-}
-
-void error(char* msg) {
-  char* filename = to_zero_terminated_string(&TOKEN.file);
-  char* line_str = to_zero_terminated_string(&CURRENT_LINE);
-  size_t line_no = TOKEN.line;
-
-  char* bold = "\e[1;37m";
-  char* code = "\e[0;36m";
-  char* err = "\e[0;31m";
-  char* reset = "\e[0m";
-
-  printf("Error: %s\n", msg);
-  printf("In %s%s%s on line %s%zu%s\n\n", bold, filename, reset, bold, TOKEN.line + 1, reset);
-  printf("> %s%s%s\n", code, line_str, reset);
-
-  for (int i = 0; i < CURRENT_LINE.length; i++) line_str[i] = ' ';
-  for (int i = TOKEN.pos; i < TOKEN.pos + TOKEN.source.length; i++) line_str[i] = '^';
-
-  printf("  %s%s%s\n\n", err, line_str, reset);
-
-  free(filename);
-  free(line_str);
-}
-
-
-// ** Apathetic Parsing ** //
-
-// @Lazy We should be able to parse this fully in the initial pass, since no
-//       unknown operators are legal in the return types list.
-// @Lazy Is there any reason a '{' should be permitted in a return type block?
-List* slurp_return_list() {
-  List* tokens = new_list(1, 8);  // @TODO Validate these numbers.
-
-  while(!peek_op(OP_OPEN_BRACE)) {
-    list_add(tokens, &TOKEN);
-    ADVANCE();
-  }
-
-  return tokens;
-}
-
-List* slurp_code_block() {
-  size_t parens = 0;
-  size_t braces = 0;
-  List* tokens = new_list(1, 8);  // @TODO Validate these numbers.
-
-  while (!(TOKENS_REMAIN && parens == 0 && braces == 0 && peek_op(OP_CLOSE_BRACE))) {
-    if (peek_op(OP_OPEN_PAREN)) parens += 1;
-    if (peek_op(OP_CLOSE_PAREN)) parens -= 1;
-    if (peek_op(OP_OPEN_BRACE)) braces += 1;
-    if (peek_op(OP_CLOSE_BRACE)) braces -= 1;
-
-    list_add(tokens, &TOKEN);
-    ADVANCE();
-  }
-
-  return tokens;
-}
 
 // ** Lookahead Operations ** //
 
-int test_declaration() {
-  int result = 0;
+bool skim_tuple(ParserState* state) {
+  size_t depth = 0;
 
-  BEGIN();
-  if (accept(TOKEN_IDENTIFIER)) {
-    result = peek_op(OP_DECLARE) || peek_op(OP_DECLARE_ASSIGN);
+  if (!peek_op(state, OP_OPEN_PAREN)) return 0;
+
+  do {
+    if (peek_op(state, OP_OPEN_PAREN)) depth += 1;
+    if (peek_op(state, OP_CLOSE_PAREN)) depth -= 1;
+    state->pos += 1;
+  } while (tokens_remain(state) && depth > 0);
+
+  return depth < 1;
+}
+
+bool test_type(ParserState* state) {
+  return peek(state, TOKEN_IDENTIFIER);
+}
+
+bool test_not_end_of_tuple(ParserState* state) {
+  return !peek_op(state, OP_CLOSE_PAREN);
+}
+
+bool test_not_end_of_block(ParserState* state) {
+  return !peek_op(state, OP_CLOSE_BRACE);
+}
+
+bool test_declaration(ParserState* state) {
+  bool result = 0;
+
+  size_t mark = state->pos;
+  if (accept(state, TOKEN_IDENTIFIER)) {
+    result = peek_op(state, OP_DECLARE) || peek_op(state, OP_DECLARE_ASSIGN);
   }
-  ROLLBACK();
+  state->pos = mark;
 
   return result;
 }
 
-int test_directive() {
-  return peek(TOKEN_DIRECTIVE);
-}
+bool test_function(ParserState* state) {
+  bool result = 0;
 
-int test_code_block() {
-  return peek_op(OP_OPEN_BRACE);
-}
-
-int test_function_expression() {
-  int result = 0;
-
-  BEGIN();
-  if (accept_op(OP_OPEN_PAREN)) {
-    size_t depth = 0;
-
-    while (TOKENS_REMAIN && (depth > 0 || !peek_op(OP_CLOSE_PAREN))) {
-      if (peek_op(OP_OPEN_PAREN)) depth += 1;
-      if (peek_op(OP_CLOSE_PAREN)) depth -= 1;
-      ADVANCE();
-    }
-
-    if (accept_op(OP_CLOSE_PAREN)) {
-      result = peek_op(OP_FUNC_ARROW);
-    }
-  }
-  ROLLBACK();
+  size_t mark = state->pos;
+  result = skim_tuple(state) && peek_op(state, OP_FUNC_ARROW);
+  state->pos = mark;
 
   return result;
 }
 
+
+// ** Helpers ** //
+
+void* init_node(AstNode* node, AstNodeType type) {
+  static size_t serial = 0;
+  node->type = type;
+  node->flags = 0;
+  node->id = serial++;
+  node->to.line = -1;
+  node->to.pos = -1;
+  node->body_length = 0;
+  node->typeclass = NULL;
+  node->error = NULL;
+
+  return node;
+}
+
+AstNode* _parse_tuple(ParserState* state,
+                      String* open_operator,
+                      String* close_operator,
+                      String* separator,
+                      bool (*more)(ParserState* state),
+                      void (*parse_node)(ParserState*, AstNode*)) {
+  AstNode* tuple = init_node(pool_get(state->nodes), NODE_COMPOUND);
+  tuple->from = token_start(TOKEN);
+
+  assert(accept_op(state, open_operator));
+  while (accept_op(state, OP_NEWLINE)) {}
+
+  {
+    Pool* pool = new_pool(sizeof(AstNode), 2, 4);
+
+    while (more(state)) {
+      AstNode* node = pool_get(pool);
+      parse_node(state, node);
+
+      if (separator != OP_NEWLINE) {
+        while (accept_op(state, OP_NEWLINE)) {}
+      }
+
+      if (!accept_op(state, separator)) break;
+      while (accept_op(state, OP_NEWLINE)) {}
+    }
+
+    tuple->body_length = pool->length;
+    tuple->body = pool_to_array(pool);
+
+    free_pool(pool);
+  }
+
+  bool properly_balanced = accept_op(state, close_operator);
+
+  tuple->to = token_end(ACCEPTED);
+
+  if (properly_balanced) return tuple;
+
+  {
+    // Error recovery
+    size_t depth = 1;
+    do {
+      if (peek_op(state, OP_OPEN_PAREN)) depth += 1;
+      if (peek_op(state, OP_CLOSE_PAREN)) depth -= 1;
+      state->pos += 1;
+    } while (tokens_remain(state) && depth > 0);
+
+    AstNode* error = init_node(pool_get(state->nodes), NODE_RECOVERY);
+    error->from = tuple->to;
+    error->to = token_end(ACCEPTED);
+    error->lhs = tuple;
+    error->error = new_string("Unable to parse function argument declarations");
+
+    return error;
+  }
+}
 
 // ** Parser States ** //
-void* parse_declaration();
-void* parse_expression();
 
-void* parse_declaration_tuple() {
-  if (!accept_op(OP_OPEN_PAREN)) {
-    error("Expected argument list");
-    return NULL;
+AstNode* parse_declaration(ParserState* state);
+AstNode* parse_expression(ParserState* state);
+
+// TYPE = Identifier
+//      | TYPE_TUPLE "=>" TYPE          @TODO
+//      | TYPE_TUPLE "=>" TYPE_TUPLE    @TODO
+AstNode* parse_type(ParserState* state) {
+  AstNode* type = init_node(pool_get(state->nodes), NODE_TYPE);
+  type->from = token_start(TOKEN);
+
+  if (accept(state, TOKEN_IDENTIFIER)) {
+    type->source = ACCEPTED.source;
+    type->to = token_end(ACCEPTED);
+  } else {
+    type->error = new_string("Expected a type identifier");
+    type->to = token_end(TOKEN);
   }
 
-  List* declarations = new_list(1, 8);
-
-  if (accept_op(OP_CLOSE_PAREN)) return declarations;
-
-  do {
-    AstDeclaration* decl = parse_declaration();
-    if (decl == NULL) {
-      error("Got a NULL declaration when we shouldn't have");
-      return declarations;
-    }
-    list_add(declarations, decl);
-  } while (accept_op(OP_COMMA));
-
-  if (!accept_op(OP_CLOSE_PAREN)) {
-    error("Expected to find the end of the argument list");
-    return declarations;
-  }
-
-  return declarations;
-}
-
-void* parse_expression_tuple() {
-  if (!accept_op(OP_OPEN_PAREN)) {
-    error("Expected argument list");
-    return NULL;
-  }
-
-  List* expressions = new_list(1, 8);
-
-  if (accept_op(OP_CLOSE_PAREN)) return expressions;
-
-  do {
-    AstDeclaration* decl = parse_expression();
-    if (decl == NULL) {
-      error("Got a NULL expression when we shouldn't have");
-      return expressions;
-    }
-    list_add(expressions, decl);
-  } while (accept_op(OP_COMMA));
-
-  if (!accept_op(OP_CLOSE_PAREN)) {
-    error("Expected to find the end of the argument list");
-    return expressions;
-  }
-
-  return expressions;
-}
-
-void* parse_type() {
-  if (!accept(TOKEN_IDENTIFIER)) {
-    error("Unknown expression; expected a type identifier");
-    return NULL;
-  }
-
-  AstType* type = malloc(sizeof(AstType));
-  type->name = symbol_get(&ACCEPTED->source);
   return type;
 }
 
-void* parse_return_type() {
-  // @TODO Handle named return values.
-  // @TODO Handle multiple return values.
+// @TODO Find a way to unify this with `parse_type`.
+void _parse_type(ParserState* state, AstNode* node) {
+  accept(state, TOKEN_IDENTIFIER);
 
-  if (peek(TOKEN_IDENTIFIER)) {
-    return parse_type();
-  } else if (peek_op(OP_OPEN_BRACE)) {
-    AstType* type = malloc(sizeof(AstType));
-    String* name = new_string("void");  // @TODO Really?  We're allocating here?
-    type->name = symbol_get(name);
-    free(name);
-    return type;
+  init_node(node, NODE_TYPE);
+  node->from = token_start(ACCEPTED);
+  node->to = token_end(ACCEPTED);
+  node->source = ACCEPTED.source;
+}
+
+// TYPE_TUPLE = "(" ")"
+//            | "(" TYPE ("," TYPE)* ")"
+AstNode* parse_type_tuple(ParserState* state) {
+  return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_type, _parse_type);
+}
+
+// @TODO Find a way to actually unify this with `parse_declaration`.
+void _parse_declaration(ParserState* state, AstNode* node) {
+  init_node(node, NODE_DECLARATION);
+
+  // @Gross @Leak @FixMe Find a way to avoid the extra allocations here.
+  *node = *parse_declaration(state);
+}
+
+// DECLARATION_TUPLE = "(" ")"
+//                   | "(" DECLARATION ("," DECLARATION)* ")"
+AstNode* parse_declaration_tuple(ParserState* state) {
+  return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_declaration, _parse_declaration);
+}
+
+// @TODO Find a way to actually unify this with `parse_declaration`.
+void _parse_expression(ParserState* state, AstNode* node) {
+  init_node(node, NODE_EXPRESSION);
+
+  // @Gross @Leak @FixMe Find a way to avoid the extra allocations here.
+  *node = *parse_expression(state);
+}
+
+// EXPRESSION_TUPLE = "(" ")"
+//                   | "(" EXPRESSION ("," EXPRESSION)* ")"
+AstNode* parse_expression_tuple(ParserState* state) {
+  return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_not_end_of_tuple, _parse_expression);
+}
+
+void _parse_statement(ParserState* state, AstNode* node) {
+  if (accept_op(state, OP_NEWLINE)) {
+    // Move on, nothing to see here.
+
+  } else if (test_declaration(state)) {
+    _parse_declaration(state, node);
+
   } else {
-    error("Expected return type, got whatever this is...");
-    return NULL;
+    _parse_expression(state, node);
   }
 }
 
-void* parse_code_block() {
-  if (!accept_op(OP_OPEN_BRACE)) {
-    error("Expected code block");
-    return NULL;
+// CODE_BLOCK = "{" "}"
+AstNode* parse_code_block(ParserState* state) {
+  return _parse_tuple(state, OP_OPEN_BRACE, OP_CLOSE_BRACE, OP_NEWLINE, test_not_end_of_block, _parse_statement);
+}
+
+// @TODO Bubble up errors from lhs.
+// @TODO Bubble up errors from rhs.
+// @TODO Bubble up errors from body.
+// FUNCTION = DECLARATION_TUPLE "=>" CODE_BLOCK
+//          | DECLARATION_TUPLE "=>" TYPE CODE_BLOCK
+//          | DECLARATION_TUPLE "=>" TYPE_TUPLE CODE_BLOCK
+//          | DECLARATION_TUPLE "=>" NAMED_TYPE_TUPLE CODE_BLOCK    @TODO
+AstNode* parse_function(ParserState* state) {
+  AstNode* func = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+  func->flags = EXPR_FUNCTION;
+  func->from = token_start(TOKEN);
+
+  func->lhs = parse_declaration_tuple(state);
+
+  assert(accept_op(state, OP_FUNC_ARROW));
+
+  if (peek_op(state, OP_OPEN_PAREN)) {
+    func->rhs = parse_type_tuple(state);
+
+  } else if (peek_op(state, OP_OPEN_BRACE)) {
+    AstNode* type = init_node(pool_get(state->nodes), NODE_TYPE);
+    type->from = token_start(TOKEN);
+    type->to = token_start(TOKEN);
+    type->source = *STR_VOID;
+
+    AstNode* tuple = init_node(pool_get(state->nodes), NODE_COMPOUND);
+    tuple->from = type->from;
+    tuple->to = type->to;
+    tuple->body_length = 1;
+    tuple->body = type;
+
+    func->rhs = tuple;
+
+  } else if (test_type(state)) {
+    AstNode* type = parse_type(state);
+
+    AstNode* tuple = init_node(pool_get(state->nodes), NODE_COMPOUND);
+    tuple->from = type->from;
+    tuple->to = type->to;
+    tuple->body_length = 1;
+    tuple->body = type;
+
+    func->rhs = tuple;
+
+  } else {
+    // @TODO Actually recover from this error case.
+    assert(0);
   }
 
-  List* body = new_list(4, 8);
+  func->body_length = 1;
+  func->body = parse_code_block(state);
 
-  while (!peek_op(OP_CLOSE_BRACE)) {
-    accept(TOKEN_NEWLINE);
-    if (test_declaration()) {
-      AstDeclaration* decl = parse_declaration();
-      AstStatement* stmt = calloc(1, sizeof(AstStatement));
-      stmt->type = STATEMENT_DECLARATION;
-      stmt->data = decl;
+  func->to = token_end(ACCEPTED);
+  return func;
+}
 
-      list_add(body, stmt);
+// EXPRESSION = Literal
+//            | Identifier EXPRESSION_TUPLE
+//            | Identifier
+//            | FUNCTION
+AstNode* parse_expression(ParserState* state) {
+  if (accept(state, TOKEN_LITERAL)) {
+    // @TODO Extract this?
+    AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+    expr->flags = EXPR_LITERAL;
+    expr->from = token_start(ACCEPTED);
+    expr->to = token_end(ACCEPTED);
+    expr->source = ACCEPTED.source;
+    return expr;
+
+  } else if (accept(state, TOKEN_IDENTIFIER)) {
+    Symbol name = symbol_get(&ACCEPTED.source);
+    FileAddress start = token_start(ACCEPTED);
+
+    if (peek_op(state, OP_OPEN_PAREN)) {
+      AstNode* arguments = parse_expression_tuple(state);
+
+      AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+      expr->flags = EXPR_CALL;
+      expr->from = start;
+      expr->to = token_end(ACCEPTED);
+      expr->ident = name;
+      expr->rhs = arguments;
+      return expr;
+
     } else {
-      AstExpression* expr = parse_expression();
-      AstStatement* stmt = calloc(1, sizeof(AstStatement));
-      stmt->type = STATEMENT_EXPRESSION;
-      stmt->data = expr;
-
-      list_add(body, stmt);
-    }
-    accept(TOKEN_NEWLINE);
-  }
-
-  // List* body = slurp_code_block();
-  if (!accept_op(OP_CLOSE_BRACE)) {
-    // @Leak args, returns, body
-    error("Unexpected termination of code block");
-    return NULL;
-  }
-
-  return body;
-}
-
-void* parse_function_expression() {
-  List* args = parse_declaration_tuple();
-
-  accept_op(OP_FUNC_ARROW);
-
-  AstType* returns = parse_return_type();
-
-  List* body = parse_code_block();
-
-  FunctionExpression* expr = calloc(1, sizeof(FunctionExpression));
-  expr->base.type = EXPR_FUNCTION;
-  expr->arguments = args;
-  expr->returns = *returns;
-  expr->body = body;
-
-  free(returns);
-
-  return expr;
-}
-
-// @Cleanup Replace these dynamic allocations with a growable pool.
-void* parse_expression() {
-  AstExpression* result = NULL;
-
-  if (accept(TOKEN_IDENTIFIER) && peek_syntax_op(OP_OPEN_PAREN)) {
-    CallExpression* expr = malloc(sizeof(CallExpression));
-    expr->base.type = EXPR_CALL;
-    expr->function = symbol_get(&ACCEPTED->source);
-    expr->arguments = parse_expression_tuple();
-
-    result = (AstExpression*) expr;
-  } else if (accept(TOKEN_IDENTIFIER)) {
-    IdentifierExpression* expr = malloc(sizeof(IdentifierExpression));
-    expr->base.type = EXPR_IDENT;
-    expr->identifier = ACCEPTED;
-
-    result = (AstExpression*) expr;
-  } else if (accept(TOKEN_LITERAL)) {
-    if (! ACCEPTED->is_well_formed) {
-      error("Malformed literal.");
-      return NULL;
+      // @TODO Extract this?
+      AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+      expr->flags = EXPR_IDENT;
+      expr->from = start;
+      expr->to = token_end(ACCEPTED);
+      expr->ident = name;
+      expr->scope = state->scope;
+      return expr;
     }
 
-    LiteralExpression* expr = malloc(sizeof(LiteralExpression));
-    expr->base.type = EXPR_LITERAL;
-    expr->literal = ACCEPTED;
+  } else if (test_function(state)) {
+    return parse_function(state);
 
-    result = (AstExpression*) expr;
-  } else if (test_function_expression()) {
-    result = parse_function_expression();
-  } else if (accept_op(OP_OPEN_PAREN)) {
-    UnaryOpExpression* expr = malloc(sizeof(UnaryOpExpression));
-    expr->base.type = EXPR_UNARY_OP;
-    expr->operator = ACCEPTED;
-    expr->rhs = parse_expression();
-
-    if (!accept_op(OP_CLOSE_PAREN)) {
-      // @Leak expr
-      error("Expected ')'");
-      return NULL;
-    }
-
-    result = (AstExpression*) expr;
-  } else if (accept(TOKEN_OPERATOR)) {
-    UnaryOpExpression* expr = malloc(sizeof(UnaryOpExpression));
-    expr->base.type = EXPR_UNARY_OP;
-    expr->operator = ACCEPTED;
-    expr->rhs = parse_expression();
-
-    if (expr->rhs == NULL) {
-      return NULL;
-    }
-
-    // @Lazy I know there's a cleaner way to handle this.
-    {
-      UnaryOpExpression* parent = expr;
-      AstExpression* subexpr = expr->rhs;
-      while (((UnaryOpExpression*) parent)->rhs->type == EXPR_BINARY_OP) {
-        parent = (void*) subexpr;
-        subexpr = parent->rhs;
-      }
-
-      if (parent != expr) {
-        result = expr->rhs;
-        parent->rhs = (AstExpression*) expr;
-        expr->rhs = subexpr;
-      } else {
-        result = (AstExpression*) expr;
-      }
-    }
-
-    return result;
   } else {
-    error("Unable to parse expression");
-    return NULL;
+    AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+    expr->from = token_start(TOKEN);
+    expr->to = token_end(TOKEN);
+    expr->error = new_string("Expected an expression");
+    return expr;
   }
-
-  if (accept(TOKEN_OPERATOR)) {
-    BinaryOpExpression* expr = malloc(sizeof(BinaryOpExpression));
-    expr->base.type = EXPR_BINARY_OP;
-    expr->operator = ACCEPTED;
-    expr->lhs = result;
-    expr->rhs = parse_expression();
-
-    if (expr->rhs == NULL) {
-      // @Leak expr
-      return NULL;
-    }
-
-    result = (AstExpression*) expr;
-  }
-
-  return result;
 }
 
-void* parse_directive() {
-  // @TODO Actually process this directive.
-  accept(TOKEN_DIRECTIVE);
-  return NULL;
-}
+// DECLARATION = Identifier ":" TYPE
+//             | Identifier ":" TYPE "=" EXPRESSION
+//             | Identifier ":=" EXPRESSION
+AstNode* parse_declaration(ParserState* state) {
+  FileAddress decl_start = token_start(TOKEN);
+  Symbol name;
+  AstNode* type = NULL;
+  AstNode* value = NULL;
 
-void* parse_declaration() {
-  AstType* type = NULL;
-  AstExpression* value = NULL;
-
-  accept(TOKEN_IDENTIFIER);
-  Symbol name = symbol_get(&ACCEPTED->source);
-
-  if (accept_op(OP_DECLARE)) {
-    type = parse_type();
-    if (type == NULL) {
-      return NULL;
-    }
-
-    if (accept_op(OP_ASSIGN)) {
-      value = parse_expression();
-    }
-  } else if (accept_op(OP_DECLARE_ASSIGN)) {
-    value = parse_expression();
-    if (value == NULL) {
-      return NULL;
-    }
+  {
+    // The Identifier should already be guaranteed by `test_declaration`.
+    assert(accept(state, TOKEN_IDENTIFIER));
+    name = symbol_get(&ACCEPTED.source);
   }
 
-  // Naming the function expression.
-  // @Lazy Is this the best place to handle this?
-  if (value != NULL && value->type == EXPR_FUNCTION) {
-    ((FunctionExpression*) value)->name = name;
+  if (accept_op(state, OP_DECLARE)) {
+    type = parse_type(state);
+  } else {
+    assert(accept_op(state, OP_DECLARE_ASSIGN));
   }
 
-  AstDeclaration* decl = calloc(1, sizeof(AstDeclaration));
-  decl->name = name;
-  decl->type = type;
-  decl->value = value;
+  if (type == NULL || accept_op(state, OP_ASSIGN)) {
+    value = parse_expression(state);
 
-  return decl;
+    AstNode* decl = init_node(pool_get(state->nodes), NODE_DECLARATION);
+    decl->from = decl_start;
+    decl->to = token_end(ACCEPTED);
+    decl->ident = name;
+    decl->rhs = type;
+
+    list_append(state->scope->declarations, decl);
+
+    AstNode* assignment = init_node(pool_get(state->nodes), NODE_ASSIGNMENT);
+    assignment->from = decl_start;
+    assignment->to = token_end(ACCEPTED);
+    assignment->lhs = decl;
+    assignment->rhs = value;
+
+    // @TODO Bubble up errors.
+    return assignment;
+  } else {
+    AstNode* decl = init_node(pool_get(state->nodes), NODE_DECLARATION);
+    decl->from = decl_start;
+    decl->to = token_end(ACCEPTED);
+    decl->ident = name;
+    decl->rhs = type;
+
+    list_append(state->scope->declarations, decl);
+
+    // @TODO Bubble up errors.
+    return decl;
+  }
 }
 
-void parse_namespace() {
-  while (TOKENS_REMAIN) {
-    if (accept(TOKEN_NEWLINE)) {
+AstNode* parse_top_level(ParserState* state) {
+  AstNode* decl = parse_declaration(state);
+
+  if (accept_op(state, OP_NEWLINE)) return decl;
+
+  {
+    // Error recovery
+    AstNode* error = init_node(pool_get(state->nodes), NODE_RECOVERY);
+    error->from = token_start(TOKEN);
+    error->lhs = decl;
+    error->error = new_string("Unexpected code following declaration");
+
+    // @TODO More robustly seek past the error.
+    while (!peek_op(state, OP_NEWLINE)) state->pos += 1;
+
+    error->to = token_end(ACCEPTED);
+    return error;
+  }
+}
+
+//  TOP_LEVEL = DECLARATION
+//            | TOP_LEVEL_DIRECTIVE    @TODO
+bool perform_parse_job(ParseJob* job) {
+  ParserState* state = new_parser_state(job->tokens);
+
+  while (tokens_remain(state)) {
+    if (accept_op(state, OP_NEWLINE)) {
       // Move on, nothing to see here.
-    } else if (test_directive()) {
-      void* directive = parse_directive();
 
-      // @TODO Actually implement these directives.
-      error("Hey, got a directive");
-    } else if (test_declaration()) {
-      AstDeclaration* decl = parse_declaration();
-      if (decl == NULL) {
-        error("Malformed declaration");
-        while (accept(TOKEN_NEWLINE));
-        continue;
+    } else if (test_declaration(state)) {
+      AstNode* node = parse_top_level(state);
+
+      if (node->error == NULL) {
+        pipeline_emit_typecheck_job(node);
+      } else {
+        // @TODO Define an error reporting job, and dispatch the `decl` to that.
       }
 
-      if (!accept(TOKEN_NEWLINE)) {
-        error("Expected end of declaration");
-        continue;
-      }
+      // print_ast_node_as_tree(state, decl);
 
-      // @TODO Figure out what we're doing with declarations.
-      ParserScope* scope = CURRENT_SCOPE;
-      list_add(scope->declarations, decl);
     } else {
-      error("Unrecognized code in top-level context");
-      while (accept(TOKEN_NEWLINE));
+      printf("Unrecognized code in top-level context\n");
     }
   }
-}
 
-void parse_file(TokenizedFile* list, ParserScope* global) {
-  __parser_state = (ParserState) {
-    .list = *list,
-    .pos = 0,
-    .current_scope = global,
-  };
+  // print_declaration_list_as_dot(state->data.lines, state->scope->declarations);
 
-  parse_namespace();
+  return 1;
 }

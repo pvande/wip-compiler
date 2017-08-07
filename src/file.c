@@ -7,7 +7,7 @@ String* file_read_all(const char* filename) {
   struct stat s;
   fstat(fileno(f), &s);
 
-  String* str = (String*) malloc(sizeof(String));
+  String* str = malloc(sizeof(String));
   str->length = s.st_size;
   str->data = malloc(s.st_size * sizeof(char));
 
