@@ -262,6 +262,47 @@ bool typecheck_expression_literal_fractional(AstNode* node) {
   return 1;
 }
 
+bool typecheck_expression_literal_string(AstNode* node) {
+  String* str = malloc(sizeof(String));
+  str->data = malloc(node->source.length * sizeof(char));
+
+  assert(node->source.data[0] == '"');
+  assert(node->source.data[node->source.length - 1] == '"');
+
+  size_t idx = 0;
+  for (size_t i = 0; i < node->source.length - 2; i++) {
+    char c = node->source.data[i + 1];
+
+    if (c == '\\') {
+      i += 1;
+      switch (node->source.data[i + 1]) {
+        case '0': str->data[idx++] = '\0'; break;
+        case 'a': str->data[idx++] = '\a'; break;
+        case 'b': str->data[idx++] = '\b'; break;
+        case 't': str->data[idx++] = '\t'; break;
+        case 'n': str->data[idx++] = '\n'; break;
+        case 'v': str->data[idx++] = '\v'; break;
+        case 'f': str->data[idx++] = '\f'; break;
+        case 'r': str->data[idx++] = '\r'; break;
+        case 'e': str->data[idx++] = '\e'; break;
+        case '"': str->data[idx++] = '\"'; break;
+        case '\\': str->data[idx++] = '\\'; break;
+        default:
+          printf("Unknown escape sequence: '\\%c'\n", node->source.data[i + 1]);
+          return 0;
+      }
+    } else {
+      str->data[idx++] = c;
+    }
+  }
+  str->length = idx;
+
+  node->pointer_value = str;
+  node->typeclass = _get_type(STR_STRING);
+
+  return 1;
+}
+
 bool typecheck_expression_literal(AstNode* node) {
   if (node->flags & IS_DECIMAL_LITERAL) {
     return typecheck_expression_literal_decimal(node);
@@ -271,8 +312,8 @@ bool typecheck_expression_literal(AstNode* node) {
     return typecheck_expression_literal_binary(node);
   } else if (node->flags & IS_FRACTIONAL_LITERAL) {
     return typecheck_expression_literal_fractional(node);
-  // } else if (node->flags & IS_STRING_LITERAL) {
-  //   return typecheck_expression_literal_string(node);
+  } else if (node->flags & IS_STRING_LITERAL) {
+    return typecheck_expression_literal_string(node);
   } else {
     printf("Unable to typecheck literal expression with flags %x\n", node->flags);
     return 0;
@@ -327,4 +368,5 @@ void initialize_typechecker() {
   _new_type(STR_S64,  64);
   _new_type(STR_INT,  64);
   _new_type(STR_FLOAT, 64);
+  _new_type(STR_STRING, 64);
 }

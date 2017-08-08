@@ -34,6 +34,7 @@ DEFINE_STR(STR_S32, "s32");
 DEFINE_STR(STR_S64, "s64");
 DEFINE_STR(STR_INT, "int");
 DEFINE_STR(STR_FLOAT, "float");
+DEFINE_STR(STR_STRING, "string");
 
 typedef char bool;
 
