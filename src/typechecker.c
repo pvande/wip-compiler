@@ -157,51 +157,51 @@ void _type_literal_number_value(AstNode* node) {
   // @TODO Describe all possible types.
   node->typeclass = &TYPECLASS_LITERAL;
   node->typekind = KIND_NUMBER;
-  if (node->value < OVERFLOW_U8) {
+  if (node->int_value < OVERFLOW_U8) {
     node->typekind |= KIND_CAN_BE_U8;
     node->typekind |= KIND_CAN_BE_U16;
     node->typekind |= KIND_CAN_BE_U32;
     node->typekind |= KIND_CAN_BE_U64;
 
-    if (node->value < OVERFLOW_S8) {
+    if (node->int_value < OVERFLOW_S8) {
       node->typekind |= KIND_CAN_BE_SIGNED;
     }
 
-  } else if (node->value < OVERFLOW_U16) {
+  } else if (node->int_value < OVERFLOW_U16) {
     node->typekind |= KIND_CAN_BE_U16;
     node->typekind |= KIND_CAN_BE_U32;
     node->typekind |= KIND_CAN_BE_U64;
 
-    if (node->value < OVERFLOW_S16) {
+    if (node->int_value < OVERFLOW_S16) {
       node->typekind |= KIND_CAN_BE_SIGNED;
     }
 
-  } else if (node->value < OVERFLOW_U32) {
+  } else if (node->int_value < OVERFLOW_U32) {
     node->typekind |= KIND_CAN_BE_U32;
     node->typekind |= KIND_CAN_BE_U64;
 
-    if (node->value < OVERFLOW_S32) {
+    if (node->int_value < OVERFLOW_S32) {
       node->typekind |= KIND_CAN_BE_SIGNED;
     }
 
   } else {
     node->typekind |= KIND_CAN_BE_U64;
 
-    if (node->value < OVERFLOW_S64) {
+    if (node->int_value < OVERFLOW_S64) {
       node->typekind |= KIND_CAN_BE_SIGNED;
     }
   }
 }
 
 bool typecheck_expression_literal_decimal(AstNode* node) {
-  node->value = 0;
+  node->int_value = 0;
 
   for (int i = 0; i < node->source.length; i++) {
     char c = node->source.data[i];
     if (c == '_') continue;
 
-    node->value *= 10;
-    node->value += c - '0';
+    node->int_value *= 10;
+    node->int_value += c - '0';
   }
 
   _type_literal_number_value(node);
@@ -210,7 +210,7 @@ bool typecheck_expression_literal_decimal(AstNode* node) {
 }
 
 bool typecheck_expression_literal_hex(AstNode* node) {
-  node->value = 0;
+  node->int_value = 0;
 
   assert(node->source.data[0] == '0');
   assert(node->source.data[1] == 'x');
@@ -219,13 +219,13 @@ bool typecheck_expression_literal_hex(AstNode* node) {
     char c = node->source.data[i];
     if (c == '_') continue;
 
-    node->value *= 16;
+    node->int_value *= 16;
     if (c >= '0' && c <= '9') {
-      node->value += c - '0';
+      node->int_value += c - '0';
     } else if (c >= 'a' && c <= 'z') {
-      node->value += 10 + c - 'a';
+      node->int_value += 10 + c - 'a';
     } else {
-      node->value += 10 + c - 'A';
+      node->int_value += 10 + c - 'A';
     }
   }
 
@@ -235,7 +235,7 @@ bool typecheck_expression_literal_hex(AstNode* node) {
 }
 
 bool typecheck_expression_literal_binary(AstNode* node) {
-  node->value = 0;
+  node->int_value = 0;
 
   assert(node->source.data[0] == '0');
   assert(node->source.data[1] == 'b');
@@ -244,11 +244,20 @@ bool typecheck_expression_literal_binary(AstNode* node) {
     char c = node->source.data[i];
     if (c == '_') continue;
 
-    node->value *= 2;
-    node->value += c - '0';
+    node->int_value *= 2;
+    node->int_value += c - '0';
   }
 
   _type_literal_number_value(node);
+
+  return 1;
+}
+
+bool typecheck_expression_literal_fractional(AstNode* node) {
+  node->double_value = strtod(to_zero_terminated_string(&node->source), NULL);
+
+  node->typeclass = _get_type(STR_FLOAT);
+  node->typekind = KIND_NUMBER;
 
   return 1;
 }
@@ -260,12 +269,10 @@ bool typecheck_expression_literal(AstNode* node) {
     return typecheck_expression_literal_hex(node);
   } else if (node->flags & IS_BINARY_LITERAL) {
     return typecheck_expression_literal_binary(node);
-  // } else if (node->flags & IS_FRACTIONAL_LITERAL) {
-  //   // return typecheck_expression_literal_fractional(node);
-  //   return 0;
+  } else if (node->flags & IS_FRACTIONAL_LITERAL) {
+    return typecheck_expression_literal_fractional(node);
   // } else if (node->flags & IS_STRING_LITERAL) {
-  //   // return typecheck_expression_literal_string(node);
-  //   return 0;
+  //   return typecheck_expression_literal_string(node);
   } else {
     printf("Unable to typecheck literal expression with flags %x\n", node->flags);
     return 0;
@@ -319,4 +326,5 @@ void initialize_typechecker() {
   _new_type(STR_S32,  32);
   _new_type(STR_S64,  64);
   _new_type(STR_INT,  64);
+  _new_type(STR_FLOAT, 64);
 }

@@ -33,6 +33,7 @@ DEFINE_STR(STR_S16, "s16");
 DEFINE_STR(STR_S32, "s32");
 DEFINE_STR(STR_S64, "s64");
 DEFINE_STR(STR_INT, "int");
+DEFINE_STR(STR_FLOAT, "float");
 
 typedef char bool;
 
@@ -149,7 +150,11 @@ typedef struct AstNode {
 
   Typeclass* typeclass;       // NULL
   Typekind typekind;          // 0
-  unsigned long long value;   // ---
+  union {
+    unsigned long long int_value;
+    double double_value;
+    void* pointer_value;
+  };
 
   String* error;              // NULL
 } AstNode;
