@@ -234,12 +234,32 @@ char* _ast_node_type(AstNode* node) {
   }
 }
 
+void print_scope(Scope* scope) {
+  printf("[");
+  for (size_t i = 0; i < scope->declarations->length; i++) {
+    AstNode* node = list_get(scope->declarations, i);
+
+    if (i > 0) printf(", ");
+    print_string(symbol_lookup(node->ident));
+  }
+
+  if (scope->parent != NULL) {
+    printf(" ");
+    print_scope(scope->parent);
+  }
+
+  printf("]");
+}
+
 void print_ast_node_as_tree(String* lines, AstNode* node) {
   if (node == NULL) return;
 
   printf("[");
   print_ast_node_type(node);
-  printf("]\n");
+  printf("]");
+  printf("  ");
+  if (node->scope != NULL) print_scope(node->scope);
+  printf("\n");
   for (int line_number = node->from.line; line_number <= node->to.line; line_number++) {
     String* line = &lines[line_number];
     int mark_from = (node->from.line == line_number) ? node->from.pos : 0;
@@ -258,6 +278,7 @@ void print_ast_node_as_tree(String* lines, AstNode* node) {
     for (int i = mark_to; i < line->length; i++) {
       printf("%c", line->data[i]);
     }
+
     printf("\n");
   }
   printf("\n");
@@ -328,6 +349,14 @@ void print_ast_node_as_dot(String* lines, AstNode* node) {
     for (int i = 0; i < node->body_length; i++) {
       printf("node_%zu -> node_%zu [label=body]\n", node->id, node->body[i].id);
     }
+  }
+}
+
+void print_declaration_list_as_tree(String* lines, List* nodes) {
+  for (size_t i = 0; i < nodes->length; i++) {
+    AstNode* node = list_get(nodes, i);
+    print_ast_node_as_tree(lines, node);
+    printf("\n");
   }
 }
 

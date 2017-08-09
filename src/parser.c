@@ -22,9 +22,10 @@ typedef struct {
 } ParserState;
 
 
-void* new_parser_scope() {
+void* new_parser_scope(Scope* parent) {
   Scope* scope = malloc(sizeof(Scope));
   scope->declarations = new_list(1, 32);
+  scope->parent = parent;
   return scope;
 }
 
@@ -33,7 +34,7 @@ void* new_parser_state(TokenizedFile* file) {
   state->data = *file;
   state->pos = 0;
   state->nodes = new_pool(sizeof(AstNode), 16, 64);
-  state->scope = new_parser_scope();
+  state->scope = new_parser_scope(NULL);
   return state;
 }
 
@@ -297,6 +298,8 @@ AstNode* parse_expression_tuple(ParserState* state) {
   return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_not_end_of_tuple, _parse_expression);
 }
 
+// STATEMENT = DECLARATION
+//           | EXPRESSION
 void _parse_statement(ParserState* state, AstNode* node) {
   if (accept_op(state, OP_NEWLINE)) {
     // Move on, nothing to see here.
@@ -309,7 +312,9 @@ void _parse_statement(ParserState* state, AstNode* node) {
   }
 }
 
+// @Precondition A block-local scope has been pushed onto the scope stack.
 // CODE_BLOCK = "{" "}"
+//            | "(" STATEMENT ("," STATEMENT)* ")"
 AstNode* parse_code_block(ParserState* state) {
   return _parse_tuple(state, OP_OPEN_BRACE, OP_CLOSE_BRACE, OP_NEWLINE, test_not_end_of_block, _parse_statement);
 }
@@ -325,6 +330,9 @@ AstNode* parse_procedure(ParserState* state) {
   AstNode* proc = init_node(pool_get(state->nodes), NODE_EXPRESSION);
   proc->flags = EXPR_PROCEDURE;
   proc->from = token_start(TOKEN);
+
+  // "Push" a new scope onto the stack.
+  state->scope = new_parser_scope(state->scope);
 
   proc->lhs = parse_declaration_tuple(state);
 
@@ -357,10 +365,16 @@ AstNode* parse_procedure(ParserState* state) {
     assert(0);
   }
 
+
   proc->body_length = 1;
   proc->body = parse_code_block(state);
+  proc->body->scope = state->scope;
 
   proc->to = token_end(ACCEPTED);
+
+  // "Pop" the scope off the stack.
+  state->scope = state->scope->parent;
+
   return proc;
 }
 
@@ -508,14 +522,14 @@ bool perform_parse_job(ParseJob* job) {
         // @TODO Define an error reporting job, and dispatch the `decl` to that.
       }
 
-      // print_ast_node_as_tree(state, decl);
+      // print_ast_node_as_tree(state->data.lines, node);
 
     } else {
       printf("Unrecognized code in top-level context\n");
     }
   }
 
-  // print_declaration_list_as_dot(state->data.lines, state->scope->declarations);
+  // print_declaration_list_as_tree(state->data.lines, state->scope->declarations);
 
   return 1;
 }
