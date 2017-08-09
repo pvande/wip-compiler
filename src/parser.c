@@ -144,7 +144,7 @@ bool test_declaration(ParserState* state) {
   return result;
 }
 
-bool test_function(ParserState* state) {
+bool test_procedure(ParserState* state) {
   bool result = 0;
 
   size_t mark = state->pos;
@@ -224,7 +224,7 @@ AstNode* _parse_tuple(ParserState* state,
     error->from = tuple->to;
     error->to = token_end(ACCEPTED);
     error->lhs = tuple;
-    error->error = new_string("Unable to parse function argument declarations");
+    error->error = new_string("Unable to parse procedure argument declarations");
 
     return error;
   }
@@ -317,21 +317,21 @@ AstNode* parse_code_block(ParserState* state) {
 // @TODO Bubble up errors from lhs.
 // @TODO Bubble up errors from rhs.
 // @TODO Bubble up errors from body.
-// FUNCTION = DECLARATION_TUPLE "=>" CODE_BLOCK
+// PROCEDURE = DECLARATION_TUPLE "=>" CODE_BLOCK
 //          | DECLARATION_TUPLE "=>" TYPE CODE_BLOCK
 //          | DECLARATION_TUPLE "=>" TYPE_TUPLE CODE_BLOCK
 //          | DECLARATION_TUPLE "=>" NAMED_TYPE_TUPLE CODE_BLOCK    @TODO
-AstNode* parse_function(ParserState* state) {
-  AstNode* func = init_node(pool_get(state->nodes), NODE_EXPRESSION);
-  func->flags = EXPR_FUNCTION;
-  func->from = token_start(TOKEN);
+AstNode* parse_procedure(ParserState* state) {
+  AstNode* proc = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+  proc->flags = EXPR_PROCEDURE;
+  proc->from = token_start(TOKEN);
 
-  func->lhs = parse_declaration_tuple(state);
+  proc->lhs = parse_declaration_tuple(state);
 
   assert(accept_op(state, OP_FUNC_ARROW));
 
   if (peek_op(state, OP_OPEN_PAREN)) {
-    func->rhs = parse_type_tuple(state);
+    proc->rhs = parse_type_tuple(state);
 
   } else if (peek_op(state, OP_OPEN_BRACE)) {
     AstNode* type = init_node(pool_get(state->nodes), NODE_TYPE);
@@ -345,7 +345,7 @@ AstNode* parse_function(ParserState* state) {
     tuple->body_length = 1;
     tuple->body = type;
 
-    func->rhs = tuple;
+    proc->rhs = tuple;
 
   } else if (test_type(state)) {
     AstNode* type = parse_type(state);
@@ -356,24 +356,24 @@ AstNode* parse_function(ParserState* state) {
     tuple->body_length = 1;
     tuple->body = type;
 
-    func->rhs = tuple;
+    proc->rhs = tuple;
 
   } else {
     // @TODO Actually recover from this error case.
     assert(0);
   }
 
-  func->body_length = 1;
-  func->body = parse_code_block(state);
+  proc->body_length = 1;
+  proc->body = parse_code_block(state);
 
-  func->to = token_end(ACCEPTED);
-  return func;
+  proc->to = token_end(ACCEPTED);
+  return proc;
 }
 
 // EXPRESSION = Literal
 //            | Identifier EXPRESSION_TUPLE
 //            | Identifier
-//            | FUNCTION
+//            | PROCEDURE
 AstNode* parse_expression(ParserState* state) {
   if (accept(state, TOKEN_LITERAL)) {
     // @TODO Extract this?
@@ -410,8 +410,8 @@ AstNode* parse_expression(ParserState* state) {
       return expr;
     }
 
-  } else if (test_function(state)) {
-    return parse_function(state);
+  } else if (test_procedure(state)) {
+    return parse_procedure(state);
 
   } else {
     AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);

@@ -104,7 +104,7 @@ typedef enum {
   COMPOUND_DECL_ASSIGN = (1 << 1),
   EXPR_LITERAL         = (1 << 0),
   EXPR_IDENT           = (1 << 1),
-  EXPR_FUNCTION        = (1 << 2),
+  EXPR_PROCEDURE        = (1 << 2),
   EXPR_CALL            = (1 << 3),
   // EXPR_UNARY_OP  = (1 << 4),
   // EXPR_BINARY_OP = (1 << 5),
@@ -187,7 +187,7 @@ typedef struct AstNode {
 //   AstType returns;
 //   List* body;
 //   List* instructions;
-// } FunctionExpression;
+// } ProcedureExpression;
 //
 // typedef struct {
 //   AstExpression base;
@@ -204,7 +204,7 @@ typedef struct AstNode {
 //
 // typedef struct {
 //   AstExpression base;
-//   Symbol function;
+//   Symbol procedure;
 //   List* arguments;
 // } CallExpression;
 //

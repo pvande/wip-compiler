@@ -11,14 +11,14 @@
                    | Operator ":" TYPE "=" EXPRESSION
                    | Operator ":=" EXPRESSION
     TYPE = Ident
-    EXPRESSION = FUNCTION_EXPR
+    EXPRESSION = PROCEDURE_EXPR
                | "(" EXPRESSION ")"
                | EXPRESSION Operator EXPRESSION
                | Operator EXPRESSION
                | EXPRESSION "(" EXPRESSION_LIST? ")"
                | Literal
                | Ident
-    FUNCTION_EXPR = "(" ARGUMENT_LIST? ")" "=>" RETURN_TYPES? CODE_BLOCK
+    PROCEDURE_EXPR = "(" ARGUMENT_LIST? ")" "=>" RETURN_TYPES? CODE_BLOCK
     ARGUMENT_LIST = DECLARATION ("," DECLARATION)*
     EXPRESSION_LIST = EXPRESSION ("," EXPRESSION)*
     RETURN_TYPE_LIST = RETURN_TYPE ("," RETURN_TYPE)*
@@ -41,4 +41,3 @@
 
 * Actually implement NS_DIRECTIVE behaviors.
 * Expand TYPE declarations.
-* Add function call syntax.

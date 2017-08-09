@@ -10,7 +10,7 @@
 //   printf("·"); output_symbol(name);
 // }
 //
-// void output_function_declaration(FunctionExpression* fn) {
+// void output_procedure_declaration(ProcedureExpression* fn) {
 //   // @TODO Bring back location identifying information for debugging.
 //   output_symbol(fn->returns.name);
 //   printf(" ");
@@ -31,15 +31,15 @@
 // }
 //
 // void output_forward_declaration(AstDeclaration* decl) {
-//   if (decl->value && decl->value->type == EXPR_FUNCTION) {
-//     output_function_declaration((FunctionExpression*) decl->value);
+//   if (decl->value && decl->value->type == EXPR_PROCEDURE) {
+//     output_procedure_declaration((ProcedureExpression*) decl->value);
 //     printf(";\n");
 //   } else {
 //     output_forward_variable_declaration(decl);
 //   }
 // }
 //
-// void output_code_block(FunctionExpression* fn);
+// void output_code_block(ProcedureExpression* fn);
 // void output_expression(AstExpression* expr) {
 //   if (expr->type == EXPR_LITERAL) {
 //     LiteralExpression* lit = (LiteralExpression*) expr;{}
@@ -47,7 +47,7 @@
 //     for (int i = 0; i < x.length; i++) printf("%c", x.data[i]);
 //   } else if (expr->type == EXPR_CALL) {
 //     CallExpression* call = (CallExpression*) expr;
-//     output_symbol(call->function);
+//     output_symbol(call->procedure);
 //     printf("(");
 //     for (int i = 0; i < call->arguments->size; i++) {
 //       if (i > 0) printf(", ");
@@ -58,11 +58,11 @@
 //   }
 // }
 //
-// void output_code_block(FunctionExpression* fn) {
+// void output_code_block(ProcedureExpression* fn) {
 //   printf("{\n");
 //   indentation += 1;
 //
-//   // Output function body.
+//   // Output procedure body.
 //   for (int i = 0; i < fn->body->size; i++) {
 //     AstStatement* stmt = list_get(fn->body, i);
 //
@@ -93,9 +93,9 @@
 //   printf("\n");
 //   for (size_t i = 0; i < declarations->size; i++) {
 //     AstDeclaration* decl = list_get(declarations, i);
-//     if (decl->value && decl->value->type == EXPR_FUNCTION) {
-//       FunctionExpression* fn = (FunctionExpression*) decl->value;
-//       output_function_declaration(fn);
+//     if (decl->value && decl->value->type == EXPR_PROCEDURE) {
+//       ProcedureExpression* fn = (ProcedureExpression*) decl->value;
+//       output_procedure_declaration(fn);
 //       printf(" ");
 //       output_code_block(fn);
 //     }

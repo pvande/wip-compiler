@@ -71,7 +71,7 @@ designated by the `flags` slot.
 
 Noteworthy `flags` are:
 
-* `COMPOUND_CODE_BLOCK` – created for each new block of code, e.g. a function
+* `COMPOUND_CODE_BLOCK` – created for each new block of code, e.g. a procedure
   body.
 * `COMPOUND_DECL_ASSIGN` – created for statements that both declare and
   immediately assign to a new variable.
