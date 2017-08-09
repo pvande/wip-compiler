@@ -438,6 +438,19 @@ bool typecheck_expression(AstNode* node) {
   }
 }
 
+bool typecheck_compound(AstNode* node) {
+  bool result = 1;
+
+  for (size_t i = 0; i < node->body_length; i++) {
+    AstNode* child = &node->body[i];
+    result &= typecheck_node(child);
+
+    if (!result) break;
+  }
+
+  return result;
+}
+
 bool typecheck_node(AstNode* node) {
   if (node->typeclass != NULL) return 1;
   switch (node->type) {
@@ -450,7 +463,7 @@ bool typecheck_node(AstNode* node) {
     case NODE_EXPRESSION:
       return typecheck_expression(node);
     case NODE_COMPOUND:
-      return 1;  // Ignored for now
+      return typecheck_compound(node);
     default:
       printf("Unable to typecheck unhandled node type: %s\n", _ast_node_type(node));
       return 0;
