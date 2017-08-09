@@ -318,9 +318,9 @@ AstNode* parse_code_block(ParserState* state) {
 // @TODO Bubble up errors from rhs.
 // @TODO Bubble up errors from body.
 // PROCEDURE = DECLARATION_TUPLE "=>" CODE_BLOCK
-//          | DECLARATION_TUPLE "=>" TYPE CODE_BLOCK
-//          | DECLARATION_TUPLE "=>" TYPE_TUPLE CODE_BLOCK
-//          | DECLARATION_TUPLE "=>" NAMED_TYPE_TUPLE CODE_BLOCK    @TODO
+//           | DECLARATION_TUPLE "=>" TYPE CODE_BLOCK
+//           | DECLARATION_TUPLE "=>" TYPE_TUPLE CODE_BLOCK
+//           | DECLARATION_TUPLE "=>" NAMED_TYPE_TUPLE CODE_BLOCK    @TODO
 AstNode* parse_procedure(ParserState* state) {
   AstNode* proc = init_node(pool_get(state->nodes), NODE_EXPRESSION);
   proc->flags = EXPR_PROCEDURE;
@@ -334,16 +334,10 @@ AstNode* parse_procedure(ParserState* state) {
     proc->rhs = parse_type_tuple(state);
 
   } else if (peek_op(state, OP_OPEN_BRACE)) {
-    AstNode* type = init_node(pool_get(state->nodes), NODE_TYPE);
-    type->from = token_start(TOKEN);
-    type->to = token_start(TOKEN);
-    type->source = *STR_VOID;
-
     AstNode* tuple = init_node(pool_get(state->nodes), NODE_COMPOUND);
-    tuple->from = type->from;
-    tuple->to = type->to;
-    tuple->body_length = 1;
-    tuple->body = type;
+    tuple->from = token_start(TOKEN);
+    tuple->to = token_start(TOKEN);
+    tuple->body_length = 0;
 
     proc->rhs = tuple;
 

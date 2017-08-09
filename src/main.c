@@ -22,7 +22,6 @@
 
 // ** Constant Strings ** //
 
-DEFINE_STR(STR_VOID, "void");
 DEFINE_STR(STR_BYTE, "byte");
 DEFINE_STR(STR_U8,  "u8");
 DEFINE_STR(STR_U16, "u16");
@@ -119,6 +118,8 @@ typedef struct {
   size_t id;
   size_t size;
   String* name;
+  List* from;
+  List* to;
 } Typeclass;
 
 typedef enum {
@@ -331,6 +332,7 @@ int main(int argc, char** argv) {
     return 1;
   } else {
     fprintf(stderr, "Compiled %s.\n", argv[1]);
+    printf("final: %zu types\n", TYPECLASS_POOL.length);
     return 0;
   }
 }

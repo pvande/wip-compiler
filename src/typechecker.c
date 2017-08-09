@@ -14,7 +14,7 @@ void* _get_type(String* name) {
   return table_find(&TYPECLASS_TABLE, name);
 }
 
-void _new_type(String* name, size_t size) {
+void* _new_type(String* name, size_t size) {
   static size_t serial = 0;
 
   Typeclass* type = pool_get(&TYPECLASS_POOL);
@@ -23,6 +23,25 @@ void _new_type(String* name, size_t size) {
   type->name = name;
 
   table_add(&TYPECLASS_TABLE, name, type);
+
+  return type;
+}
+
+void* _find_or_create_type(String* name, size_t size) {
+  // @Concurrency This is not atomic!
+  Typeclass* type = _get_type(name);
+
+  if (type == NULL) {
+    // @TODO Clone the name string?
+    type = _new_type(name, size);
+  } else {
+    if (type->size != size) {
+      fprintf(stderr, "Internal Compiler Error: Attempted to create type '%s' with different sizes (%zu & %zu)!", to_zero_terminated_string(name), size, type->size);
+      exit(1);
+    }
+  }
+
+  return type;
 }
 
 AstNode* _find_identifier(Scope* scope, Symbol ident) {
@@ -320,11 +339,101 @@ bool typecheck_expression_literal(AstNode* node) {
   }
 }
 
+bool typecheck_expression_procedure(AstNode* node) {
+  AstNode* arguments = node->lhs;
+  AstNode* returns = node->rhs;
+
+  assert(arguments != NULL);
+  assert(returns != NULL);
+  assert(node->body_length == 1);
+  assert(node->body != NULL);
+
+  bool success = 1;
+  size_t typestring_length = 8;  // "() => ()"
+
+  for (size_t i = 0; i < arguments->body_length; i++) {
+    success &= typecheck_node(&arguments->body[i]);
+
+    if (success) {
+      if (i > 0) typestring_length += 2;  // ", "
+      typestring_length += arguments->body[i].typeclass->name->length;
+    }
+  }
+
+  for (size_t i = 0; i < returns->body_length; i++) {
+    success &= typecheck_node(&returns->body[i]);
+
+    if (success) {
+      if (i > 0) typestring_length += 2;  // ", "
+      typestring_length += returns->body[i].typeclass->name->length;
+    }
+  }
+
+  if (success) {
+    pipeline_emit_typecheck_job(node->body);
+
+    char* _name = malloc(typestring_length * sizeof(char));
+    char* pos = _name + 1;
+    _name[0] = '(';
+
+    for (size_t i = 0; i < arguments->body_length; i++) {
+      String* type_name = arguments->body[i].typeclass->name;
+
+      if (i > 0) {
+        pos[0] = ',';
+        pos[1] = ' ';
+        pos += 2;
+      }
+
+      memcpy(pos, type_name->data, type_name->length);
+      pos += type_name->length;
+    }
+
+    pos[0] = ')';
+    pos[1] = ' ';
+    pos[2] = '=';
+    pos[3] = '>';
+    pos[4] = ' ';
+    pos[5] = '(';
+    pos += 6;
+
+    for (size_t i = 0; i < returns->body_length; i++) {
+      String* type_name = returns->body[i].typeclass->name;
+
+      if (i > 0) {
+        pos[0] = ',';
+        pos[1] = ' ';
+        pos += 2;
+      }
+
+      memcpy(pos, type_name->data, type_name->length);
+      pos += type_name->length;
+    }
+
+    pos[0] = ')';
+
+    String* name = malloc(sizeof(String));
+    name->length = typestring_length;
+    name->data = _name;
+
+    node->typeclass = _find_or_create_type(name, 64);
+
+    print_string(name);  printf("\n");
+
+    // @Leak: String data is never reclaimed.
+    // @Leak: String container is never reclaimed.
+  }
+
+  return success;
+}
+
 bool typecheck_expression(AstNode* node) {
   if (node->flags & EXPR_IDENT) {
     return typecheck_expression_identifier(node);
   } else if (node->flags & EXPR_LITERAL) {
     return typecheck_expression_literal(node);
+  } else if (node->flags & EXPR_PROCEDURE) {
+    return typecheck_expression_procedure(node);
   } else {
     printf("Unable to typecheck unhandled expression with flags %x\n", node->flags);
     return 0;
@@ -342,6 +451,8 @@ bool typecheck_node(AstNode* node) {
       return typecheck_assignment(node);
     case NODE_EXPRESSION:
       return typecheck_expression(node);
+    case NODE_COMPOUND:
+      return 1;  // Ignored for now
     default:
       printf("Unable to typecheck unhandled node type: %s\n", _ast_node_type(node));
       return 0;
@@ -369,4 +480,5 @@ void initialize_typechecker() {
   _new_type(STR_INT,  64);
   _new_type(STR_FLOAT, 64);
   _new_type(STR_STRING, 64);
+  printf("initialized: %zu types\n", TYPECLASS_POOL.length);
 }
