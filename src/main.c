@@ -22,6 +22,7 @@
 
 // ** Constant Strings ** //
 
+DEFINE_STR(STR_BOOL,   "bool");
 DEFINE_STR(STR_BYTE,   "byte");
 DEFINE_STR(STR_U8,     "u8");
 DEFINE_STR(STR_U16,    "u16");

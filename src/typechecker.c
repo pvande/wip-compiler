@@ -479,6 +479,7 @@ void initialize_typechecker() {
   initialize_pool(&TYPECLASS_POOL, sizeof(Typeclass), 8, 32);
   initialize_table(&TYPECLASS_TABLE, 256);
 
+  _new_type(STR_BOOL, 8);
   _new_type(STR_BYTE, 8);
   _new_type(STR_U8,   8);
   _new_type(STR_U16,  16);
