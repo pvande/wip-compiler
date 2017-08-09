@@ -22,17 +22,17 @@
 
 // ** Constant Strings ** //
 
-DEFINE_STR(STR_BYTE, "byte");
-DEFINE_STR(STR_U8,  "u8");
-DEFINE_STR(STR_U16, "u16");
-DEFINE_STR(STR_U32, "u32");
-DEFINE_STR(STR_U64, "u64");
-DEFINE_STR(STR_S8,  "s8");
-DEFINE_STR(STR_S16, "s16");
-DEFINE_STR(STR_S32, "s32");
-DEFINE_STR(STR_S64, "s64");
-DEFINE_STR(STR_INT, "int");
-DEFINE_STR(STR_FLOAT, "float");
+DEFINE_STR(STR_BYTE,   "byte");
+DEFINE_STR(STR_U8,     "u8");
+DEFINE_STR(STR_U16,    "u16");
+DEFINE_STR(STR_U32,    "u32");
+DEFINE_STR(STR_U64,    "u64");
+DEFINE_STR(STR_S8,     "s8");
+DEFINE_STR(STR_S16,    "s16");
+DEFINE_STR(STR_S32,    "s32");
+DEFINE_STR(STR_S64,    "s64");
+DEFINE_STR(STR_INT,    "int");
+DEFINE_STR(STR_FLOAT,  "float");
 DEFINE_STR(STR_STRING, "string");
 
 typedef char bool;
@@ -103,7 +103,7 @@ typedef enum {
   COMPOUND_DECL_ASSIGN = (1 << 1),
   EXPR_LITERAL         = (1 << 0),
   EXPR_IDENT           = (1 << 1),
-  EXPR_PROCEDURE        = (1 << 2),
+  EXPR_PROCEDURE       = (1 << 2),
   EXPR_CALL            = (1 << 3),
   // EXPR_UNARY_OP  = (1 << 4),
   // EXPR_BINARY_OP = (1 << 5),
@@ -160,66 +160,6 @@ typedef struct AstNode {
 
   String* error;              // NULL
 } AstNode;
-
-/// -----------------
-// typedef struct {
-//   Symbol name;
-// } AstType;
-//
-// typedef struct {
-//   ExpressionType type;
-// } AstExpression;
-//
-// typedef struct {
-//   AstExpression base;
-//   Token* identifier;
-// } IdentifierExpression;
-//
-// typedef struct {
-//   AstExpression base;
-//   Token* literal;
-// } LiteralExpression;
-//
-// typedef struct {
-//   AstExpression base;
-//   Symbol name;
-//   ParserScope* scope;
-//   List* arguments;
-//   AstType returns;
-//   List* body;
-//   List* instructions;
-// } ProcedureExpression;
-//
-// typedef struct {
-//   AstExpression base;
-//   Token* operator;
-//   AstExpression* rhs;
-// } UnaryOpExpression;
-//
-// typedef struct {
-//   AstExpression base;
-//   Token* operator;
-//   AstExpression* lhs;
-//   AstExpression* rhs;
-// } BinaryOpExpression;
-//
-// typedef struct {
-//   AstExpression base;
-//   Symbol procedure;
-//   List* arguments;
-// } CallExpression;
-//
-// typedef struct {
-//   Symbol name;
-//   AstType* type;
-//   AstExpression* value;
-// } AstDeclaration;
-//
-// typedef struct {
-//   StatementType type;
-//   void* data;
-// } AstStatement;
-/// -----------------
 
 #include "src/debug.c"
 
@@ -332,7 +272,6 @@ int main(int argc, char** argv) {
     return 1;
   } else {
     fprintf(stderr, "Compiled %s.\n", argv[1]);
-    printf("final: %zu types\n", TYPECLASS_POOL.length);
     return 0;
   }
 }

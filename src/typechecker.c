@@ -418,8 +418,6 @@ bool typecheck_expression_procedure(AstNode* node) {
 
     node->typeclass = _find_or_create_type(name, 64);
 
-    print_string(name);  printf("\n");
-
     // @Leak: String data is never reclaimed.
     // @Leak: String container is never reclaimed.
   }
@@ -480,5 +478,4 @@ void initialize_typechecker() {
   _new_type(STR_INT,  64);
   _new_type(STR_FLOAT, 64);
   _new_type(STR_STRING, 64);
-  printf("initialized: %zu types\n", TYPECLASS_POOL.length);
 }
