@@ -100,6 +100,30 @@ GEN_PRINT(long, "%zu");
 GEN_PRINT(int, "%d");
 GEN_PRINT(char, "%c");
 
+
+char* _ast_node_type(AstNode* node) {
+  switch (node->type) {
+    case NODE_ASSIGNMENT:
+      return "ASSIGNMENT";
+    // case NODE_BRANCH:
+    //   return "BRANCH";
+    case NODE_COMPOUND:
+      return "COMPOUND";
+    case NODE_DECLARATION:
+      return "DECLARATION";
+    case NODE_EXPRESSION:
+      return "EXPRESSION";
+    // case NODE_LOOP:
+    //   return "LOOP";
+    case NODE_RECOVERY:
+      return "RECOVERY";
+    case NODE_TYPE:
+      return "TYPE";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 void print_pointer(void* x) {
   printf("0x%0X", (unsigned int) x);
 }
@@ -110,6 +134,37 @@ void inspect_token(Token t) {
   printf(" line=%ju pos=%ju source=", t.line, t.pos);
   print_string(&t.source);
   printf("»\n");
+}
+
+void inspect_ast_node(AstNode* node) {
+  // AstNodeType type;
+  // AstNodeFlags flags;         // 0
+  // size_t id;                  // Serial number
+  //
+  // FileAddress from;           // ---
+  // FileAddress to;             // ---
+  //
+  // Symbol ident;               // ---
+  // String source;              // ---
+  // struct AstNode* lhs;        // ---
+  // struct AstNode* rhs;        // ---
+  //
+  // size_t body_length;         // ---
+  // struct AstNode* body;       // ---
+  //
+  // Scope* scope;               // ---
+  //
+  // Typeclass* typeclass;       // NULL
+  // Typekind typekind;          // 0
+  // union {
+  //   unsigned long long int_value;
+  //   double double_value;
+  //   void* pointer_value;
+  // };
+  //
+  // String* error;              // NULL
+
+  printf("«AstNode 0x%X type=%s flags=%d id=%zu from=%zu,%zu to=%zu,%zu type=%x»", (unsigned int) node, _ast_node_type(node), node->flags, node->id, node->from.line + 1, node->from.pos + 1, node->to.line + 1, node->to.pos + 1, (unsigned int) node->typeclass);
 }
 
 void print_tokenized_file(TokenizedFile* list){
@@ -208,29 +263,6 @@ void print_ast_node_type(AstNode* node) {
       break;
     default:
       printf("UNKNOWN");
-  }
-}
-
-char* _ast_node_type(AstNode* node) {
-  switch (node->type) {
-    case NODE_ASSIGNMENT:
-      return "ASSIGNMENT";
-    // case NODE_BRANCH:
-    //   return "BRANCH";
-    case NODE_COMPOUND:
-      return "COMPOUND";
-    case NODE_DECLARATION:
-      return "DECLARATION";
-    case NODE_EXPRESSION:
-      return "EXPRESSION";
-    // case NODE_LOOP:
-    //   return "LOOP";
-    case NODE_RECOVERY:
-      return "RECOVERY";
-    case NODE_TYPE:
-      return "TYPE";
-    default:
-      return "UNKNOWN";
   }
 }
 
@@ -368,4 +400,16 @@ void print_declaration_list_as_dot(String* lines, List* nodes) {
     printf("\n");
   }
   printf("}\n");
+}
+
+void print_typeclass(Typeclass* type) {
+  // size_t id;
+  // size_t size;
+  // String* name;
+  // List* from;
+  // List* to;
+
+  printf("<Type #%zu (%zu bits) ", type->id, type->size);
+  print_string(type->name);
+  printf(">");
 }

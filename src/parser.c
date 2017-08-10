@@ -365,6 +365,7 @@ void parse_expression_node(ParserState* state, AstNode* expr) {
       expr->to = token_end(ACCEPTED);
       expr->ident = name;
       expr->rhs = arguments;
+      expr->scope = state->scope;
 
     } else {
       expr->flags = EXPR_IDENT;
@@ -424,7 +425,17 @@ AstNode* parse_type_tuple(ParserState* state) {
 // DECLARATION_TUPLE = "(" ")"
 //                   | "(" DECLARATION ("," DECLARATION)* ")"
 AstNode* parse_declaration_tuple(ParserState* state) {
-  return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_declaration, parse_declaration_node);
+  AstNode* tuple = _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_declaration, parse_declaration_node);
+
+  // We have to do this insane juggling here, because we can't rely on the
+  // tuple's pool-allocated node pointers being stable.
+  for (size_t i = 0; i < tuple->body_length; i++) {
+    AstNode* node = &tuple->body[i];
+    if (node->type == NODE_ASSIGNMENT) node = node->lhs;
+    if (node->type == NODE_DECLARATION) list_append(state->scope->declarations, node);
+  }
+
+  return tuple;
 }
 
 // EXPRESSION_TUPLE = "(" ")"
@@ -451,7 +462,17 @@ void parse_statement_node(ParserState* state, AstNode* node) {
 // CODE_BLOCK = "{" "}"
 //            | "(" STATEMENT ("," STATEMENT)* ")"
 AstNode* parse_code_block(ParserState* state) {
-  return _parse_tuple(state, OP_OPEN_BRACE, OP_CLOSE_BRACE, OP_NEWLINE, test_not_end_of_block, parse_statement_node);
+  AstNode* block = _parse_tuple(state, OP_OPEN_BRACE, OP_CLOSE_BRACE, OP_NEWLINE, test_not_end_of_block, parse_statement_node);
+
+  // We have to do this insane juggling here, because we can't rely on the
+  // tuple's pool-allocated node pointers being stable.
+  for (size_t i = 0; i < block->body_length; i++) {
+    AstNode* node = &block->body[i];
+    if (node->type == NODE_ASSIGNMENT) node = node->lhs;
+    if (node->type == NODE_DECLARATION) list_append(state->scope->declarations, node);
+  }
+
+  return block;
 }
 
 // @TODO Bubble up errors from lhs.
