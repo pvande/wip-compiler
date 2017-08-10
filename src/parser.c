@@ -403,16 +403,7 @@ void parse_assignment_node(ParserState* state, AstNode* node) {
     node->rhs = value;
 
   } else {
-    AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
-    expr->from = token_start(TOKEN);
-
-    // @TODO Handle more diverse left-hand sides.
-    assert(accept(state, TOKEN_IDENTIFIER));
-    expr->flags = EXPR_IDENT;
-    expr->ident = symbol_get(&ACCEPTED.source);
-    expr->to = token_end(ACCEPTED);
-    expr->scope = state->scope;
-
+    AstNode* expr = parse_expression(state);
     accept_op(state, OP_ASSIGN);
     AstNode* value = parse_expression(state);
 
