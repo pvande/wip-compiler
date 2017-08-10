@@ -164,7 +164,7 @@ void inspect_ast_node(AstNode* node) {
   //
   // String* error;              // NULL
 
-  printf("«AstNode 0x%X type=%s flags=%d id=%zu from=%zu,%zu to=%zu,%zu type=%x»", (unsigned int) node, _ast_node_type(node), node->flags, node->id, node->from.line + 1, node->from.pos + 1, node->to.line + 1, node->to.pos + 1, (unsigned int) node->typeclass);
+  printf("«AstNode 0x%X type=%s flags=%d id=%zu from=%zu,%zu to=%zu,%zu ident=%d type=%x»", (unsigned int) node, _ast_node_type(node), node->flags, node->id, node->from.line + 1, node->from.pos + 1, node->to.line + 1, node->to.pos + 1, (int) node->ident, (unsigned int) node->typeclass);
 }
 
 void print_tokenized_file(TokenizedFile* list){

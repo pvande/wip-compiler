@@ -167,6 +167,7 @@ bool typecheck_assignment(AstNode* node) {
 
 bool typecheck_expression_identifier(AstNode* node) {
   AstNode* decl = _find_identifier(node->scope, node->ident);
+
   if (decl == NULL) return 0;
   if (decl->typeclass == NULL) return 0;
 
@@ -441,38 +442,6 @@ bool typecheck_expression_procedure(AstNode* node) {
 }
 
 bool typecheck_expression_call(AstNode* node) {
-  // AstNode* decl = _find_identifier(node->scope, node->ident);
-  // if (decl == NULL) return 0;
-  // if (decl->typeclass == NULL) return 0;
-  //
-  // node->typeclass = decl->typeclass;
-  // return 1;
-  // // ----------------------
-  // AstNode* target = node->lhs;
-  // AstNode* value = node->rhs;
-  //
-  // assert(target != NULL);
-  // assert(value != NULL);
-  //
-  // bool result = typecheck_node(value);
-  // if (!result) return 0;
-  //
-  // typecheck_node(target);
-  //
-  // if (target->typeclass == NULL) {
-  //   target->typeclass = value->typeclass;
-  //   target->typekind = value->typekind;
-  //   return 1;
-  // } else {
-  //   bool result = typecheck_can_coerce(value, target);
-  //
-  //   if (result && value->typeclass == &TYPECLASS_LITERAL) {
-  //     value->typeclass = target->typeclass;
-  //   }
-  //
-  //   return result;
-  // }
-
   AstNode* decl = _find_identifier(node->scope, node->ident);
   if (decl->typeclass == NULL) return 0;
 

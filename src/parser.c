@@ -138,8 +138,11 @@ bool test_assignment(ParserState* state) {
 
   size_t mark = state->pos;
   if (accept(state, TOKEN_IDENTIFIER)) {
-    result = peek_op(state, OP_ASSIGN) || peek_op(state, OP_DECLARE_ASSIGN);
+    result |= peek_op(state, OP_DECLARE_ASSIGN);
+    result |= peek_op(state, OP_ASSIGN);
+    result |= accept_op(state, OP_DECLARE) && accept(state, TOKEN_IDENTIFIER) && peek_op(state, OP_ASSIGN);
   }
+
   state->pos = mark;
 
   return result;
@@ -391,7 +394,7 @@ void parse_assignment_node(ParserState* state, AstNode* node) {
   // @Lazy Use a better test.
   if (test_declaration(state)) {
     AstNode* decl = parse_declaration(state);
-    accept_op(state, OP_DECLARE_ASSIGN);
+    peek_op(state, OP_ASSIGN) ? accept_op(state, OP_ASSIGN) : accept_op(state, OP_DECLARE_ASSIGN);
     AstNode* value = parse_expression(state);
 
     node->from = decl->from;
@@ -399,12 +402,27 @@ void parse_assignment_node(ParserState* state, AstNode* node) {
     node->lhs = decl;
     node->rhs = value;
 
-    // @TODO Bubble up errors.
-
   } else {
-    // Arbitrary assignment expressions aren't yet handled.
-    assert(0);
+    AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+    expr->from = token_start(TOKEN);
+
+    // @TODO Handle more diverse left-hand sides.
+    assert(accept(state, TOKEN_IDENTIFIER));
+    expr->flags = EXPR_IDENT;
+    expr->ident = symbol_get(&ACCEPTED.source);
+    expr->to = token_end(ACCEPTED);
+    expr->scope = state->scope;
+
+    accept_op(state, OP_ASSIGN);
+    AstNode* value = parse_expression(state);
+
+    node->from = expr->from;
+    node->to = token_end(ACCEPTED);
+    node->lhs = expr;
+    node->rhs = value;
   }
+
+  // @TODO Bubble up errors.
 }
 
 // TYPE = Identifier
