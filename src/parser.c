@@ -133,6 +133,18 @@ bool test_not_end_of_block(ParserState* state) {
   return !peek_op(state, OP_CLOSE_BRACE);
 }
 
+bool test_assignment(ParserState* state) {
+  bool result = 0;
+
+  size_t mark = state->pos;
+  if (accept(state, TOKEN_IDENTIFIER)) {
+    result = peek_op(state, OP_ASSIGN) || peek_op(state, OP_DECLARE_ASSIGN);
+  }
+  state->pos = mark;
+
+  return result;
+}
+
 bool test_declaration(ParserState* state) {
   bool result = 0;
 
@@ -245,6 +257,8 @@ AstNode* parse_assignment(ParserState* state);
 
 
 void parse_type_node(ParserState* state, AstNode* node) {
+  init_node(node, NODE_TYPE);
+
   node->from = token_start(TOKEN);
 
   if (accept(state, TOKEN_IDENTIFIER)) {
@@ -257,6 +271,8 @@ void parse_type_node(ParserState* state, AstNode* node) {
 }
 
 void parse_procedure_node(ParserState* state, AstNode* proc) {
+  // Initialized in `parse_expression_node`.
+
   proc->flags = EXPR_PROCEDURE;
   proc->from = token_start(TOKEN);
 
@@ -305,15 +321,31 @@ void parse_procedure_node(ParserState* state, AstNode* proc) {
   state->scope = state->scope->parent;
 }
 
-// @TODO Find a way to actually unify this with `parse_declaration`.
-void parse_declaration_node(ParserState* state, AstNode* node) {
-  init_node(node, NODE_DECLARATION);
+void parse_declaration_node(ParserState* state, AstNode* decl) {
+  init_node(decl, NODE_DECLARATION);
 
-  // @Gross @Leak @FixMe Find a way to avoid the extra allocations here.
-  *node = *parse_declaration(state);
+  decl->from = token_start(TOKEN);
+
+  {
+    // The Identifier should already be guaranteed by `test_declaration`.
+    assert(accept(state, TOKEN_IDENTIFIER));
+    decl->ident = symbol_get(&ACCEPTED.source);
+  }
+
+  if (accept_op(state, OP_DECLARE)) {
+    decl->rhs = parse_type(state);
+  } else {
+    assert(peek_op(state, OP_DECLARE_ASSIGN));
+  }
+
+  decl->to = token_end(ACCEPTED);
+
+  // @TODO Bubble up errors.
 }
 
 void parse_expression_node(ParserState* state, AstNode* expr) {
+  init_node(expr, NODE_EXPRESSION);
+
   if (accept(state, TOKEN_LITERAL)) {
     // @TODO Extract this?
     expr->flags = EXPR_LITERAL | ACCEPTED.literal_type;
@@ -353,14 +385,32 @@ void parse_expression_node(ParserState* state, AstNode* expr) {
 }
 
 void parse_assignment_node(ParserState* state, AstNode* node) {
+  init_node(node, NODE_ASSIGNMENT);
 
+  // @Lazy Use a better test.
+  if (test_declaration(state)) {
+    AstNode* decl = parse_declaration(state);
+    accept_op(state, OP_DECLARE_ASSIGN);
+    AstNode* value = parse_expression(state);
+
+    node->from = decl->from;
+    node->to = token_end(ACCEPTED);
+    node->lhs = decl;
+    node->rhs = value;
+
+    // @TODO Bubble up errors.
+
+  } else {
+    // Arbitrary assignment expressions aren't yet handled.
+    assert(0);
+  }
 }
 
 // TYPE = Identifier
 //      | TYPE_TUPLE "=>" TYPE          @TODO
 //      | TYPE_TUPLE "=>" TYPE_TUPLE    @TODO
 AstNode* parse_type(ParserState* state) {
-  AstNode* type = init_node(pool_get(state->nodes), NODE_TYPE);
+  AstNode* type = pool_get(state->nodes);
   parse_type_node(state, type);
   return type;
 }
@@ -412,7 +462,7 @@ AstNode* parse_code_block(ParserState* state) {
 //           | DECLARATION_TUPLE "=>" TYPE_TUPLE CODE_BLOCK
 //           | DECLARATION_TUPLE "=>" NAMED_TYPE_TUPLE CODE_BLOCK    @TODO
 AstNode* parse_procedure(ParserState* state) {
-  AstNode* proc = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+  AstNode* proc = pool_get(state->nodes);
   parse_procedure_node(state, proc);
   return proc;
 }
@@ -422,7 +472,7 @@ AstNode* parse_procedure(ParserState* state) {
 //            | Identifier
 //            | PROCEDURE
 AstNode* parse_expression(ParserState* state) {
-  AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+  AstNode* expr = pool_get(state->nodes);
   parse_expression_node(state, expr);
   return expr;
 }
@@ -431,60 +481,18 @@ AstNode* parse_expression(ParserState* state) {
 //             | Identifier ":" TYPE "=" EXPRESSION
 //             | Identifier ":=" EXPRESSION
 AstNode* parse_declaration(ParserState* state) {
-  FileAddress decl_start = token_start(TOKEN);
-  Symbol name;
-  AstNode* type = NULL;
-  AstNode* value = NULL;
+  AstNode* decl = pool_get(state->nodes);
+  parse_declaration_node(state, decl);
 
-  {
-    // The Identifier should already be guaranteed by `test_declaration`.
-    assert(accept(state, TOKEN_IDENTIFIER));
-    name = symbol_get(&ACCEPTED.source);
-  }
+  list_append(state->scope->declarations, decl);
 
-  if (accept_op(state, OP_DECLARE)) {
-    type = parse_type(state);
-  } else {
-    assert(accept_op(state, OP_DECLARE_ASSIGN));
-  }
-
-  if (type == NULL || accept_op(state, OP_ASSIGN)) {
-    value = parse_expression(state);
-
-    AstNode* decl = init_node(pool_get(state->nodes), NODE_DECLARATION);
-    decl->from = decl_start;
-    decl->to = token_end(ACCEPTED);
-    decl->ident = name;
-    decl->rhs = type;
-
-    list_append(state->scope->declarations, decl);
-
-    AstNode* assignment = init_node(pool_get(state->nodes), NODE_ASSIGNMENT);
-    assignment->from = decl_start;
-    assignment->to = token_end(ACCEPTED);
-    assignment->lhs = decl;
-    assignment->rhs = value;
-
-    // @TODO Bubble up errors.
-    return assignment;
-  } else {
-    AstNode* decl = init_node(pool_get(state->nodes), NODE_DECLARATION);
-    decl->from = decl_start;
-    decl->to = token_end(ACCEPTED);
-    decl->ident = name;
-    decl->rhs = type;
-
-    list_append(state->scope->declarations, decl);
-
-    // @TODO Bubble up errors.
-    return decl;
-  }
+  return decl;
 }
 
 // ASSIGNMENT = Identifier "=" EXPRESSION
 //            | DECLARATION ":=" EXPRESSION
 AstNode* parse_assignment(ParserState* state) {
-  AstNode* assignment = init_node(pool_get(state->nodes), NODE_ASSIGNMENT);
+  AstNode* assignment = pool_get(state->nodes);
   parse_assignment_node(state, assignment);
   return assignment;
 }
@@ -493,15 +501,24 @@ AstNode* parse_assignment(ParserState* state) {
 //            | ASSIGNMENT
 //            | TOP_LEVEL_DIRECTIVE    @TODO
 AstNode* parse_top_level(ParserState* state) {
-  AstNode* decl = parse_declaration(state);
+  AstNode* node;
 
-  if (accept_op(state, OP_NEWLINE)) return decl;
+  if (test_assignment(state)) {
+    node = parse_assignment(state);
+  } else if (test_declaration(state)) {
+    node = parse_declaration(state);
+  } else {
+    printf("Invalid top-level expression on line %zu!", TOKEN.line);
+    assert(0);
+  }
+
+  if (accept_op(state, OP_NEWLINE)) return node;
 
   {
     // Error recovery
     AstNode* error = init_node(pool_get(state->nodes), NODE_RECOVERY);
     error->from = token_start(TOKEN);
-    error->lhs = decl;
+    error->lhs = node;
     error->error = new_string("Unexpected code following declaration");
 
     // @TODO More robustly seek past the error.
