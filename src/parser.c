@@ -233,101 +233,30 @@ AstNode* _parse_tuple(ParserState* state,
 
 // ** Parser States ** //
 
-AstNode* parse_declaration(ParserState* state);
+AstNode* parse_type(ParserState* state);
+AstNode* parse_type_tuple(ParserState* state);
+AstNode* parse_declaration_tuple(ParserState* state);
+AstNode* parse_expression_tuple(ParserState* state);
+AstNode* parse_code_block(ParserState* state);
+AstNode* parse_procedure(ParserState* state);
 AstNode* parse_expression(ParserState* state);
+AstNode* parse_declaration(ParserState* state);
+AstNode* parse_assignment(ParserState* state);
 
-// TYPE = Identifier
-//      | TYPE_TUPLE "=>" TYPE          @TODO
-//      | TYPE_TUPLE "=>" TYPE_TUPLE    @TODO
-AstNode* parse_type(ParserState* state) {
-  AstNode* type = init_node(pool_get(state->nodes), NODE_TYPE);
-  type->from = token_start(TOKEN);
+
+void parse_type_node(ParserState* state, AstNode* node) {
+  node->from = token_start(TOKEN);
 
   if (accept(state, TOKEN_IDENTIFIER)) {
-    type->source = ACCEPTED.source;
-    type->to = token_end(ACCEPTED);
+    node->source = ACCEPTED.source;
+    node->to = token_end(ACCEPTED);
   } else {
-    type->error = new_string("Expected a type identifier");
-    type->to = token_end(TOKEN);
-  }
-
-  return type;
-}
-
-// @TODO Find a way to unify this with `parse_type`.
-void _parse_type(ParserState* state, AstNode* node) {
-  accept(state, TOKEN_IDENTIFIER);
-
-  init_node(node, NODE_TYPE);
-  node->from = token_start(ACCEPTED);
-  node->to = token_end(ACCEPTED);
-  node->source = ACCEPTED.source;
-}
-
-// TYPE_TUPLE = "(" ")"
-//            | "(" TYPE ("," TYPE)* ")"
-AstNode* parse_type_tuple(ParserState* state) {
-  return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_type, _parse_type);
-}
-
-// @TODO Find a way to actually unify this with `parse_declaration`.
-void _parse_declaration(ParserState* state, AstNode* node) {
-  init_node(node, NODE_DECLARATION);
-
-  // @Gross @Leak @FixMe Find a way to avoid the extra allocations here.
-  *node = *parse_declaration(state);
-}
-
-// DECLARATION_TUPLE = "(" ")"
-//                   | "(" DECLARATION ("," DECLARATION)* ")"
-AstNode* parse_declaration_tuple(ParserState* state) {
-  return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_declaration, _parse_declaration);
-}
-
-// @TODO Find a way to actually unify this with `parse_declaration`.
-void _parse_expression(ParserState* state, AstNode* node) {
-  init_node(node, NODE_EXPRESSION);
-
-  // @Gross @Leak @FixMe Find a way to avoid the extra allocations here.
-  *node = *parse_expression(state);
-}
-
-// EXPRESSION_TUPLE = "(" ")"
-//                   | "(" EXPRESSION ("," EXPRESSION)* ")"
-AstNode* parse_expression_tuple(ParserState* state) {
-  return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_not_end_of_tuple, _parse_expression);
-}
-
-// STATEMENT = DECLARATION
-//           | EXPRESSION
-void _parse_statement(ParserState* state, AstNode* node) {
-  if (accept_op(state, OP_NEWLINE)) {
-    // Move on, nothing to see here.
-
-  } else if (test_declaration(state)) {
-    _parse_declaration(state, node);
-
-  } else {
-    _parse_expression(state, node);
+    node->error = new_string("Expected a type identifier");
+    node->to = token_end(TOKEN);
   }
 }
 
-// @Precondition A block-local scope has been pushed onto the scope stack.
-// CODE_BLOCK = "{" "}"
-//            | "(" STATEMENT ("," STATEMENT)* ")"
-AstNode* parse_code_block(ParserState* state) {
-  return _parse_tuple(state, OP_OPEN_BRACE, OP_CLOSE_BRACE, OP_NEWLINE, test_not_end_of_block, _parse_statement);
-}
-
-// @TODO Bubble up errors from lhs.
-// @TODO Bubble up errors from rhs.
-// @TODO Bubble up errors from body.
-// PROCEDURE = DECLARATION_TUPLE "=>" CODE_BLOCK
-//           | DECLARATION_TUPLE "=>" TYPE CODE_BLOCK
-//           | DECLARATION_TUPLE "=>" TYPE_TUPLE CODE_BLOCK
-//           | DECLARATION_TUPLE "=>" NAMED_TYPE_TUPLE CODE_BLOCK    @TODO
-AstNode* parse_procedure(ParserState* state) {
-  AstNode* proc = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+void parse_procedure_node(ParserState* state, AstNode* proc) {
   proc->flags = EXPR_PROCEDURE;
   proc->from = token_start(TOKEN);
 
@@ -374,23 +303,23 @@ AstNode* parse_procedure(ParserState* state) {
 
   // "Pop" the scope off the stack.
   state->scope = state->scope->parent;
-
-  return proc;
 }
 
-// EXPRESSION = Literal
-//            | Identifier EXPRESSION_TUPLE
-//            | Identifier
-//            | PROCEDURE
-AstNode* parse_expression(ParserState* state) {
+// @TODO Find a way to actually unify this with `parse_declaration`.
+void parse_declaration_node(ParserState* state, AstNode* node) {
+  init_node(node, NODE_DECLARATION);
+
+  // @Gross @Leak @FixMe Find a way to avoid the extra allocations here.
+  *node = *parse_declaration(state);
+}
+
+void parse_expression_node(ParserState* state, AstNode* expr) {
   if (accept(state, TOKEN_LITERAL)) {
     // @TODO Extract this?
-    AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
     expr->flags = EXPR_LITERAL | ACCEPTED.literal_type;
     expr->from = token_start(ACCEPTED);
     expr->to = token_end(ACCEPTED);
     expr->source = ACCEPTED.source;
-    return expr;
 
   } else if (accept(state, TOKEN_IDENTIFIER)) {
     Symbol name = symbol_get(&ACCEPTED.source);
@@ -399,35 +328,103 @@ AstNode* parse_expression(ParserState* state) {
     if (peek_op(state, OP_OPEN_PAREN)) {
       AstNode* arguments = parse_expression_tuple(state);
 
-      AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
       expr->flags = EXPR_CALL;
       expr->from = start;
       expr->to = token_end(ACCEPTED);
       expr->ident = name;
       expr->rhs = arguments;
-      return expr;
 
     } else {
-      // @TODO Extract this?
-      AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
       expr->flags = EXPR_IDENT;
       expr->from = start;
       expr->to = token_end(ACCEPTED);
       expr->ident = name;
       expr->scope = state->scope;
-      return expr;
     }
 
   } else if (test_procedure(state)) {
-    return parse_procedure(state);
+    parse_procedure_node(state, expr);
 
   } else {
-    AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
     expr->from = token_start(TOKEN);
     expr->to = token_end(TOKEN);
     expr->error = new_string("Expected an expression");
-    return expr;
   }
+}
+
+void parse_assignment_node(ParserState* state, AstNode* node) {
+
+}
+
+// TYPE = Identifier
+//      | TYPE_TUPLE "=>" TYPE          @TODO
+//      | TYPE_TUPLE "=>" TYPE_TUPLE    @TODO
+AstNode* parse_type(ParserState* state) {
+  AstNode* type = init_node(pool_get(state->nodes), NODE_TYPE);
+  parse_type_node(state, type);
+  return type;
+}
+
+// TYPE_TUPLE = "(" ")"
+//            | "(" TYPE ("," TYPE)* ")"
+AstNode* parse_type_tuple(ParserState* state) {
+  return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_type, parse_type_node);
+}
+
+// DECLARATION_TUPLE = "(" ")"
+//                   | "(" DECLARATION ("," DECLARATION)* ")"
+AstNode* parse_declaration_tuple(ParserState* state) {
+  return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_declaration, parse_declaration_node);
+}
+
+// EXPRESSION_TUPLE = "(" ")"
+//                   | "(" EXPRESSION ("," EXPRESSION)* ")"
+AstNode* parse_expression_tuple(ParserState* state) {
+  return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_not_end_of_tuple, parse_expression_node);
+}
+
+// STATEMENT = DECLARATION
+//           | EXPRESSION
+void parse_statement_node(ParserState* state, AstNode* node) {
+  if (accept_op(state, OP_NEWLINE)) {
+    assert(0);  // This should always be managed by the _parse_tuple method.
+
+  } else if (test_declaration(state)) {
+    parse_declaration_node(state, node);
+
+  } else {
+    parse_expression_node(state, node);
+  }
+}
+
+// @Precondition A block-local scope has been pushed onto the scope stack.
+// CODE_BLOCK = "{" "}"
+//            | "(" STATEMENT ("," STATEMENT)* ")"
+AstNode* parse_code_block(ParserState* state) {
+  return _parse_tuple(state, OP_OPEN_BRACE, OP_CLOSE_BRACE, OP_NEWLINE, test_not_end_of_block, parse_statement_node);
+}
+
+// @TODO Bubble up errors from lhs.
+// @TODO Bubble up errors from rhs.
+// @TODO Bubble up errors from body.
+// PROCEDURE = DECLARATION_TUPLE "=>" CODE_BLOCK
+//           | DECLARATION_TUPLE "=>" TYPE CODE_BLOCK
+//           | DECLARATION_TUPLE "=>" TYPE_TUPLE CODE_BLOCK
+//           | DECLARATION_TUPLE "=>" NAMED_TYPE_TUPLE CODE_BLOCK    @TODO
+AstNode* parse_procedure(ParserState* state) {
+  AstNode* proc = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+  parse_procedure_node(state, proc);
+  return proc;
+}
+
+// EXPRESSION = Literal
+//            | Identifier EXPRESSION_TUPLE
+//            | Identifier
+//            | PROCEDURE
+AstNode* parse_expression(ParserState* state) {
+  AstNode* expr = init_node(pool_get(state->nodes), NODE_EXPRESSION);
+  parse_expression_node(state, expr);
+  return expr;
 }
 
 // DECLARATION = Identifier ":" TYPE
@@ -484,6 +481,17 @@ AstNode* parse_declaration(ParserState* state) {
   }
 }
 
+// ASSIGNMENT = Identifier "=" EXPRESSION
+//            | DECLARATION ":=" EXPRESSION
+AstNode* parse_assignment(ParserState* state) {
+  AstNode* assignment = init_node(pool_get(state->nodes), NODE_ASSIGNMENT);
+  parse_assignment_node(state, assignment);
+  return assignment;
+}
+
+//  TOP_LEVEL = DECLARATION
+//            | ASSIGNMENT
+//            | TOP_LEVEL_DIRECTIVE    @TODO
 AstNode* parse_top_level(ParserState* state) {
   AstNode* decl = parse_declaration(state);
 
@@ -504,8 +512,6 @@ AstNode* parse_top_level(ParserState* state) {
   }
 }
 
-//  TOP_LEVEL = DECLARATION
-//            | TOP_LEVEL_DIRECTIVE    @TODO
 bool perform_parse_job(ParseJob* job) {
   ParserState* state = new_parser_state(job->tokens);
 
