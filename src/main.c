@@ -67,7 +67,7 @@ typedef struct {
   String source;
 
   TokenLiteralType literal_type;
-  char is_well_formed;
+  bool is_well_formed;
 } Token;
 
 typedef struct {
@@ -109,6 +109,7 @@ typedef enum {
   EXPR_CALL            = (1 << 3),
   // EXPR_UNARY_OP  = (1 << 4),
   // EXPR_BINARY_OP = (1 << 5),
+  NODE_CONTAINS_ERROR  = (1 << 31),
 } AstNodeFlags;
 
 typedef struct {

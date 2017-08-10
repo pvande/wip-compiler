@@ -137,6 +137,7 @@ void tokenize_string(String* input, TokenizedFile* result) {
             }
           }
 
+          // @TODO Parse numeric literals more loosely, reporting malformed literals.
           *((Token*) pool_get(tokens)) = (Token) { TOKEN_LITERAL, result->filename, line_no, line_pos - LENGTH, SOURCE, literal_type, 1 };
         }
         break;

@@ -11,6 +11,15 @@ DEFINE_STR(OP_CLOSE_BRACE, "}");
 DEFINE_STR(OP_COMMA, ",");
 DEFINE_STR(OP_NEWLINE, "\n");
 
+// ** Constant Errors ** //
+
+// const char* COMPILER_ERROR = "Internal Compiler Error: %s";
+DEFINE_STR(ERR_EXPECTED_TYPE, "Expected a type");
+DEFINE_STR(ERR_EXPECTED_EXPRESSION, "Expected an expression");
+DEFINE_STR(ERR_EXPECTED_EOL, "Unexpected code following statement");
+DEFINE_STR(ERR_EXPECTED_CLOSE, "Unexpected code in argument list");
+DEFINE_STR(ERR_UNCLOSED_STRING, "String literal is unterminated");
+
 // ** Local Data Structures ** //
 
 typedef struct {
@@ -55,6 +64,7 @@ FileAddress token_end(Token t) {
 
 #define ACCEPTED (state->data.tokens[state->pos - 1])
 #define TOKEN    (state->data.tokens[state->pos])
+
 
 // ** Parsing Primitives ** //
 
@@ -200,12 +210,15 @@ AstNode* _parse_tuple(ParserState* state,
   assert(accept_op(state, open_operator));
   while (accept_op(state, OP_NEWLINE)) {}
 
+  bool parse_errors = 0;
+
   {
     Pool* pool = new_pool(sizeof(AstNode), 2, 4);
 
     while (more(state)) {
       AstNode* node = pool_get(pool);
       parse_node(state, node);
+      if (node->flags & NODE_CONTAINS_ERROR) parse_errors += 1;
 
       if (separator != OP_NEWLINE) {
         while (accept_op(state, OP_NEWLINE)) {}
@@ -225,9 +238,9 @@ AstNode* _parse_tuple(ParserState* state,
 
   tuple->to = token_end(ACCEPTED);
 
-  if (properly_balanced) return tuple;
+  if (parse_errors) tuple->flags |= NODE_CONTAINS_ERROR;
 
-  {
+  if (!properly_balanced) {
     // Error recovery
     size_t depth = 1;
     do {
@@ -240,10 +253,13 @@ AstNode* _parse_tuple(ParserState* state,
     error->from = tuple->to;
     error->to = token_end(ACCEPTED);
     error->lhs = tuple;
-    error->error = new_string("Unable to parse procedure argument declarations");
+    error->error = ERR_EXPECTED_CLOSE; // @TODO: Parameterize?
+    error->flags |= NODE_CONTAINS_ERROR;
 
     return error;
   }
+
+  return tuple;
 }
 
 // ** Parser States ** //
@@ -268,93 +284,108 @@ void parse_type_node(ParserState* state, AstNode* node) {
     node->source = ACCEPTED.source;
     node->to = token_end(ACCEPTED);
   } else {
-    node->error = new_string("Expected a type identifier");
+    node->flags |= NODE_CONTAINS_ERROR;
+    node->error = ERR_EXPECTED_TYPE;
     node->to = token_end(TOKEN);
   }
 }
 
-void parse_procedure_node(ParserState* state, AstNode* proc) {
+void parse_procedure_node(ParserState* state, AstNode* node) {
   // Initialized in `parse_expression_node`.
 
-  proc->flags = EXPR_PROCEDURE;
-  proc->from = token_start(TOKEN);
+  node->flags = EXPR_PROCEDURE;
+  node->from = token_start(TOKEN);
 
   // "Push" a new scope onto the stack.
   state->scope = new_parser_scope(state->scope);
 
-  proc->lhs = parse_declaration_tuple(state);
+  node->lhs = parse_declaration_tuple(state);
 
   assert(accept_op(state, OP_FUNC_ARROW));
 
   if (peek_op(state, OP_OPEN_PAREN)) {
-    proc->rhs = parse_type_tuple(state);
+    node->rhs = parse_type_tuple(state);
 
   } else if (peek_op(state, OP_OPEN_BRACE)) {
-    AstNode* tuple = init_node(pool_get(state->nodes), NODE_COMPOUND);
-    tuple->from = token_start(TOKEN);
-    tuple->to = token_start(TOKEN);
-    tuple->body_length = 0;
-
-    proc->rhs = tuple;
+    node->rhs = init_node(pool_get(state->nodes), NODE_COMPOUND);
+    node->rhs->from = token_start(TOKEN);
+    node->rhs->to = token_start(TOKEN);
+    node->rhs->body_length = 0;
 
   } else if (test_type(state)) {
     AstNode* type = parse_type(state);
 
-    AstNode* tuple = init_node(pool_get(state->nodes), NODE_COMPOUND);
-    tuple->from = type->from;
-    tuple->to = type->to;
-    tuple->body_length = 1;
-    tuple->body = type;
+    // `test_type` should be guaranteeing a usable `type` node here.
+    assert(!(type->flags & NODE_CONTAINS_ERROR));
 
-    proc->rhs = tuple;
+    node->rhs = init_node(pool_get(state->nodes), NODE_COMPOUND);
+    node->rhs->from = type->from;
+    node->rhs->to = type->to;
+    node->rhs->body_length = 1;
+    node->rhs->body = type;
 
   } else {
     // @TODO Actually recover from this error case.
     assert(0);
   }
 
+  node->body_length = 1;
+  node->body = parse_code_block(state);
+  node->body->scope = state->scope;
+  node->to = token_end(ACCEPTED);
+  node->flags |= (node->lhs->flags & NODE_CONTAINS_ERROR);
+  node->flags |= (node->rhs->flags & NODE_CONTAINS_ERROR);
+  node->flags |= (node->body->flags & NODE_CONTAINS_ERROR);
 
-  proc->body_length = 1;
-  proc->body = parse_code_block(state);
-  proc->body->scope = state->scope;
-
-  proc->to = token_end(ACCEPTED);
+  // @UX Specialize error message if error is found in `lhs` or `rhs`.
 
   // "Pop" the scope off the stack.
   state->scope = state->scope->parent;
 }
 
-void parse_declaration_node(ParserState* state, AstNode* decl) {
-  init_node(decl, NODE_DECLARATION);
+void parse_declaration_node(ParserState* state, AstNode* node) {
+  init_node(node, NODE_DECLARATION);
 
-  decl->from = token_start(TOKEN);
+  node->from = token_start(TOKEN);
 
-  {
-    // The Identifier should already be guaranteed by `test_declaration`.
-    assert(accept(state, TOKEN_IDENTIFIER));
-    decl->ident = symbol_get(&ACCEPTED.source);
-  }
+  // `test_nodearation` should be guaranteeing a usable identifier here.
+  assert(accept(state, TOKEN_IDENTIFIER));
+  node->ident = symbol_get(&ACCEPTED.source);
 
   if (accept_op(state, OP_DECLARE)) {
-    decl->rhs = parse_type(state);
+    node->rhs = parse_type(state);
+    node->flags |= (node->rhs->flags & NODE_CONTAINS_ERROR);
+
+  } else if (peek_op(state, OP_DECLARE_ASSIGN)) {
+    // We've been invoked from an assignment node, so we're done here.
   } else {
-    assert(peek_op(state, OP_DECLARE_ASSIGN));
+    // We won't be getting here unless we've been called in an unexpected way.
+    assert(0);
   }
 
-  decl->to = token_end(ACCEPTED);
-
-  // @TODO Bubble up errors.
+  node->to = token_end(ACCEPTED);
 }
 
-void parse_expression_node(ParserState* state, AstNode* expr) {
-  init_node(expr, NODE_EXPRESSION);
+void parse_expression_node(ParserState* state, AstNode* node) {
+  init_node(node, NODE_EXPRESSION);
 
   if (accept(state, TOKEN_LITERAL)) {
     // @TODO Extract this?
-    expr->flags = EXPR_LITERAL | ACCEPTED.literal_type;
-    expr->from = token_start(ACCEPTED);
-    expr->to = token_end(ACCEPTED);
-    expr->source = ACCEPTED.source;
+    node->flags = EXPR_LITERAL | ACCEPTED.literal_type;
+    node->from = token_start(ACCEPTED);
+    node->to = token_end(ACCEPTED);
+    node->source = ACCEPTED.source;
+
+    if (!ACCEPTED.is_well_formed) {
+      node->flags |= NODE_CONTAINS_ERROR;
+
+      if (ACCEPTED.literal_type & IS_STRING_LITERAL) {
+        node->error = ERR_UNCLOSED_STRING;
+      } else {
+        // We don't presently test well-formedness for other literal types.
+        assert(0);
+      }
+    }
 
   } else if (accept(state, TOKEN_IDENTIFIER)) {
     Symbol name = symbol_get(&ACCEPTED.source);
@@ -363,28 +394,30 @@ void parse_expression_node(ParserState* state, AstNode* expr) {
     if (peek_op(state, OP_OPEN_PAREN)) {
       AstNode* arguments = parse_expression_tuple(state);
 
-      expr->flags = EXPR_CALL;
-      expr->from = start;
-      expr->to = token_end(ACCEPTED);
-      expr->ident = name;
-      expr->rhs = arguments;
-      expr->scope = state->scope;
+      node->flags = EXPR_CALL;
+      node->from = start;
+      node->to = token_end(ACCEPTED);
+      node->ident = name;
+      node->rhs = arguments;
+      node->scope = state->scope;
+      node->flags |= (node->rhs->flags & NODE_CONTAINS_ERROR);
 
     } else {
-      expr->flags = EXPR_IDENT;
-      expr->from = start;
-      expr->to = token_end(ACCEPTED);
-      expr->ident = name;
-      expr->scope = state->scope;
+      node->flags = EXPR_IDENT;
+      node->from = start;
+      node->to = token_end(ACCEPTED);
+      node->ident = name;
+      node->scope = state->scope;
     }
 
   } else if (test_procedure(state)) {
-    parse_procedure_node(state, expr);
+    parse_procedure_node(state, node);
 
   } else {
-    expr->from = token_start(TOKEN);
-    expr->to = token_end(TOKEN);
-    expr->error = new_string("Expected an expression");
+    node->from = token_start(TOKEN);
+    node->to = token_end(TOKEN);
+    node->error = ERR_EXPECTED_EXPRESSION;
+    node->flags |= NODE_CONTAINS_ERROR;
   }
 }
 
@@ -401,6 +434,8 @@ void parse_assignment_node(ParserState* state, AstNode* node) {
     node->to = token_end(ACCEPTED);
     node->lhs = decl;
     node->rhs = value;
+    node->flags |= (node->lhs->flags & NODE_CONTAINS_ERROR);
+    node->flags |= (node->rhs->flags & NODE_CONTAINS_ERROR);
 
   } else {
     AstNode* expr = parse_expression(state);
@@ -411,9 +446,9 @@ void parse_assignment_node(ParserState* state, AstNode* node) {
     node->to = token_end(ACCEPTED);
     node->lhs = expr;
     node->rhs = value;
+    node->flags |= (node->lhs->flags & NODE_CONTAINS_ERROR);
+    node->flags |= (node->rhs->flags & NODE_CONTAINS_ERROR);
   }
-
-  // @TODO Bubble up errors.
 }
 
 // TYPE = Identifier
@@ -545,21 +580,26 @@ AstNode* parse_top_level(ParserState* state) {
     assert(0);
   }
 
-  if (accept_op(state, OP_NEWLINE)) return node;
+  if (!accept_op(state, OP_NEWLINE)) {
+    if (node->flags & NODE_CONTAINS_ERROR) {
+      // @TODO More robustly seek past the error.
+      while (!peek_op(state, OP_NEWLINE)) state->pos += 1;
+    } else {
+      AstNode* error = init_node(pool_get(state->nodes), NODE_RECOVERY);
+      error->from = token_start(TOKEN);
+      error->lhs = node;
+      error->error = ERR_EXPECTED_EOL;
+      error->flags |= NODE_CONTAINS_ERROR;
 
-  {
-    // Error recovery
-    AstNode* error = init_node(pool_get(state->nodes), NODE_RECOVERY);
-    error->from = token_start(TOKEN);
-    error->lhs = node;
-    error->error = new_string("Unexpected code following declaration");
+      // @TODO More robustly seek past the error.
+      while (!peek_op(state, OP_NEWLINE)) state->pos += 1;
 
-    // @TODO More robustly seek past the error.
-    while (!peek_op(state, OP_NEWLINE)) state->pos += 1;
-
-    error->to = token_end(ACCEPTED);
-    return error;
+      error->to = token_end(ACCEPTED);
+      return error;
+    }
   }
+
+  return node;
 }
 
 bool perform_parse_job(ParseJob* job) {
@@ -572,10 +612,10 @@ bool perform_parse_job(ParseJob* job) {
     } else {
       AstNode* node = parse_top_level(state);
 
-      if (node->error == NULL) {
-        pipeline_emit_typecheck_job(node);
+      if (node->flags & NODE_CONTAINS_ERROR) {
+        // @TODO
       } else {
-        // @TODO Define an error reporting job, and dispatch the `decl` to that.
+        pipeline_emit_typecheck_job(node);
       }
 
       // print_ast_node_as_tree(state->data.lines, node);
