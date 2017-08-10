@@ -450,6 +450,9 @@ void parse_statement_node(ParserState* state, AstNode* node) {
   if (accept_op(state, OP_NEWLINE)) {
     assert(0);  // This should always be managed by the _parse_tuple method.
 
+  } else if (test_assignment(state)) {
+    parse_assignment_node(state, node);
+
   } else if (test_declaration(state)) {
     parse_declaration_node(state, node);
 
@@ -557,7 +560,7 @@ bool perform_parse_job(ParseJob* job) {
     if (accept_op(state, OP_NEWLINE)) {
       // Move on, nothing to see here.
 
-    } else if (test_declaration(state)) {
+    } else {
       AstNode* node = parse_top_level(state);
 
       if (node->error == NULL) {
@@ -567,9 +570,6 @@ bool perform_parse_job(ParseJob* job) {
       }
 
       // print_ast_node_as_tree(state->data.lines, node);
-
-    } else {
-      printf("Unrecognized code in top-level context\n");
     }
   }
 
