@@ -562,8 +562,6 @@ AstNode* parse_declaration(ParserState* state) {
   AstNode* decl = pool_get(state->nodes);
   parse_declaration_node(state, decl);
 
-  list_append(state->scope->declarations, decl);
-
   return decl;
 }
 
@@ -583,8 +581,13 @@ AstNode* parse_top_level(ParserState* state) {
 
   if (test_assignment(state)) {
     node = parse_assignment(state);
+
+    AstNode* decl = node;
+    if (decl->type == NODE_ASSIGNMENT) decl = decl->lhs;
+    if (decl->type == NODE_DECLARATION) list_append(state->scope->declarations, decl);
   } else if (test_declaration(state)) {
     node = parse_declaration(state);
+    list_append(state->scope->declarations, node);
   } else {
     printf("Invalid top-level expression on line %zu!", TOKEN.line);
     assert(0);
