@@ -360,6 +360,7 @@ void parse_declaration_node(ParserState* state, AstNode* node) {
   if (accept_op(state, OP_DECLARE)) {
     node->rhs = parse_type(state);
     node->flags |= (node->rhs->flags & NODE_CONTAINS_ERROR);
+    node->flags |= NODE_CONTAINS_RHS;
 
   } else if (peek_op(state, OP_DECLARE_ASSIGN)) {
     // We've been invoked from an assignment node, so we're done here.

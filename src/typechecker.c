@@ -46,6 +46,20 @@ void* _find_or_create_type(String* name, size_t size) {
   return type;
 }
 
+// ** Constant Errors ** //
+
+DEFINE_STR(ERR_UNDEFINED_TYPE, "Definition for type not found");
+DEFINE_STR(ERR_UNDECLARED_IDENT, "Declaration for that identifier was not found");  // @TODO Less cryptic.
+DEFINE_STR(ERR_COULD_NOT_INFER_TYPE, "Could not infer the type of this variable");  // @TODO Less cryptic.
+DEFINE_STR(ERR_INCOMPATIBLE_TYPES, "Cannot assign that argument to that variable; the types don't match");  // @TODO Less cryptic.
+DEFINE_STR(ERR_ARGUMENT_TYPE_MISMATCH, "No overload for that function takes those argument types");  // @TODO Less cryptic.
+DEFINE_STR(ERR_UNHANDLED_LITERAL_TYPE, "Internal Compiler Error: Unhandled literal type");
+DEFINE_STR(ERR_UNHANDLED_EXPRESSION_TYPE, "Internal Compiler Error: Unhandled expression type");
+DEFINE_STR(ERR_UNHANDLED_NODE_TYPE, "Internal Compiler Error: Unhandled node type");
+
+
+// ** Helpers ** //
+
 AstNode* _find_identifier(Scope* scope, Symbol ident) {
   for (size_t i = 0; i < scope->declarations->length; i++) {
     AstNode* decl = list_get(scope->declarations, i);
@@ -111,6 +125,8 @@ bool typecheck_can_coerce(Typeclass* from, Typekind kind, Typeclass* to) {
 }
 
 
+// ** Typechecking ** //
+
 bool typecheck_node(FileDebugInfo* debug, AstNode* node);
 
 
@@ -118,7 +134,8 @@ bool typecheck_type(FileDebugInfo* debug, AstNode* node) {
   Typeclass* type = _get_type(&node->source);
 
   if (type == NULL) {
-    printf("Unknown type '%s'\n", to_zero_terminated_string(&node->source));
+    node->flags |= NODE_CONTAINS_ERROR;
+    node->error = ERR_UNDEFINED_TYPE;
     return 0;
   }
 
@@ -130,10 +147,22 @@ bool typecheck_declaration(FileDebugInfo* debug, AstNode* node) {
   AstNode* type = node->rhs;
 
   // This is the basic deferred type inference case.
-  if (type == NULL) return 0;
+  if (type == NULL) {
+    node->flags |= NODE_CONTAINS_ERROR;
+    node->error = ERR_COULD_NOT_INFER_TYPE;
+    return 0;
+  }
 
-  bool result = typecheck_node(debug, type);
-  if (!result) return 0;
+  {
+    bool result = typecheck_node(debug, type);
+
+    if (type->flags & NODE_CONTAINS_ERROR) {
+      node->flags |= NODE_CONTAINS_ERROR;
+      node->error = NULL;
+    }
+
+    if (!result) return 0;
+  }
 
   node->typeclass = type->typeclass;
   return 1;
@@ -146,29 +175,50 @@ bool typecheck_assignment(FileDebugInfo* debug, AstNode* node) {
   assert(target != NULL);
   assert(value != NULL);
 
-  typecheck_node(debug, target);
+  {
+    typecheck_node(debug, target);
 
-  if (!typecheck_node(debug, value)) return 0;
+    bool result = typecheck_node(debug, value);
+    AstNodeFlags value_error = value->flags & NODE_CONTAINS_ERROR;
+
+    node->flags |= value_error;
+    if (!result || value_error) return 0;
+  }
 
   if (target->typeclass == NULL) {
     target->typeclass = value->typeclass;
     target->typekind = value->typekind;
+    target->flags &= ~NODE_CONTAINS_ERROR;
+    target->error = NULL;
     return 1;
   } else {
     bool result = typecheck_can_coerce(value->typeclass, value->typekind, target->typeclass);
 
-    if (result && value->typeclass == &TYPECLASS_LITERAL) {
+    if (!result) {
+      node->flags |= NODE_CONTAINS_ERROR;
+      node->error = ERR_INCOMPATIBLE_TYPES;
+      return 1;
+    }
+
+    if (value->typeclass == &TYPECLASS_LITERAL) {
       value->typeclass = target->typeclass;
     }
 
-    return result;
+    return 1;
   }
 }
 
 bool typecheck_expression_identifier(FileDebugInfo* debug, AstNode* node) {
   AstNode* decl = _find_identifier(node->scope, node->ident);
 
-  if (decl == NULL) return 0;
+  if (decl == NULL) {
+    node->flags &= NODE_CONTAINS_ERROR;
+    node->error = ERR_UNDECLARED_IDENT;
+    return 0;
+  }
+
+  node->flags |= (decl->flags & NODE_CONTAINS_ERROR);
+
   if (decl->typeclass == NULL) return 0;
 
   node->typeclass = decl->typeclass;
@@ -309,9 +359,14 @@ bool typecheck_expression_literal_string(FileDebugInfo* debug, AstNode* node) {
         case 'e': str->data[idx++] = '\e'; break;
         case '"': str->data[idx++] = '\"'; break;
         case '\\': str->data[idx++] = '\\'; break;
-        default:
-          printf("Unknown escape sequence: '\\%c'\n", node->source.data[i + 1]);
-          return 0;
+        default: {
+          char* err = malloc(32 * sizeof(char));
+          sprintf(err, "Unknown escape sequence: '\\%c'\n", node->source.data[i + 1]);
+
+          node->flags |= NODE_CONTAINS_ERROR;
+          node->error = new_string(err);
+          return 1;
+        }
       }
     } else {
       str->data[idx++] = c;
@@ -337,8 +392,9 @@ bool typecheck_expression_literal(FileDebugInfo* debug, AstNode* node) {
   } else if (node->flags & IS_STRING_LITERAL) {
     return typecheck_expression_literal_string(debug, node);
   } else {
-    printf("Unable to typecheck literal expression with flags %x\n", node->flags);
-    return 0;
+    node->flags |= NODE_CONTAINS_ERROR;
+    node->error = ERR_UNHANDLED_LITERAL_TYPE;
+    return 1;
   }
 }
 
@@ -359,6 +415,7 @@ bool typecheck_expression_procedure(FileDebugInfo* debug, AstNode* node) {
 
   for (size_t i = 0; i < arguments->body_length; i++) {
     success &= typecheck_node(debug, &arguments->body[i]);
+    node->flags |= (arguments->body[i].flags & NODE_CONTAINS_ERROR);
 
     if (success) {
       if (i > 0) typestring_length += 2;  // ", "
@@ -369,6 +426,7 @@ bool typecheck_expression_procedure(FileDebugInfo* debug, AstNode* node) {
 
   for (size_t i = 0; i < returns->body_length; i++) {
     success &= typecheck_node(debug, &returns->body[i]);
+    node->flags |= (returns->body[i].flags & NODE_CONTAINS_ERROR);
 
     if (success) {
       if (i > 0) typestring_length += 2;  // ", "
@@ -443,9 +501,13 @@ bool typecheck_expression_procedure(FileDebugInfo* debug, AstNode* node) {
 
 bool typecheck_expression_call(FileDebugInfo* debug, AstNode* node) {
   AstNode* decl = _find_identifier(node->scope, node->ident);
-  if (decl->typeclass == NULL) return 0;
 
-  // printf("Invoking declaration "); inspect_ast_node(decl);printf("\n");
+  if (decl == NULL) {
+
+    return 0;
+  }
+
+  if (decl->typeclass == NULL) return 0;
 
   assert(decl->typeclass->from != NULL);
   assert(decl->typeclass->to != NULL);
@@ -453,18 +515,25 @@ bool typecheck_expression_call(FileDebugInfo* debug, AstNode* node) {
   bool success = 1;
   for (size_t i = 0; i < node->rhs->body_length; i++) {
     success &= typecheck_node(debug, &node->rhs->body[i]);
+    node->flags |= (node->rhs->body[i].flags & NODE_CONTAINS_ERROR);
   }
 
-  if (!success) return 0;
+  if (!success || (node->flags & NODE_CONTAINS_ERROR)) return 0;
 
   List* arg_types = decl->typeclass->from;
-  if (node->rhs->body_length != arg_types->length) return 0;
+  if (node->rhs->body_length != arg_types->length) {
+    node->flags |= NODE_CONTAINS_ERROR;
+    node->error = ERR_ARGUMENT_TYPE_MISMATCH;
+    return 0;
+  }
 
   for (size_t i = 0; i < arg_types->length; i++){
     AstNode* arg = &node->rhs->body[i];
     Typeclass* arg_type = list_get(arg_types, i);
 
     if (!typecheck_can_coerce(arg->typeclass, arg->typekind, arg_type)) {
+      node->flags |= NODE_CONTAINS_ERROR;
+      node->error = ERR_ARGUMENT_TYPE_MISMATCH;
       return 0;
     }
   }
@@ -488,8 +557,9 @@ bool typecheck_expression(FileDebugInfo* debug, AstNode* node) {
   } else if (node->flags & EXPR_CALL) {
     return typecheck_expression_call(debug, node);
   } else {
-    printf("Unable to typecheck unhandled expression with flags %x\n", node->flags);
-    return 0;
+    node->flags |= NODE_CONTAINS_ERROR;
+    node->error = ERR_UNHANDLED_EXPRESSION_TYPE;
+    return 1;
   }
 }
 
@@ -499,11 +569,10 @@ bool typecheck_compound(FileDebugInfo* debug, AstNode* node) {
   for (size_t i = 0; i < node->body_length; i++) {
     AstNode* child = &node->body[i];
     result &= typecheck_node(debug, child);
-
-    if (!result) break;
+    node->flags |= (child->flags & NODE_CONTAINS_ERROR);
   }
 
-  if (result == 1) {
+  if (result) {
     node->typeclass = _get_type(STR_VOID);
   }
 
@@ -511,6 +580,7 @@ bool typecheck_compound(FileDebugInfo* debug, AstNode* node) {
 }
 
 bool typecheck_node(FileDebugInfo* debug, AstNode* node) {
+  node->flags &= ~NODE_CONTAINS_ERROR;
   if (node->typeclass != NULL) return 1;
   bool result;
 
@@ -532,8 +602,9 @@ bool typecheck_node(FileDebugInfo* debug, AstNode* node) {
       result = typecheck_compound(debug, node);
       break;
     default:
-      printf("Unable to typecheck unhandled node type: %s\n", _ast_node_type(node));
-      result = 0;
+      node->flags |= NODE_CONTAINS_ERROR;
+      node->error = ERR_UNHANDLED_NODE_TYPE;
+      result = 1;
   }
   // printf("typecheck_node <- "); inspect_ast_node(node); printf("\n");
 
@@ -541,9 +612,15 @@ bool typecheck_node(FileDebugInfo* debug, AstNode* node) {
 }
 
 bool perform_typecheck_job(TypecheckJob* job) {
-  bool result =  typecheck_node(job->debug, job->node);
+  bool result = typecheck_node(job->debug, job->node);
 
-  if (result) pipeline_emit_optimize_job(job->debug, job->node);
+  if (result) {
+    if (job->node->flags & NODE_CONTAINS_ERROR) {
+      pipeline_emit_abort_job(job->debug, job->node);
+    } else {
+      pipeline_emit_optimize_job(job->debug, job->node);
+    }
+  }
 
   return result;
 }

@@ -291,7 +291,25 @@ int main(int argc, char** argv) {
     free(job);
   }
 
-  if (pipeline_has_jobs() || reported_errors > 0) {
+  // Drain the remaining pipeline jobs for error reporting.
+  while (pipeline_has_jobs()) {
+    Job* job = pipeline_take_job();
+    if (job->type == JOB_SENTINEL) continue;
+
+    reported_errors += 1;
+    if (job->type == JOB_TYPECHECK) {
+      TypecheckJob* j = (TypecheckJob*) job;
+      // print_ast_node_as_tree(j->debug->lines, j->node);
+      // printf("----------------\n");
+      report_errors(j->debug, j->node);
+    } else {
+      assert(0);
+    }
+
+    free(job);
+  }
+
+  if (reported_errors > 0) {
     fprintf(stderr, "Unable to compile %s.\n", argv[1]);
     return 1;
   } else {

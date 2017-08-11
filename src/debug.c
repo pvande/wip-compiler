@@ -297,7 +297,11 @@ void print_ast_node_as_tree(String* lines, AstNode* node) {
     for (int i = 0; i < mark_from; i++) {
       printf("%c", line->data[i]);
     }
-    printf("\e[0;41m");
+    if (node->flags & NODE_CONTAINS_ERROR) {
+      printf("\e[0;41m");
+    } else {
+      printf("\e[0;44m");
+    }
     if (node->from.line == line_number) printf("«");
     for (int i = mark_from; i < mark_to; i++) {
       printf("%c", line->data[i]);
