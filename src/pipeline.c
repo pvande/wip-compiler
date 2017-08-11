@@ -8,7 +8,6 @@ typedef enum {
   JOB_TYPECHECK,
   JOB_OPTIMIZE,
   JOB_BYTECODE,
-  JOB_OUTPUT,
   JOB_ABORT,
 } JobType;
 
@@ -39,19 +38,16 @@ typedef struct {
   FileDebugInfo* debug;
 } TypecheckJob;
 
-// typedef struct {
-//   Job base;
-//   AstDeclaration* declaration;
-// } OptimizeJob;
-//
-// typedef struct {
-//   Job base;
-//   AstDeclaration* declaration;
-// } BytecodeJob;
-//
-// typedef struct {
-//   Job base;
-// } OutputJob;
+typedef struct {
+  Job base;
+  AstNode* node;
+  FileDebugInfo* debug;
+} OptimizeJob;
+
+typedef struct {
+  Job base;
+  AstNode* node;
+} BytecodeJob;
 
 typedef struct {
   Job base;
@@ -118,39 +114,30 @@ void pipeline_emit_typecheck_job(FileDebugInfo* debug, AstNode* node) {
   pipeline_emit(job);
 }
 
-// void pipeline_emit_optimize_job(AstDeclaration* decl) {
-//   fprintf(stderr, "Emitting OptimizeJob for "); print_symbol(decl->name);
-//   // printf(" in "); print_symbol(decl->name->file); printf(" line %zu\n", decl->name->line)
-//
-//   // @Lazy We should use a pool allocator.
-//   OptimizeJob* job = malloc(sizeof(OptimizeJob));
-//   job->base.type = JOB_OPTIMIZE;
-//   job->declaration = decl;
-//
-//   pipeline_emit(job);
-// }
-//
-// void pipeline_emit_bytecode_job(AstDeclaration* decl) {
-//   fprintf(stderr, "Emitting BytecodeJob for "); print_symbol(decl->name);
-//   // printf(" in "); print_symbol(decl->name->file); printf(" line %zu\n", decl->name->line)
-//
-//   // @Lazy We should use a pool allocator.
-//   BytecodeJob* job = malloc(sizeof(BytecodeJob));
-//   job->base.type = JOB_BYTECODE;
-//   job->declaration = decl;
-//
-//   pipeline_emit(job);
-// }
-//
-// void pipeline_emit_output_job(List* declarations) {
-//   fprintf(stderr, "Emitting OutputJob for %zu declarations\n", declarations->size);
-//
-//   // @Lazy We should use a pool allocator.
-//   OutputJob* job = malloc(sizeof(OutputJob));
-//   job->base.type = JOB_OUTPUT;
-//
-//   pipeline_emit(job);
-// }
+void pipeline_emit_optimize_job(FileDebugInfo* debug, AstNode* node) {
+  // fprintf(stderr, "Emitting OptimizeJob for "); print_symbol(decl->name);
+  // printf(" in "); print_symbol(decl->name->file); printf(" line %zu\n", decl->name->line)
+
+  // @Lazy We should use a pool allocator.
+  OptimizeJob* job = malloc(sizeof(OptimizeJob));
+  job->base.type = JOB_OPTIMIZE;
+  job->debug = debug;
+  job->node = node;
+
+  pipeline_emit(job);
+}
+
+void pipeline_emit_bytecode_job(AstNode* node) {
+  // fprintf(stderr, "Emitting BytecodeJob for "); print_symbol(decl->name);
+  // printf(" in "); print_symbol(decl->name->file); printf(" line %zu\n", decl->name->line)
+
+  // @Lazy We should use a pool allocator.
+  BytecodeJob* job = malloc(sizeof(BytecodeJob));
+  job->base.type = JOB_BYTECODE;
+  job->node = node;
+
+  pipeline_emit(job);
+}
 
 void pipeline_emit_abort_job(FileDebugInfo* debug, AstNode* node) {
   // @Lazy We should use a pool allocator.

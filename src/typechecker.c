@@ -541,7 +541,11 @@ bool typecheck_node(FileDebugInfo* debug, AstNode* node) {
 }
 
 bool perform_typecheck_job(TypecheckJob* job) {
-  return typecheck_node(job->debug, job->node);
+  bool result =  typecheck_node(job->debug, job->node);
+
+  if (result) pipeline_emit_optimize_job(job->debug, job->node);
+
+  return result;
 }
 
 

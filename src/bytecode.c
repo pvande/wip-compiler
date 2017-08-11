@@ -1,9 +1,5 @@
-// void* bytecode_generate(AstDeclaration* decl) {
-//   List* bytecode = new_list(8, 128);
-//
-//   // if (decl->value && decl->value->type == EXPR_PROCEDURE) {
-//   // } else {
-//   // }
-//
-//   return bytecode;
-// }
+bool perform_bytecode_job(BytecodeJob* job) {
+  // @TODO Emit bytecode
+
+  return 1;
+}

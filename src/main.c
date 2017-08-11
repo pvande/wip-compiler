@@ -179,8 +179,9 @@ typedef struct AstNode {
 #include "src/lexer.c"
 #include "src/parser.c"
 #include "src/typechecker.c"
+#include "src/optimizer.c"
 #include "src/bytecode.c"
-#include "src/output.c"
+#include "src/codegen.c"
 
 #ifndef TESTING
 
@@ -268,37 +269,11 @@ int main(int argc, char** argv) {
         continue;
       }
 
-    // } else if (_job->type == JOB_OPTIMIZE) {
-    //   OptimizeJob* job = (OptimizeJob*) _job;
-    //
-    //   // @TODO Implement optimizations.
-    //
-    //   pipeline_emit_bytecode_job(job->declaration);
-    //
-    //   did_work = 1;
-    //
-    // } else if (_job->type == JOB_BYTECODE) {
-    //   BytecodeJob* job = (BytecodeJob*) _job;
-    //
-    //   // @Lazy Make sure the declarations are passed in the job.
-    //   // @TODO Implement optimizations.
-    //   List* instructions = bytecode_generate(job->declaration);
-    //
-    //   list_add(ws.resolved_declarations, job->declaration);
-    //
-    //   if (ws.declaration_count == ws.resolved_declarations->size) {
-    //     pipeline_emit_output_job(ws.resolved_declarations);
-    //   }
-    //
-    //   did_work = 1;
-    //
-    // } else if (_job->type == JOB_OUTPUT) {
-    //   OutputJob* job = (OutputJob*) _job;
-    //
-    //   // @Lazy Make sure the declarations are passed in the job.
-    //   // output_c_code_for_declarations(ws.resolved_declarations);
-    //
-    //   did_work = 1;
+    } else if (job->type == JOB_OPTIMIZE) {
+      did_work = perform_optimize_job((OptimizeJob*) job);
+
+    } else if (job->type == JOB_BYTECODE) {
+      did_work = perform_bytecode_job((BytecodeJob*) job);
 
     } else if (job->type == JOB_ABORT) {
       AbortJob* j = (AbortJob*) job;
@@ -320,6 +295,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Unable to compile %s.\n", argv[1]);
     return 1;
   } else {
+    // @TODO Codegen.
     fprintf(stderr, "Compiled %s.\n", argv[1]);
     return 0;
   }
