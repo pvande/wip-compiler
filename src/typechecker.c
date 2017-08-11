@@ -150,22 +150,18 @@ bool typecheck_declaration(FileDebugInfo* debug, AstNode* node) {
   if (type == NULL) {
     node->flags |= NODE_CONTAINS_ERROR;
     node->error = ERR_COULD_NOT_INFER_TYPE;
-    return 0;
+    return 1;
   }
 
-  {
-    bool result = typecheck_node(debug, type);
-
-    if (type->flags & NODE_CONTAINS_ERROR) {
-      node->flags |= NODE_CONTAINS_ERROR;
-      node->error = NULL;
-    }
-
-    if (!result) return 0;
-  }
+  bool result = typecheck_node(debug, type);
 
   node->typeclass = type->typeclass;
-  return 1;
+  if (node->typeclass == NULL) {
+    node->flags |= NODE_CONTAINS_ERROR;
+    node->error = NULL;
+  }
+
+  return result;
 }
 
 bool typecheck_assignment(FileDebugInfo* debug, AstNode* node) {
@@ -175,21 +171,22 @@ bool typecheck_assignment(FileDebugInfo* debug, AstNode* node) {
   assert(target != NULL);
   assert(value != NULL);
 
-  {
-    typecheck_node(debug, target);
+  bool value_result = typecheck_node(debug, value);
+  node->flags |= (value->flags & NODE_CONTAINS_ERROR);
+  if (!value_result) return 0;
 
-    bool result = typecheck_node(debug, value);
-    AstNodeFlags value_error = value->flags & NODE_CONTAINS_ERROR;
-
-    node->flags |= value_error;
-    if (!result || value_error) return 0;
-  }
+  bool target_result = typecheck_node(debug, target);
+  node->flags |= target->flags & NODE_CONTAINS_ERROR;
+  if (node->flags & NODE_CONTAINS_ERROR && target->typeclass != NULL) return 1;
+  if (!target_result) return 0;
 
   if (target->typeclass == NULL) {
     target->typeclass = value->typeclass;
     target->typekind = value->typekind;
     target->flags &= ~NODE_CONTAINS_ERROR;
     target->error = NULL;
+
+    node->flags &= (value->flags & NODE_CONTAINS_ERROR);
     return 1;
   } else {
     bool result = typecheck_can_coerce(value->typeclass, value->typekind, target->typeclass);
@@ -212,7 +209,7 @@ bool typecheck_expression_identifier(FileDebugInfo* debug, AstNode* node) {
   AstNode* decl = _find_identifier(node->scope, node->ident);
 
   if (decl == NULL) {
-    node->flags &= NODE_CONTAINS_ERROR;
+    node->flags |= NODE_CONTAINS_ERROR;
     node->error = ERR_UNDECLARED_IDENT;
     return 0;
   }
@@ -503,22 +500,29 @@ bool typecheck_expression_call(FileDebugInfo* debug, AstNode* node) {
   AstNode* decl = _find_identifier(node->scope, node->ident);
 
   if (decl == NULL) {
-
+    node->flags |= NODE_CONTAINS_ERROR;
+    node->error = ERR_UNDECLARED_IDENT;
     return 0;
   }
 
-  if (decl->typeclass == NULL) return 0;
+  if (decl->typeclass == NULL) {
+    node->flags |= NODE_CONTAINS_ERROR;
+    node->error = ERR_COULD_NOT_INFER_TYPE;
+    return 0;
+  }
 
   assert(decl->typeclass->from != NULL);
   assert(decl->typeclass->to != NULL);
 
   bool success = 1;
   for (size_t i = 0; i < node->rhs->body_length; i++) {
-    success &= typecheck_node(debug, &node->rhs->body[i]);
-    node->flags |= (node->rhs->body[i].flags & NODE_CONTAINS_ERROR);
-  }
+    AstNode* arg = &node->rhs->body[i];
 
-  if (!success || (node->flags & NODE_CONTAINS_ERROR)) return 0;
+    success &= typecheck_node(debug, arg);
+    node->rhs->flags |= (arg->flags & NODE_CONTAINS_ERROR);
+  }
+  node->flags |= (node->rhs->flags & NODE_CONTAINS_ERROR);
+  if (!success) return 0;
 
   List* arg_types = decl->typeclass->from;
   if (node->rhs->body_length != arg_types->length) {
@@ -533,7 +537,9 @@ bool typecheck_expression_call(FileDebugInfo* debug, AstNode* node) {
 
     if (!typecheck_can_coerce(arg->typeclass, arg->typekind, arg_type)) {
       node->flags |= NODE_CONTAINS_ERROR;
-      node->error = ERR_ARGUMENT_TYPE_MISMATCH;
+      node->rhs->flags |= NODE_CONTAINS_ERROR;
+      arg->flags |= NODE_CONTAINS_ERROR;
+      arg->error = ERR_ARGUMENT_TYPE_MISMATCH;
       return 0;
     }
   }

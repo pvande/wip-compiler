@@ -247,33 +247,34 @@ int main(int argc, char** argv) {
 
   initialize_typechecker();
 
-  int did_work = 1;
+  bool did_work = 1;
   int reported_errors = 0;
   while (pipeline_has_jobs()) {
     Job* job = pipeline_take_job();
 
     if (job->type == JOB_READ) {
-      did_work = perform_read_job((ReadJob*) job);
+      did_work |= perform_read_job((ReadJob*) job);
 
     } else if (job->type == JOB_LEX) {
-      did_work = perform_lex_job((LexJob*) job);
+      did_work |= perform_lex_job((LexJob*) job);
 
     } else if (job->type == JOB_PARSE) {
-      did_work = perform_parse_job((ParseJob*) job);
+      did_work |= perform_parse_job((ParseJob*) job);
 
     } else if (job->type == JOB_TYPECHECK) {
-      did_work = perform_typecheck_job((TypecheckJob*) job);
+      bool result = perform_typecheck_job((TypecheckJob*) job);
+      did_work |= result;
 
-      if (!did_work) {
+      if (!result) {
         pipeline_emit(job);
         continue;
       }
 
     } else if (job->type == JOB_OPTIMIZE) {
-      did_work = perform_optimize_job((OptimizeJob*) job);
+      did_work |= perform_optimize_job((OptimizeJob*) job);
 
     } else if (job->type == JOB_BYTECODE) {
-      did_work = perform_bytecode_job((BytecodeJob*) job);
+      did_work |= perform_bytecode_job((BytecodeJob*) job);
 
     } else if (job->type == JOB_ABORT) {
       AbortJob* j = (AbortJob*) job;
@@ -299,10 +300,13 @@ int main(int argc, char** argv) {
     reported_errors += 1;
     if (job->type == JOB_TYPECHECK) {
       TypecheckJob* j = (TypecheckJob*) job;
-      // print_ast_node_as_tree(j->debug->lines, j->node);
-      // printf("----------------\n");
+      // printf("«««««««»»»»»»»\n");
+      // TypecheckJob* x = (TypecheckJob*) job;
+      // print_ast_node_as_tree(x->debug->lines, x->node);
+      // printf("«««««««»»»»»»»\n");
       report_errors(j->debug, j->node);
     } else {
+      printf("Unknown job type: %d\n", job->type);
       assert(0);
     }
 

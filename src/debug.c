@@ -316,16 +316,11 @@ void print_ast_node_as_tree(String* lines, AstNode* node) {
   }
   printf("\n");
 
-  if (node->type == NODE_RECOVERY ||
-      node->type == NODE_ASSIGNMENT ||
-      (node->type == NODE_EXPRESSION && node->flags == EXPR_PROCEDURE)) {
+  if (node->flags & NODE_CONTAINS_LHS) {
     print_ast_node_as_tree(lines, node->lhs);
   }
 
-  if (node->type == NODE_DECLARATION ||
-      node->type == NODE_ASSIGNMENT ||
-      (node->type == NODE_EXPRESSION && node->flags == EXPR_PROCEDURE) ||
-      (node->type == NODE_EXPRESSION && node->flags == EXPR_CALL)) {
+  if (node->flags & NODE_CONTAINS_RHS) {
     print_ast_node_as_tree(lines, node->rhs);
   }
 
@@ -355,17 +350,12 @@ void print_ast_node_as_dot(String* lines, AstNode* node) {
   printf("<BR ALIGN=\"LEFT\"/>");
   printf("</TD></TR></TABLE>>]\n");
 
-  if (node->type == NODE_RECOVERY ||
-      node->type == NODE_ASSIGNMENT ||
-      (node->type == NODE_EXPRESSION && node->flags == EXPR_PROCEDURE)) {
+  if (node->flags == NODE_CONTAINS_LHS) {
     print_ast_node_as_dot(lines, node->lhs);
     printf("node_%zu -> node_%zu [label=lhs]\n", node->id, node->lhs->id);
   }
 
-  if (node->type == NODE_DECLARATION ||
-      node->type == NODE_ASSIGNMENT ||
-      (node->type == NODE_EXPRESSION && node->flags == EXPR_PROCEDURE) ||
-      (node->type == NODE_EXPRESSION && node->flags == EXPR_CALL)) {
+  if (node->flags == NODE_CONTAINS_RHS) {
     print_ast_node_as_dot(lines, node->rhs);
     if (node->rhs != NULL) {
       printf("node_%zu -> node_%zu [label=rhs]\n", node->id, node->rhs->id);
