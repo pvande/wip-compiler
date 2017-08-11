@@ -129,9 +129,7 @@ void print_pointer(void* x) {
 }
 
 void inspect_token(Token t) {
-  printf("«Token type=%d file=", t.type);
-  print_string(&t.file);
-  printf(" line=%ju pos=%ju source=", t.line, t.pos);
+  printf("«Token type=%d line=%ju pos=%ju source=", t.type, t.line, t.pos);
   print_string(&t.source);
   printf("»\n");
 }
@@ -221,9 +219,8 @@ void print_list(List* list) {
 }
 
 void print_token(Token* token) {
-  printf("«Token(%d) file=\"%s\" line=%zu pos=%zu source=\"%s\" literal_type=%d is_well_formed=%d»",
+  printf("«Token(%d) line=%zu pos=%zu source=\"%s\" literal_type=%d is_well_formed=%d»",
          token->type,
-         to_zero_terminated_string(&token->file),
          token->line,
          token->pos,
          to_zero_terminated_string(&token->source),

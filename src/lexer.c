@@ -15,7 +15,7 @@ const char OPERATORS[256 - 32] = {
 
 // @Precondition: file data is never freed.
 // @Precondition: input data is never freed.
-void tokenize_string(String* input, TokenizedFile* result) {
+void tokenize_string(String* input, FileDebugInfo* debug, TokenizedFile* result) {
   size_t input_length = input->length;
   Pool* tokens = new_pool(sizeof(Token), 128, 32);
   Pool* lines = new_pool(sizeof(String), 128, 32);
@@ -65,12 +65,12 @@ void tokenize_string(String* input, TokenizedFile* result) {
       case '@':
         ADVANCE('@');
         SLURP_IDENT();
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_DIRECTIVE, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_DIRECTIVE, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case '#':
         ADVANCE('#');
         SLURP_IDENT();
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_TAG, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_TAG, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case ' ':
       case '\t':
@@ -90,7 +90,7 @@ void tokenize_string(String* input, TokenizedFile* result) {
 
           ADVANCE(THIS);
           *((String*) pool_get(lines)) = (String) { file_pos - line_start - 1, input->data + line_start };
-          *((Token*) pool_get(tokens)) = (Token) { TOKEN_SYNTAX_OPERATOR, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+          *((Token*) pool_get(tokens)) = (Token) { TOKEN_SYNTAX_OPERATOR, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
           line_no += 1;
           line_start = file_pos;
           line_pos = 0;
@@ -107,7 +107,7 @@ void tokenize_string(String* input, TokenizedFile* result) {
           ADVANCE('"');
         }
 
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_LITERAL, result->filename, line_no, line_pos - LENGTH, SOURCE, IS_STRING_LITERAL, input->data[token_start] == input->data[file_pos - 1] };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_LITERAL, line_no, line_pos - LENGTH, SOURCE, IS_STRING_LITERAL, input->data[token_start] == input->data[file_pos - 1] };
         break;
       case '0'...'9':
         {
@@ -138,7 +138,7 @@ void tokenize_string(String* input, TokenizedFile* result) {
           }
 
           // @TODO Parse numeric literals more loosely, reporting malformed literals.
-          *((Token*) pool_get(tokens)) = (Token) { TOKEN_LITERAL, result->filename, line_no, line_pos - LENGTH, SOURCE, literal_type, 1 };
+          *((Token*) pool_get(tokens)) = (Token) { TOKEN_LITERAL, line_no, line_pos - LENGTH, SOURCE, literal_type, 1 };
         }
         break;
       case ',':
@@ -147,11 +147,11 @@ void tokenize_string(String* input, TokenizedFile* result) {
       case '{':
       case '}':
         ADVANCE(THIS);
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_SYNTAX_OPERATOR, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_SYNTAX_OPERATOR, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case ':':
         SLURP_OPERATOR();
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_SYNTAX_OPERATOR, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_SYNTAX_OPERATOR, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       case '/':
         if (NEXT == '/') {
@@ -170,18 +170,21 @@ void tokenize_string(String* input, TokenizedFile* result) {
       case '|':
       case '~':
         SLURP_OPERATOR();
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_OPERATOR, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_OPERATOR, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;
       default:
         SLURP_IDENT();
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_IDENTIFIER, result->filename, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        *((Token*) pool_get(tokens)) = (Token) { TOKEN_IDENTIFIER, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
     }
   }
 
   // @TODO Do we need to make sure the token stream ends with a newline?
   result->length = tokens->length;
   result->tokens = pool_to_array(tokens);
-  result->lines = pool_to_array(lines);
+
+  debug->length = lines->length;
+  debug->lines = pool_to_array(lines);
+
   free(tokens);
   free(lines);
 
@@ -214,9 +217,10 @@ void tokenize_string(String* input, TokenizedFile* result) {
 
 bool perform_lex_job(LexJob* job) {
   TokenizedFile* result = malloc(sizeof(TokenizedFile));
-  result->filename = job->filename;
+  FileDebugInfo* debug = malloc(sizeof(FileDebugInfo));
+  debug->filename = job->filename;
 
-  tokenize_string(&job->source, result);
-  pipeline_emit_parse_job(result);
+  tokenize_string(&job->source, debug, result);
+  pipeline_emit_parse_job(debug, result);
   return 1;
 }

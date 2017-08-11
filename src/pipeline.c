@@ -9,6 +9,7 @@ typedef enum {
   JOB_OPTIMIZE,
   JOB_BYTECODE,
   JOB_OUTPUT,
+  JOB_ABORT,
 } JobType;
 
 typedef struct {
@@ -29,11 +30,13 @@ typedef struct {
 typedef struct {
   Job base;
   TokenizedFile* tokens;
+  FileDebugInfo* debug;
 } ParseJob;
 
 typedef struct {
   Job base;
-  AstNode* declaration;
+  AstNode* node;
+  FileDebugInfo* debug;
 } TypecheckJob;
 
 // typedef struct {
@@ -49,6 +52,12 @@ typedef struct {
 // typedef struct {
 //   Job base;
 // } OutputJob;
+
+typedef struct {
+  Job base;
+  AstNode* node;
+  FileDebugInfo* debug;
+} AbortJob;
 
 
 void pipeline_emit(void* job) {
@@ -85,24 +94,26 @@ void pipeline_emit_lex_job(String filename, String source) {
   pipeline_emit(job);
 }
 
-void pipeline_emit_parse_job(TokenizedFile* tokens) {
+void pipeline_emit_parse_job(FileDebugInfo* debug, TokenizedFile* tokens) {
   // fprintf(stderr, "Emitting FileParseJob for %zu tokens of ", tokens->length); print_string(&tokens->filename); printf("\n");
 
   // @Lazy We should use a pool allocator.
   ParseJob* job = malloc(sizeof(ParseJob));
   job->base.type = JOB_PARSE;
+  job->debug = debug;
   job->tokens = tokens;
 
   pipeline_emit(job);
 }
 
-void pipeline_emit_typecheck_job(AstNode* decl) {
-  // fprintf(stderr, "Emitting TypecheckJob for "); print_symbol(decl->type == NODE_ASSIGNMENT ? decl->lhs->ident : decl->ident); printf("\n");
+void pipeline_emit_typecheck_job(FileDebugInfo* debug, AstNode* node) {
+  // fprintf(stderr, "Emitting TypecheckJob for "); print_symbol(node->type == NODE_ASSIGNMENT ? node->lhs->ident : node->ident); printf("\n");
 
   // @Lazy We should use a pool allocator.
   TypecheckJob* job = malloc(sizeof(TypecheckJob));
   job->base.type = JOB_TYPECHECK;
-  job->declaration = decl;
+  job->debug = debug;
+  job->node = node;
 
   pipeline_emit(job);
 }
@@ -140,6 +151,16 @@ void pipeline_emit_typecheck_job(AstNode* decl) {
 //
 //   pipeline_emit(job);
 // }
+
+void pipeline_emit_abort_job(FileDebugInfo* debug, AstNode* node) {
+  // @Lazy We should use a pool allocator.
+  AbortJob* job = malloc(sizeof(TypecheckJob));
+  job->base.type = JOB_ABORT;
+  job->debug = debug;
+  job->node = node;
+
+  pipeline_emit(job);
+}
 
 DEFINE(Job, SENTINEL, { JOB_SENTINEL });
 void initialize_pipeline() {

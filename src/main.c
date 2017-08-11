@@ -60,7 +60,6 @@ typedef enum {
 
 typedef struct {
   TokenType type;
-  String file;
   size_t line;
   size_t pos;
 
@@ -70,12 +69,23 @@ typedef struct {
   bool is_well_formed;
 } Token;
 
+
+typedef struct {
+  size_t line;
+  size_t pos;
+} FileAddress;
+
 typedef struct {
   String filename;
   String* lines;
+  size_t length;
+} FileDebugInfo;
 
+typedef struct {
   Token* tokens;
   size_t length;
+
+  FileDebugInfo* debug;
 } TokenizedFile;
 
 
@@ -109,13 +119,10 @@ typedef enum {
   EXPR_CALL            = (1 << 3),
   // EXPR_UNARY_OP  = (1 << 4),
   // EXPR_BINARY_OP = (1 << 5),
+  NODE_CONTAINS_LHS    = (1 << 29),
+  NODE_CONTAINS_RHS    = (1 << 30),
   NODE_CONTAINS_ERROR  = (1 << 31),
 } AstNodeFlags;
-
-typedef struct {
-  size_t line;
-  size_t pos;
-} FileAddress;
 
 typedef struct {
   size_t id;
@@ -180,6 +187,38 @@ typedef struct AstNode {
 #include <execinfo.h>
 #include <signal.h>
 
+void report_errors(FileDebugInfo* debug, AstNode* node) {
+  if (!(node->flags & NODE_CONTAINS_ERROR)) return;
+
+  if (node->error == NULL) {
+    if (node->flags & NODE_CONTAINS_LHS) report_errors(debug, node->lhs);
+    if (node->flags & NODE_CONTAINS_RHS) report_errors(debug, node->rhs);
+    for (size_t i = 0; i < node->body_length; i++) report_errors(debug, &node->body[i]);
+  } else {
+    size_t line_no = node->from.line;
+
+    char* filename = to_zero_terminated_string(&debug->filename);
+    String* line = &debug->lines[line_no];
+    char* line_str = to_zero_terminated_string(line);
+
+    char* bold = "\e[1;37m";
+    char* code = "\e[0;36m";
+    char* err = "\e[0;31m";
+    char* reset = "\e[0m";
+
+    printf("Error: "); print_string(node->error); printf("\n");
+    printf("In %s%s%s on line %s%zu%s\n\n", bold, filename, reset, bold, line_no + 1, reset);
+    printf("> %s%s%s\n", code, line_str, reset);
+
+    for (int i = 0; i < line->length; i++) line_str[i] = ' ';
+    for (int i = node->from.pos; i < node->to.pos; i++) line_str[i] = '^';
+    printf("  %s%s%s\n\n", err, line_str, reset);
+
+    free(filename);
+    free(line_str);
+  }
+}
+
 void crashbar(int nSignum, siginfo_t* si, void* vcontext) {
   printf("\nSegmentation fault!\n");
 
@@ -208,6 +247,7 @@ int main(int argc, char** argv) {
   initialize_typechecker();
 
   int did_work = 1;
+  int reported_errors = 0;
   while (pipeline_has_jobs()) {
     Job* job = pipeline_take_job();
 
@@ -260,6 +300,12 @@ int main(int argc, char** argv) {
     //
     //   did_work = 1;
 
+    } else if (job->type == JOB_ABORT) {
+      AbortJob* j = (AbortJob*) job;
+      report_errors(j->debug, j->node);
+      reported_errors += 1;
+      did_work = 1;
+
     } else if (job->type == JOB_SENTINEL) {
       if (!did_work) break;
       did_work = 0;
@@ -270,7 +316,7 @@ int main(int argc, char** argv) {
     free(job);
   }
 
-  if (pipeline_has_jobs()) {
+  if (pipeline_has_jobs() || reported_errors > 0) {
     fprintf(stderr, "Unable to compile %s.\n", argv[1]);
     return 1;
   } else {

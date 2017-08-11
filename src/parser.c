@@ -23,7 +23,8 @@ DEFINE_STR(ERR_UNCLOSED_STRING, "String literal is unterminated");
 // ** Local Data Structures ** //
 
 typedef struct {
-  TokenizedFile data;
+  Token* tokens;
+  size_t length;
   size_t pos;
 
   Pool* nodes;
@@ -40,7 +41,8 @@ void* new_parser_scope(Scope* parent) {
 
 void* new_parser_state(TokenizedFile* file) {
   ParserState* state = malloc(sizeof(ParserState));
-  state->data = *file;
+  state->tokens = file->tokens;
+  state->length = file->length;
   state->pos = 0;
   state->nodes = new_pool(sizeof(AstNode), 16, 64);
   state->scope = new_parser_scope(NULL);
@@ -51,7 +53,7 @@ void* new_parser_state(TokenizedFile* file) {
 // ** State Manipulation Primitives ** //
 
 bool tokens_remain(ParserState* state) {
-  return state->pos < state->data.length;
+  return state->pos < state->length;
 }
 
 FileAddress token_start(Token t) {
@@ -62,8 +64,8 @@ FileAddress token_end(Token t) {
   return (FileAddress) { t.line, t.pos + t.source.length };
 }
 
-#define ACCEPTED (state->data.tokens[state->pos - 1])
-#define TOKEN    (state->data.tokens[state->pos])
+#define ACCEPTED (state->tokens[state->pos - 1])
+#define TOKEN    (state->tokens[state->pos])
 
 
 // ** Parsing Primitives ** //
@@ -254,6 +256,7 @@ AstNode* _parse_tuple(ParserState* state,
     error->to = token_end(ACCEPTED);
     error->lhs = tuple;
     error->error = ERR_EXPECTED_CLOSE; // @TODO: Parameterize?
+    error->flags |= NODE_CONTAINS_LHS;
     error->flags |= NODE_CONTAINS_ERROR;
 
     return error;
@@ -333,6 +336,8 @@ void parse_procedure_node(ParserState* state, AstNode* node) {
   node->body = parse_code_block(state);
   node->body->scope = state->scope;
   node->to = token_end(ACCEPTED);
+  node->flags |= NODE_CONTAINS_LHS;
+  node->flags |= NODE_CONTAINS_RHS;
   node->flags |= (node->lhs->flags & NODE_CONTAINS_ERROR);
   node->flags |= (node->rhs->flags & NODE_CONTAINS_ERROR);
   node->flags |= (node->body->flags & NODE_CONTAINS_ERROR);
@@ -401,6 +406,7 @@ void parse_expression_node(ParserState* state, AstNode* node) {
       node->rhs = arguments;
       node->scope = state->scope;
       node->flags |= (node->rhs->flags & NODE_CONTAINS_ERROR);
+      node->flags |= NODE_CONTAINS_RHS;
 
     } else {
       node->flags = EXPR_IDENT;
@@ -434,6 +440,8 @@ void parse_assignment_node(ParserState* state, AstNode* node) {
     node->to = token_end(ACCEPTED);
     node->lhs = decl;
     node->rhs = value;
+    node->flags |= NODE_CONTAINS_LHS;
+    node->flags |= NODE_CONTAINS_RHS;
     node->flags |= (node->lhs->flags & NODE_CONTAINS_ERROR);
     node->flags |= (node->rhs->flags & NODE_CONTAINS_ERROR);
 
@@ -446,6 +454,8 @@ void parse_assignment_node(ParserState* state, AstNode* node) {
     node->to = token_end(ACCEPTED);
     node->lhs = expr;
     node->rhs = value;
+    node->flags |= NODE_CONTAINS_LHS;
+    node->flags |= NODE_CONTAINS_RHS;
     node->flags |= (node->lhs->flags & NODE_CONTAINS_ERROR);
     node->flags |= (node->rhs->flags & NODE_CONTAINS_ERROR);
   }
@@ -589,6 +599,7 @@ AstNode* parse_top_level(ParserState* state) {
       error->from = token_start(TOKEN);
       error->lhs = node;
       error->error = ERR_EXPECTED_EOL;
+      error->flags |= NODE_CONTAINS_LHS;
       error->flags |= NODE_CONTAINS_ERROR;
 
       // @TODO More robustly seek past the error.
@@ -613,9 +624,9 @@ bool perform_parse_job(ParseJob* job) {
       AstNode* node = parse_top_level(state);
 
       if (node->flags & NODE_CONTAINS_ERROR) {
-        // @TODO
+        pipeline_emit_abort_job(job->debug, node);
       } else {
-        pipeline_emit_typecheck_job(node);
+        pipeline_emit_typecheck_job(job->debug, node);
       }
 
       // print_ast_node_as_tree(state->data.lines, node);

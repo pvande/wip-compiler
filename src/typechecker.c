@@ -111,10 +111,10 @@ bool typecheck_can_coerce(Typeclass* from, Typekind kind, Typeclass* to) {
 }
 
 
-bool typecheck_node(AstNode* node);
+bool typecheck_node(FileDebugInfo* debug, AstNode* node);
 
 
-bool typecheck_type(AstNode* node) {
+bool typecheck_type(FileDebugInfo* debug, AstNode* node) {
   Typeclass* type = _get_type(&node->source);
 
   if (type == NULL) {
@@ -126,29 +126,29 @@ bool typecheck_type(AstNode* node) {
   return 1;
 }
 
-bool typecheck_declaration(AstNode* node) {
+bool typecheck_declaration(FileDebugInfo* debug, AstNode* node) {
   AstNode* type = node->rhs;
 
   // This is the basic deferred type inference case.
   if (type == NULL) return 0;
 
-  bool result = typecheck_node(type);
+  bool result = typecheck_node(debug, type);
   if (!result) return 0;
 
   node->typeclass = type->typeclass;
   return 1;
 }
 
-bool typecheck_assignment(AstNode* node) {
+bool typecheck_assignment(FileDebugInfo* debug, AstNode* node) {
   AstNode* target = node->lhs;
   AstNode* value = node->rhs;
 
   assert(target != NULL);
   assert(value != NULL);
 
-  typecheck_node(target);
+  typecheck_node(debug, target);
 
-  if (!typecheck_node(value)) return 0;
+  if (!typecheck_node(debug, value)) return 0;
 
   if (target->typeclass == NULL) {
     target->typeclass = value->typeclass;
@@ -165,7 +165,7 @@ bool typecheck_assignment(AstNode* node) {
   }
 }
 
-bool typecheck_expression_identifier(AstNode* node) {
+bool typecheck_expression_identifier(FileDebugInfo* debug, AstNode* node) {
   AstNode* decl = _find_identifier(node->scope, node->ident);
 
   if (decl == NULL) return 0;
@@ -215,7 +215,7 @@ void _type_literal_number_value(AstNode* node) {
   }
 }
 
-bool typecheck_expression_literal_decimal(AstNode* node) {
+bool typecheck_expression_literal_decimal(FileDebugInfo* debug, AstNode* node) {
   node->int_value = 0;
 
   for (int i = 0; i < node->source.length; i++) {
@@ -231,7 +231,7 @@ bool typecheck_expression_literal_decimal(AstNode* node) {
   return 1;
 }
 
-bool typecheck_expression_literal_hex(AstNode* node) {
+bool typecheck_expression_literal_hex(FileDebugInfo* debug, AstNode* node) {
   node->int_value = 0;
 
   assert(node->source.data[0] == '0');
@@ -256,7 +256,7 @@ bool typecheck_expression_literal_hex(AstNode* node) {
   return 1;
 }
 
-bool typecheck_expression_literal_binary(AstNode* node) {
+bool typecheck_expression_literal_binary(FileDebugInfo* debug, AstNode* node) {
   node->int_value = 0;
 
   assert(node->source.data[0] == '0');
@@ -275,7 +275,7 @@ bool typecheck_expression_literal_binary(AstNode* node) {
   return 1;
 }
 
-bool typecheck_expression_literal_fractional(AstNode* node) {
+bool typecheck_expression_literal_fractional(FileDebugInfo* debug, AstNode* node) {
   node->double_value = strtod(to_zero_terminated_string(&node->source), NULL);
 
   node->typeclass = _get_type(STR_FLOAT);
@@ -284,7 +284,7 @@ bool typecheck_expression_literal_fractional(AstNode* node) {
   return 1;
 }
 
-bool typecheck_expression_literal_string(AstNode* node) {
+bool typecheck_expression_literal_string(FileDebugInfo* debug, AstNode* node) {
   String* str = malloc(sizeof(String));
   str->data = malloc(node->source.length * sizeof(char));
 
@@ -325,24 +325,24 @@ bool typecheck_expression_literal_string(AstNode* node) {
   return 1;
 }
 
-bool typecheck_expression_literal(AstNode* node) {
+bool typecheck_expression_literal(FileDebugInfo* debug, AstNode* node) {
   if (node->flags & IS_DECIMAL_LITERAL) {
-    return typecheck_expression_literal_decimal(node);
+    return typecheck_expression_literal_decimal(debug, node);
   } else if (node->flags & IS_HEX_LITERAL) {
-    return typecheck_expression_literal_hex(node);
+    return typecheck_expression_literal_hex(debug, node);
   } else if (node->flags & IS_BINARY_LITERAL) {
-    return typecheck_expression_literal_binary(node);
+    return typecheck_expression_literal_binary(debug, node);
   } else if (node->flags & IS_FRACTIONAL_LITERAL) {
-    return typecheck_expression_literal_fractional(node);
+    return typecheck_expression_literal_fractional(debug, node);
   } else if (node->flags & IS_STRING_LITERAL) {
-    return typecheck_expression_literal_string(node);
+    return typecheck_expression_literal_string(debug, node);
   } else {
     printf("Unable to typecheck literal expression with flags %x\n", node->flags);
     return 0;
   }
 }
 
-bool typecheck_expression_procedure(AstNode* node) {
+bool typecheck_expression_procedure(FileDebugInfo* debug, AstNode* node) {
   AstNode* arguments = node->lhs;
   AstNode* returns = node->rhs;
 
@@ -358,7 +358,7 @@ bool typecheck_expression_procedure(AstNode* node) {
   size_t typestring_length = 8;  // "() => ()"
 
   for (size_t i = 0; i < arguments->body_length; i++) {
-    success &= typecheck_node(&arguments->body[i]);
+    success &= typecheck_node(debug, &arguments->body[i]);
 
     if (success) {
       if (i > 0) typestring_length += 2;  // ", "
@@ -368,7 +368,7 @@ bool typecheck_expression_procedure(AstNode* node) {
   }
 
   for (size_t i = 0; i < returns->body_length; i++) {
-    success &= typecheck_node(&returns->body[i]);
+    success &= typecheck_node(debug, &returns->body[i]);
 
     if (success) {
       if (i > 0) typestring_length += 2;  // ", "
@@ -378,7 +378,7 @@ bool typecheck_expression_procedure(AstNode* node) {
   }
 
   if (success) {
-    pipeline_emit_typecheck_job(node->body);
+    pipeline_emit_typecheck_job(debug, node->body);
 
     char* _name = malloc(typestring_length * sizeof(char));
     char* pos = _name + 1;
@@ -441,7 +441,7 @@ bool typecheck_expression_procedure(AstNode* node) {
   return success;
 }
 
-bool typecheck_expression_call(AstNode* node) {
+bool typecheck_expression_call(FileDebugInfo* debug, AstNode* node) {
   AstNode* decl = _find_identifier(node->scope, node->ident);
   if (decl->typeclass == NULL) return 0;
 
@@ -452,7 +452,7 @@ bool typecheck_expression_call(AstNode* node) {
 
   bool success = 1;
   for (size_t i = 0; i < node->rhs->body_length; i++) {
-    success &= typecheck_node(&node->rhs->body[i]);
+    success &= typecheck_node(debug, &node->rhs->body[i]);
   }
 
   if (!success) return 0;
@@ -478,27 +478,27 @@ bool typecheck_expression_call(AstNode* node) {
   return 1;
 }
 
-bool typecheck_expression(AstNode* node) {
+bool typecheck_expression(FileDebugInfo* debug, AstNode* node) {
   if (node->flags & EXPR_IDENT) {
-    return typecheck_expression_identifier(node);
+    return typecheck_expression_identifier(debug, node);
   } else if (node->flags & EXPR_LITERAL) {
-    return typecheck_expression_literal(node);
+    return typecheck_expression_literal(debug, node);
   } else if (node->flags & EXPR_PROCEDURE) {
-    return typecheck_expression_procedure(node);
+    return typecheck_expression_procedure(debug, node);
   } else if (node->flags & EXPR_CALL) {
-    return typecheck_expression_call(node);
+    return typecheck_expression_call(debug, node);
   } else {
     printf("Unable to typecheck unhandled expression with flags %x\n", node->flags);
     return 0;
   }
 }
 
-bool typecheck_compound(AstNode* node) {
+bool typecheck_compound(FileDebugInfo* debug, AstNode* node) {
   bool result = 1;
 
   for (size_t i = 0; i < node->body_length; i++) {
     AstNode* child = &node->body[i];
-    result &= typecheck_node(child);
+    result &= typecheck_node(debug, child);
 
     if (!result) break;
   }
@@ -510,26 +510,26 @@ bool typecheck_compound(AstNode* node) {
   return result;
 }
 
-bool typecheck_node(AstNode* node) {
+bool typecheck_node(FileDebugInfo* debug, AstNode* node) {
   if (node->typeclass != NULL) return 1;
   bool result;
 
   // printf("typecheck_node -> "); inspect_ast_node(node); printf("\n");
   switch (node->type) {
     case NODE_TYPE:
-      result = typecheck_type(node);
+      result = typecheck_type(debug, node);
       break;
     case NODE_DECLARATION:
-      result = typecheck_declaration(node);
+      result = typecheck_declaration(debug, node);
       break;
     case NODE_ASSIGNMENT:
-      result = typecheck_assignment(node);
+      result = typecheck_assignment(debug, node);
       break;
     case NODE_EXPRESSION:
-      result = typecheck_expression(node);
+      result = typecheck_expression(debug, node);
       break;
     case NODE_COMPOUND:
-      result = typecheck_compound(node);
+      result = typecheck_compound(debug, node);
       break;
     default:
       printf("Unable to typecheck unhandled node type: %s\n", _ast_node_type(node));
@@ -541,7 +541,7 @@ bool typecheck_node(AstNode* node) {
 }
 
 bool perform_typecheck_job(TypecheckJob* job) {
-  return typecheck_node(job->declaration);
+  return typecheck_node(job->debug, job->node);
 }
 
 
