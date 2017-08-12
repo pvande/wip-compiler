@@ -1,0 +1,7 @@
+
+
+Error: "Definition for type not found"
+In [1;37mtests/errors/003-typechecking/001-undefined-type/001-basic.xxx[0m on line [1;37m2[0m
+
+> [0;36my : triple[0m
+  [0;31m    ^^^^^^[0m

@@ -1,0 +1,2 @@
+// @TODO This outputs two errors, when one should be sufficient.
+x := y

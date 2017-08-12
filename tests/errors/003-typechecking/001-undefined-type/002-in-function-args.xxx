@@ -1,0 +1,3 @@
+x := (a : float) => { }
+y := (a : triple) => { }
+z := (a : int) => { }

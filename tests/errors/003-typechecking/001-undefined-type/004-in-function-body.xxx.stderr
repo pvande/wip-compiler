@@ -1,0 +1,7 @@
+
+
+Error: "Definition for type not found"
+In [1;37mtests/errors/003-typechecking/001-undefined-type/004-in-function-body.xxx[0m on line [1;37m6[0m
+
+> [0;36m  a : triple[0m
+  [0;31m      ^^^^^^[0m

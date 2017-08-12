@@ -13,7 +13,6 @@ DEFINE_STR(OP_NEWLINE, "\n");
 
 // ** Constant Errors ** //
 
-// const char* COMPILER_ERROR = "Internal Compiler Error: %s";
 DEFINE_STR(ERR_EXPECTED_TYPE, "Expected a type");
 DEFINE_STR(ERR_EXPECTED_EXPRESSION, "Expected an expression");
 DEFINE_STR(ERR_EXPECTED_EOL, "Unexpected code following statement");

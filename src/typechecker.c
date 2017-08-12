@@ -173,13 +173,17 @@ bool typecheck_assignment(FileDebugInfo* debug, AstNode* node) {
   assert(value != NULL);
 
   bool value_result = typecheck_node(debug, value);
-  node->flags |= (value->flags & NODE_CONTAINS_ERROR);
-  if (!value_result) return 0;
-
   bool target_result = typecheck_node(debug, target);
-  node->flags |= target->flags & NODE_CONTAINS_ERROR;
-  if (node->flags & NODE_CONTAINS_ERROR && target->typeclass != NULL) return 1;
+
+  node->flags |= (value->flags & NODE_CONTAINS_ERROR);
+  node->flags |= (target->flags & NODE_CONTAINS_ERROR);
+  if ((value->flags & NODE_CONTAINS_ERROR) && !(value->flags & EXPR_IDENT)) {
+    target->flags &= ~NODE_CONTAINS_ERROR;
+  }
+
+  if (!value_result) return 0;
   if (!target_result) return 0;
+  if ((node->flags & NODE_CONTAINS_ERROR) && target->typeclass != NULL) return 1;
 
   if (target->typeclass == NULL) {
     target->typeclass = value->typeclass;
@@ -417,6 +421,7 @@ bool typecheck_expression_procedure(FileDebugInfo* debug, AstNode* node) {
 
   for (size_t i = 0; i < arguments->body_length; i++) {
     success &= typecheck_node(debug, &arguments->body[i]);
+    arguments->flags |= (arguments->body[i].flags & NODE_CONTAINS_ERROR);
     node->flags |= (arguments->body[i].flags & NODE_CONTAINS_ERROR);
 
     if (success) {
@@ -427,6 +432,7 @@ bool typecheck_expression_procedure(FileDebugInfo* debug, AstNode* node) {
   }
   for (size_t i = 0; i < returns->body_length; i++) {
     success &= typecheck_node(debug, &returns->body[i]);
+    returns->flags |= (returns->body[i].flags & NODE_CONTAINS_ERROR);
     node->flags |= (returns->body[i].flags & NODE_CONTAINS_ERROR);
 
     if (success) {
@@ -623,6 +629,11 @@ bool typecheck_node(FileDebugInfo* debug, AstNode* node) {
 
 bool perform_typecheck_job(TypecheckJob* job) {
   bool result = typecheck_node(job->debug, job->node);
+
+  // printf("«««««««»»»»»»»\n");
+  // TypecheckJob* x = (TypecheckJob*) job;
+  // print_ast_node_as_tree(x->debug->lines, x->node);
+  // printf("«««««««»»»»»»»\n");
 
   if (result) {
     if (job->node->flags & NODE_CONTAINS_ERROR) {

@@ -1,0 +1,7 @@
+
+
+Error: "Declaration for that identifier was not found"
+In [1;37mtests/errors/003-typechecking/002-undeclared-identifier/002-in-function-call.xxx[0m on line [1;37m3[0m
+
+> [0;36mx := fn(undef)[0m
+  [0;31m        ^^^^^ [0m

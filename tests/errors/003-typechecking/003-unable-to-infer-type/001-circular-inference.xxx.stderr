@@ -1,0 +1,14 @@
+
+
+Error: "Could not infer the type of this variable"
+In [1;37mtests/errors/003-typechecking/003-unable-to-infer-type/001-circular-inference.xxx[0m on line [1;37m1[0m
+
+> [0;36mx := y[0m
+  [0;31m^     [0m
+
+
+Error: "Could not infer the type of this variable"
+In [1;37mtests/errors/003-typechecking/003-unable-to-infer-type/001-circular-inference.xxx[0m on line [1;37m2[0m
+
+> [0;36my := x[0m
+  [0;31m^     [0m

@@ -1,0 +1,3 @@
+fn := (i : int) => { }
+
+x := fn(undef)
