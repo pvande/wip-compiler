@@ -1,0 +1,5 @@
+Error: "Unexpected code in argument list"
+In [1;37mtests/errors/002-parsing/004-expected-end-of-tuple/003-code-blocks/001-unterminated-calls.xxx[0m on line [1;37m2[0m
+
+> [0;36mx := () => { x( }[0m
+  [0;31m                 [0m

@@ -217,7 +217,7 @@ AstNode* _parse_list(ParserState* state,
   {
     Pool* pool = new_pool(sizeof(AstNode), 2, 4);
 
-    while (more(state)) {
+    while (tokens_remain(state) && more(state)) {
       AstNode* node = pool_get(pool);
       parse_node(state, node);
       if (node->flags & NODE_CONTAINS_ERROR) parse_errors += 1;
@@ -245,11 +245,11 @@ AstNode* _parse_list(ParserState* state,
   if (!properly_balanced) {
     // Error recovery
     size_t depth = 1;
-    do {
+    while (tokens_remain(state) && depth > 0) {
       if (peek_op(state, OP_OPEN_PAREN)) depth += 1;
       if (peek_op(state, OP_CLOSE_PAREN)) depth -= 1;
       state->pos += 1;
-    } while (tokens_remain(state) && depth > 0);
+    }
 
     AstNode* error = init_node(pool_get(state->nodes), NODE_RECOVERY);
     error->from = tuple->to;
@@ -605,7 +605,7 @@ AstNode* parse_top_level(ParserState* state) {
   if (!accept_op(state, OP_NEWLINE)) {
     if (node->flags & NODE_CONTAINS_ERROR) {
       // @TODO More robustly seek past the error.
-      while (!peek_op(state, OP_NEWLINE)) state->pos += 1;
+      while (tokens_remain(state) && !peek_op(state, OP_NEWLINE)) state->pos += 1;
     } else {
       AstNode* error = init_node(pool_get(state->nodes), NODE_RECOVERY);
       error->from = token_start(TOKEN);
@@ -641,7 +641,7 @@ bool perform_parse_job(ParseJob* job) {
         pipeline_emit_typecheck_job(job->debug, node);
       }
 
-      // print_ast_node_as_tree(state->data.lines, node);
+      // print_ast_node_as_tree(job->debug->lines, node);
     }
   }
 
