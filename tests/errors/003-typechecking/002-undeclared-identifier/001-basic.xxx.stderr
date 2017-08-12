@@ -1,12 +1,12 @@
 
 
 Error: "Could not infer the type of this variable"
-In [1;37mtests/errors/003-typechecking/002-undeclared-identifier/001-basic.xxx[0m on line [1;37m1[0m
+In [1;37mtests/errors/003-typechecking/002-undeclared-identifier/001-basic.xxx[0m on line [1;37m2[0m
 
 > [0;36mx := y[0m
   [0;31m^     [0m
 Error: "Declaration for that identifier was not found"
-In [1;37mtests/errors/003-typechecking/002-undeclared-identifier/001-basic.xxx[0m on line [1;37m1[0m
+In [1;37mtests/errors/003-typechecking/002-undeclared-identifier/001-basic.xxx[0m on line [1;37m2[0m
 
 > [0;36mx := y[0m
   [0;31m     ^[0m

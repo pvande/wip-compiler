@@ -1,0 +1,7 @@
+
+
+Error: "No overload for that function takes those argument types"
+In [1;37mtests/errors/003-typechecking/004-incompatible-types/006-value-too-large-argument.xxx[0m on line [1;37m2[0m
+
+> [0;36mz := y(256)[0m
+  [0;31m       ^^^ [0m

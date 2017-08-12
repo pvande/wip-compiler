@@ -25,9 +25,16 @@ for test in $(find "$tests/errors" -name "*.xxx" -and -not -type d | sort); do
 
   echo "Running test $test"
 
-  $1 "$test" > "$results/$test.stderr" 2>/dev/null
+  $1 "$test" > "$results/$test.stderr" 2>/dev/null && {
+    echo ""
+    echo "Failed test $test"
+    echo "Compilation was expected to fail, but succeeded."
+    echo "Expected output was:"
+    cat "$test.stderr"
+    exit 1
+  }
+
   # $1 "$test" > "$test.stderr" 2>/dev/null
-  status=$?
 
   diff "$results/$test.stderr" "$test.stderr" || {
     cat "$results/$test.stderr"
