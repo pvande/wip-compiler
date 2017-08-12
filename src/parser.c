@@ -200,7 +200,7 @@ void* init_node(AstNode* node, AstNodeType type) {
   return node;
 }
 
-AstNode* _parse_tuple(ParserState* state,
+AstNode* _parse_list(ParserState* state,
                       String* open_operator,
                       String* close_operator,
                       String* separator,
@@ -482,13 +482,13 @@ AstNode* parse_type(ParserState* state) {
 // TYPE_TUPLE = "(" ")"
 //            | "(" TYPE ("," TYPE)* ")"
 AstNode* parse_type_tuple(ParserState* state) {
-  return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_type, parse_type_node);
+  return _parse_list(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_type, parse_type_node);
 }
 
 // ARGUMENT_DECL_TUPLE = "(" ")"
 //                     | "(" ARGUMENT_DECL ("," ARGUMENT_DECL)* ")"
 AstNode* parse_argument_declaration_tuple(ParserState* state) {
-  AstNode* tuple = _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_declaration, parse_argument_declaration_node);
+  AstNode* tuple = _parse_list(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_declaration, parse_argument_declaration_node);
 
   // We have to do this insane juggling here, because we can't rely on the
   // tuple's pool-allocated node pointers being stable.
@@ -504,14 +504,14 @@ AstNode* parse_argument_declaration_tuple(ParserState* state) {
 // EXPRESSION_TUPLE = "(" ")"
 //                  | "(" EXPRESSION ("," EXPRESSION)* ")"
 AstNode* parse_expression_tuple(ParserState* state) {
-  return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_not_end_of_tuple, parse_expression_node);
+  return _parse_list(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_not_end_of_tuple, parse_expression_node);
 }
 
 // STATEMENT = DECLARATION
 //           | EXPRESSION
 void parse_statement_node(ParserState* state, AstNode* node) {
   if (accept_op(state, OP_NEWLINE)) {
-    assert(0);  // This should always be managed by the _parse_tuple method.
+    assert(0);  // This should always be managed by the _parse_list method.
 
   } else if (test_assignment(state)) {
     parse_assignment_node(state, node);
@@ -528,7 +528,7 @@ void parse_statement_node(ParserState* state, AstNode* node) {
 // CODE_BLOCK = "{" "}"
 //            | "(" STATEMENT ("," STATEMENT)* ")"
 AstNode* parse_code_block(ParserState* state) {
-  AstNode* block = _parse_tuple(state, OP_OPEN_BRACE, OP_CLOSE_BRACE, OP_NEWLINE, test_not_end_of_block, parse_statement_node);
+  AstNode* block = _parse_list(state, OP_OPEN_BRACE, OP_CLOSE_BRACE, OP_NEWLINE, test_not_end_of_block, parse_statement_node);
 
   // We have to do this insane juggling here, because we can't rely on the
   // tuple's pool-allocated node pointers being stable.
