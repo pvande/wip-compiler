@@ -269,7 +269,7 @@ AstNode* _parse_tuple(ParserState* state,
 
 AstNode* parse_type(ParserState* state);
 AstNode* parse_type_tuple(ParserState* state);
-AstNode* parse_declaration_tuple(ParserState* state);
+AstNode* parse_argument_declaration_tuple(ParserState* state);
 AstNode* parse_expression_tuple(ParserState* state);
 AstNode* parse_code_block(ParserState* state);
 AstNode* parse_procedure(ParserState* state);
@@ -302,7 +302,7 @@ void parse_procedure_node(ParserState* state, AstNode* node) {
   // "Push" a new scope onto the stack.
   state->scope = new_parser_scope(state->scope);
 
-  node->lhs = parse_declaration_tuple(state);
+  node->lhs = parse_argument_declaration_tuple(state);
 
   assert(accept_op(state, OP_FUNC_ARROW));
 
@@ -462,6 +462,14 @@ void parse_assignment_node(ParserState* state, AstNode* node) {
   }
 }
 
+void parse_argument_declaration_node(ParserState* state, AstNode* node) {
+  if (test_assignment(state)) {
+    parse_assignment_node(state, node);
+  } else {
+    parse_declaration_node(state, node);
+  }
+}
+
 // TYPE = Identifier
 //      | TYPE_TUPLE "=>" TYPE          @TODO
 //      | TYPE_TUPLE "=>" TYPE_TUPLE    @TODO
@@ -477,10 +485,10 @@ AstNode* parse_type_tuple(ParserState* state) {
   return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_type, parse_type_node);
 }
 
-// DECLARATION_TUPLE = "(" ")"
-//                   | "(" DECLARATION ("," DECLARATION)* ")"
-AstNode* parse_declaration_tuple(ParserState* state) {
-  AstNode* tuple = _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_declaration, parse_declaration_node);
+// ARGUMENT_DECL_TUPLE = "(" ")"
+//                     | "(" ARGUMENT_DECL ("," ARGUMENT_DECL)* ")"
+AstNode* parse_argument_declaration_tuple(ParserState* state) {
+  AstNode* tuple = _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_declaration, parse_argument_declaration_node);
 
   // We have to do this insane juggling here, because we can't rely on the
   // tuple's pool-allocated node pointers being stable.
@@ -494,7 +502,7 @@ AstNode* parse_declaration_tuple(ParserState* state) {
 }
 
 // EXPRESSION_TUPLE = "(" ")"
-//                   | "(" EXPRESSION ("," EXPRESSION)* ")"
+//                  | "(" EXPRESSION ("," EXPRESSION)* ")"
 AstNode* parse_expression_tuple(ParserState* state) {
   return _parse_tuple(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_not_end_of_tuple, parse_expression_node);
 }

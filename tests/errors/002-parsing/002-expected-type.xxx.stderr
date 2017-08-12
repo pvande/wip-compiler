@@ -1,0 +1,5 @@
+Error: "Expected a type"
+In [1;37mtests/errors/002-parsing/002-expected-type.xxx[0m on line [1;37m1[0m
+
+> [0;36mx : 1[0m
+  [0;31m    ^[0m

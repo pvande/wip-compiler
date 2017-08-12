@@ -1,0 +1,5 @@
+Error: "String literal is unterminated"
+In [1;37mtests/errors/001-tokenization/001-unclosed-string-literal.xxx[0m on line [1;37m2[0m
+
+> [0;36mx : string = "This is an unclosed string[0m
+  [0;31m             ^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m

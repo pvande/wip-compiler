@@ -1,0 +1,4 @@
+x := (a : int = 1, b : int = , c : int = 3) => () { }
+
+// @TODO This should yield the same error.
+// x := (a:int=1,b:int=,c:int=3) => () { }

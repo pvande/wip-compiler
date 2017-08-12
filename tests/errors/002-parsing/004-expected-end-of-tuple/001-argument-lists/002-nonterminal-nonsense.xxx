@@ -1,0 +1,1 @@
+x := (a : int, garbage garbage garbage, b : int) => {}

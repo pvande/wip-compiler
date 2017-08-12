@@ -1,4 +1,4 @@
-a := () => () {
-  print("Hi!")
-  print("Bye!")
+a := (_ : string) => () {
+  a("Hi!")
+  a("Bye!")
 }

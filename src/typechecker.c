@@ -1,7 +1,8 @@
 Pool TYPECLASS_POOL;
 Table TYPECLASS_TABLE;
 
-Typeclass TYPECLASS_LITERAL;
+Typeclass TYPECLASS_LITERAL = { -1, 0, &(String) { 11, "«LITERAL»" }, NULL, NULL };
+
 const long long OVERFLOW_S8  = (1 << 7);
 const long long OVERFLOW_U8  = (1 << 8);
 const long long OVERFLOW_S16 = (1 << 15);
@@ -186,6 +187,8 @@ bool typecheck_assignment(FileDebugInfo* debug, AstNode* node) {
     target->flags &= ~NODE_CONTAINS_ERROR;
     target->error = NULL;
 
+    node->typeclass = target->typeclass;
+    node->typekind = target->typekind;
     node->flags &= (value->flags & NODE_CONTAINS_ERROR);
     return 1;
   } else {
@@ -201,6 +204,8 @@ bool typecheck_assignment(FileDebugInfo* debug, AstNode* node) {
       value->typeclass = target->typeclass;
     }
 
+    node->typeclass = target->typeclass;
+    node->typekind = target->typekind;
     return 1;
   }
 }
@@ -420,7 +425,6 @@ bool typecheck_expression_procedure(FileDebugInfo* debug, AstNode* node) {
       list_append(argument_types, arguments->body[i].typeclass);
     }
   }
-
   for (size_t i = 0; i < returns->body_length; i++) {
     success &= typecheck_node(debug, &returns->body[i]);
     node->flags |= (returns->body[i].flags & NODE_CONTAINS_ERROR);

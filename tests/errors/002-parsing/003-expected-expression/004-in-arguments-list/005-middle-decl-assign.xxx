@@ -1,0 +1,4 @@
+x := (a := 1, b := , c := 3) => () { }
+
+// @TODO This should yield the same error.
+// x := (a:=1,b:=,c:=3) => () { }

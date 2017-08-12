@@ -213,7 +213,7 @@ void report_errors(FileDebugInfo* debug, AstNode* node) {
 
     for (int i = 0; i < line->length; i++) line_str[i] = ' ';
     for (int i = node->from.pos; i < node->to.pos; i++) line_str[i] = '^';
-    printf("  %s%s%s\n\n", err, line_str, reset);
+    printf("  %s%s%s\n", err, line_str, reset);
 
     free(filename);
     free(line_str);
@@ -304,7 +304,9 @@ int main(int argc, char** argv) {
       // TypecheckJob* x = (TypecheckJob*) job;
       // print_ast_node_as_tree(x->debug->lines, x->node);
       // printf("«««««««»»»»»»»\n");
+      printf("\n\n");
       report_errors(j->debug, j->node);
+
     } else {
       printf("Unknown job type: %d\n", job->type);
       assert(0);

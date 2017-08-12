@@ -1,0 +1,5 @@
+Error: "Expected an expression"
+In [1;37mtests/errors/002-parsing/003-expected-expression/001-in-assignment.xxx[0m on line [1;37m2[0m
+
+> [0;36mx =[0m
+  [0;31m   ^[0m
