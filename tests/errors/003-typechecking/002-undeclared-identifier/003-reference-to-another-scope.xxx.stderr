@@ -1,0 +1,12 @@
+
+
+Error: "Could not infer the type of this variable"
+In [1;37mtests/errors/003-typechecking/002-undeclared-identifier/003-reference-to-another-scope.xxx[0m on line [1;37m5[0m
+
+> [0;36my := a[0m
+  [0;31m^     [0m
+Error: "Declaration for that identifier was not found"
+In [1;37mtests/errors/003-typechecking/002-undeclared-identifier/003-reference-to-another-scope.xxx[0m on line [1;37m5[0m
+
+> [0;36my := a[0m
+  [0;31m     ^[0m

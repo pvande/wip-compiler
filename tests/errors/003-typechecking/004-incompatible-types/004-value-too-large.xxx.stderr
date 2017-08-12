@@ -1,5 +1,5 @@
 Error: "Cannot assign that argument to that variable; the types don't match"
-In [1;37mtests/errors/003-typechecking/004-incompatible-types/005-value-too-large.xxx[0m on line [1;37m1[0m
+In [1;37mtests/errors/003-typechecking/004-incompatible-types/004-value-too-large.xxx[0m on line [1;37m1[0m
 
 > [0;36my : byte = 256[0m
   [0;31m^^^^^^^^^^^^^^[0m
