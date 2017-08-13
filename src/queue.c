@@ -35,13 +35,13 @@ void queue_add(Queue* queue, void* value) {
 void* queue_pull(Queue* queue) {
   void* ptr = list_get((List*) queue, queue->position);
   queue->position += 1;
-  queue->list.length -= 1;
 
   // If we've emptied a bucket we should rotate them, so that we can avoid
   // unnecessary allocations.
   // @TODO There may be a better way of handling this.
   if (queue->position == queue->list.bucket_size) {
     queue->position = 0;
+    queue->list.length -= queue->list.bucket_size;
     void** empty = queue->list.buckets[0];
 
     size_t bucket_count = queue->list.capacity / queue->list.bucket_size;

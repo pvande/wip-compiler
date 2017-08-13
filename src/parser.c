@@ -624,7 +624,7 @@ AstNode* parse_top_level(ParserState* state) {
   return node;
 }
 
-bool perform_parse_job(ParseJob* job) {
+bool perform_parse_job(Job* job) {
   ParserState* state = new_parser_state(job->tokens);
 
   while (tokens_remain(state)) {
@@ -635,9 +635,9 @@ bool perform_parse_job(ParseJob* job) {
       AstNode* node = parse_top_level(state);
 
       if (node->flags & NODE_CONTAINS_ERROR) {
-        pipeline_emit_abort_job(job->debug, node);
+        pipeline_emit_abort_job(job->ws, job->file, node);
       } else {
-        pipeline_emit_typecheck_job(job->debug, node);
+        pipeline_emit_typecheck_job(job->ws, job->file, node);
       }
 
       // print_ast_node_as_tree(job->debug->lines, node);

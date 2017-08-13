@@ -15,7 +15,9 @@ const char OPERATORS[256 - 32] = {
 
 // @Precondition: file data is never freed.
 // @Precondition: input data is never freed.
-void tokenize_string(String* input, FileDebugInfo* debug, TokenizedFile* result) {
+void tokenize_string(FileInfo* file, TokenizedFile* result) {
+  String* input = file->source;
+
   size_t input_length = input->length;
   Pool* tokens = new_pool(sizeof(Token), 128, 32);
   Pool* lines = new_pool(sizeof(String), 128, 32);
@@ -182,8 +184,8 @@ void tokenize_string(String* input, FileDebugInfo* debug, TokenizedFile* result)
   result->length = tokens->length;
   result->tokens = pool_to_array(tokens);
 
-  debug->length = lines->length;
-  debug->lines = pool_to_array(lines);
+  file->length = lines->length;
+  file->lines = pool_to_array(lines);
 
   free(tokens);
   free(lines);
@@ -215,12 +217,10 @@ void tokenize_string(String* input, FileDebugInfo* debug, TokenizedFile* result)
 }
 
 
-bool perform_lex_job(LexJob* job) {
+bool perform_lex_job(Job* job) {
   TokenizedFile* result = malloc(sizeof(TokenizedFile));
-  FileDebugInfo* debug = malloc(sizeof(FileDebugInfo));
-  debug->filename = job->filename;
 
-  tokenize_string(&job->source, debug, result);
-  pipeline_emit_parse_job(debug, result);
+  tokenize_string(job->file, result);
+  pipeline_emit_parse_job(job->ws, job->file, result);
   return 1;
 }

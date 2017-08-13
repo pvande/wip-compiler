@@ -76,20 +76,20 @@ typedef struct {
 } FileAddress;
 
 typedef struct {
-  String filename;
+  String* filename;
+  String* source;
   String* lines;
-  size_t length;
-} FileDebugInfo;
+  size_t length; // @TODO Rename `line_count`, or box `lines` in an "Array"
+} FileInfo;
 
 typedef struct {
   Token* tokens;
   size_t length;
-
-  FileDebugInfo* debug;
 } TokenizedFile;
 
 
 typedef struct {
+  Queue pipeline;
 } CompilationWorkspace;
 
 typedef struct Scope {
@@ -183,23 +183,28 @@ typedef struct AstNode {
 #include "src/bytecode.c"
 #include "src/codegen.c"
 
-#ifndef TESTING
+DEFINE(Job, SENTINEL, { JOB_SENTINEL });
+void initialize_workspace(CompilationWorkspace* ws) {
+  initialize_queue(&ws->pipeline, 16, 16);
 
-#include <execinfo.h>
-#include <signal.h>
+  // Since we constantly re-enqueue incomplete work, particularly during
+  // typechecking, this sentinel value will allow us to detect unsolvable cycles
+  // and abort cleanly.
+  pipeline_emit(ws, SENTINEL);
+}
 
-void report_errors(FileDebugInfo* debug, AstNode* node) {
+void report_errors(FileInfo* file, AstNode* node) {
   if (!(node->flags & NODE_CONTAINS_ERROR)) return;
 
   if (node->error == NULL) {
-    if (node->flags & NODE_CONTAINS_LHS) report_errors(debug, node->lhs);
-    if (node->flags & NODE_CONTAINS_RHS) report_errors(debug, node->rhs);
-    for (size_t i = 0; i < node->body_length; i++) report_errors(debug, &node->body[i]);
+    if (node->flags & NODE_CONTAINS_LHS) report_errors(file, node->lhs);
+    if (node->flags & NODE_CONTAINS_RHS) report_errors(file, node->rhs);
+    for (size_t i = 0; i < node->body_length; i++) report_errors(file, &node->body[i]);
   } else {
     size_t line_no = node->from.line;
 
-    char* filename = to_zero_terminated_string(&debug->filename);
-    String* line = &debug->lines[line_no];
+    char* filename = to_zero_terminated_string(file->filename);
+    String* line = &file->lines[line_no];
     char* line_str = to_zero_terminated_string(line);
 
     char* bold = "\e[1;37m";
@@ -219,6 +224,88 @@ void report_errors(FileDebugInfo* debug, AstNode* node) {
     free(line_str);
   }
 }
+
+bool begin_compilation(CompilationWorkspace* ws) {
+  initialize_typechecker();  // @TODO Push this into the CompilationWorkspace.
+
+  bool did_work = 1;
+  int reported_errors = 0;
+  while (pipeline_has_jobs(ws)) {
+    Job* job = pipeline_take_job(ws);
+
+    if (job->type == JOB_READ) {
+      did_work |= perform_read_job(job);
+
+    } else if (job->type == JOB_LEX) {
+      did_work |= perform_lex_job(job);
+
+    } else if (job->type == JOB_PARSE) {
+      did_work |= perform_parse_job(job);
+
+    } else if (job->type == JOB_TYPECHECK) {
+      bool result = perform_typecheck_job(job);
+      did_work |= result;
+
+      if (!result) {
+        pipeline_emit(ws, job);
+        continue;
+      }
+
+    } else if (job->type == JOB_OPTIMIZE) {
+      did_work |= perform_optimize_job(job);
+
+    } else if (job->type == JOB_BYTECODE) {
+      did_work |= perform_bytecode_job(job);
+
+    } else if (job->type == JOB_ABORT) {
+      report_errors(job->file, job->node);
+      reported_errors += 1;
+      did_work = 1;
+
+    } else if (job->type == JOB_SENTINEL) {
+      if (!did_work) break;
+      did_work = 0;
+      pipeline_emit(ws, job);
+      continue;
+    }
+
+    free(job);
+  }
+
+  // Drain the remaining pipeline jobs for error reporting.
+  while (pipeline_has_jobs(ws)) {
+    Job* job = pipeline_take_job(ws);
+
+    if (job->type == JOB_SENTINEL) assert(0);
+
+    reported_errors += 1;
+    if (job->type == JOB_TYPECHECK) {
+      // printf("«««««««»»»»»»»\n");
+      // print_ast_node_as_tree(job->file->lines, job->node);
+      // printf("«««««««»»»»»»»\n");
+      printf("\n\n");
+      report_errors(job->file, job->node);
+
+    } else {
+      printf("Unknown job error type: %d\n", job->type);
+      assert(0);
+    }
+
+    free(job);
+  }
+
+  if (reported_errors > 0) {
+    return 0;
+  } else {
+    // @TODO Codegen.
+    return 1;
+  }
+}
+
+#ifndef TESTING
+
+#include <execinfo.h>
+#include <signal.h>
 
 void crashbar(int nSignum, siginfo_t* si, void* vcontext) {
   printf("\nSegmentation fault!\n");
@@ -241,87 +328,15 @@ int main(int argc, char** argv) {
   action.sa_sigaction = crashbar;
   sigaction(SIGSEGV, &action, NULL);
 
-  // @TODO Make the pipeline a part of the CompilationWorkspace.
-  initialize_pipeline();
-  pipeline_emit_read_job((String) { strlen(argv[1]), argv[1] });
+  CompilationWorkspace workspace;
+  initialize_workspace(&workspace);
 
-  initialize_typechecker();
+  pipeline_emit_read_job(&workspace, &(String) { strlen(argv[1]), argv[1] });
 
-  bool did_work = 1;
-  int reported_errors = 0;
-  while (pipeline_has_jobs()) {
-    Job* job = pipeline_take_job();
-
-    if (job->type == JOB_READ) {
-      did_work |= perform_read_job((ReadJob*) job);
-
-    } else if (job->type == JOB_LEX) {
-      did_work |= perform_lex_job((LexJob*) job);
-
-    } else if (job->type == JOB_PARSE) {
-      did_work |= perform_parse_job((ParseJob*) job);
-
-    } else if (job->type == JOB_TYPECHECK) {
-      bool result = perform_typecheck_job((TypecheckJob*) job);
-      did_work |= result;
-
-      if (!result) {
-        pipeline_emit(job);
-        continue;
-      }
-
-    } else if (job->type == JOB_OPTIMIZE) {
-      did_work |= perform_optimize_job((OptimizeJob*) job);
-
-    } else if (job->type == JOB_BYTECODE) {
-      did_work |= perform_bytecode_job((BytecodeJob*) job);
-
-    } else if (job->type == JOB_ABORT) {
-      AbortJob* j = (AbortJob*) job;
-      report_errors(j->debug, j->node);
-      reported_errors += 1;
-      did_work = 1;
-
-    } else if (job->type == JOB_SENTINEL) {
-      if (!did_work) break;
-      did_work = 0;
-      pipeline_emit(job);
-      continue;
-    }
-
-    free(job);
-  }
-
-  // Drain the remaining pipeline jobs for error reporting.
-  while (pipeline_has_jobs()) {
-    Job* job = pipeline_take_job();
-    if (job->type == JOB_SENTINEL) continue;
-
-    reported_errors += 1;
-    if (job->type == JOB_TYPECHECK) {
-      TypecheckJob* j = (TypecheckJob*) job;
-      // printf("«««««««»»»»»»»\n");
-      // TypecheckJob* x = (TypecheckJob*) job;
-      // print_ast_node_as_tree(x->debug->lines, x->node);
-      // printf("«««««««»»»»»»»\n");
-      printf("\n\n");
-      report_errors(j->debug, j->node);
-
-    } else {
-      printf("Unknown job type: %d\n", job->type);
-      assert(0);
-    }
-
-    free(job);
-  }
-
-  if (reported_errors > 0) {
-    fprintf(stderr, "Unable to compile %s.\n", argv[1]);
-    return 1;
-  } else {
-    // @TODO Codegen.
+  if (begin_compilation(&workspace)) {
     fprintf(stderr, "Compiled %s.\n", argv[1]);
-    return 0;
+  } else {
+    fprintf(stderr, "Unable to compile %s.\n", argv[1]);
   }
 }
 

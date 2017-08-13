@@ -128,10 +128,10 @@ bool typecheck_can_coerce(Typeclass* from, Typekind kind, Typeclass* to) {
 
 // ** Typechecking ** //
 
-bool typecheck_node(FileDebugInfo* debug, AstNode* node);
+bool typecheck_node(Job* job, AstNode* node);
 
 
-bool typecheck_type(FileDebugInfo* debug, AstNode* node) {
+bool typecheck_type(Job* job, AstNode* node) {
   Typeclass* type = _get_type(&node->source);
 
   if (type == NULL) {
@@ -144,7 +144,7 @@ bool typecheck_type(FileDebugInfo* debug, AstNode* node) {
   return 1;
 }
 
-bool typecheck_declaration(FileDebugInfo* debug, AstNode* node) {
+bool typecheck_declaration(Job* job, AstNode* node) {
   AstNode* type = node->rhs;
 
   // This is the basic deferred type inference case.
@@ -154,7 +154,7 @@ bool typecheck_declaration(FileDebugInfo* debug, AstNode* node) {
     return 1;
   }
 
-  bool result = typecheck_node(debug, type);
+  bool result = typecheck_node(job, type);
 
   node->typeclass = type->typeclass;
   if (node->typeclass == NULL) {
@@ -165,15 +165,15 @@ bool typecheck_declaration(FileDebugInfo* debug, AstNode* node) {
   return result;
 }
 
-bool typecheck_assignment(FileDebugInfo* debug, AstNode* node) {
+bool typecheck_assignment(Job* job, AstNode* node) {
   AstNode* target = node->lhs;
   AstNode* value = node->rhs;
 
   assert(target != NULL);
   assert(value != NULL);
 
-  bool value_result = typecheck_node(debug, value);
-  bool target_result = typecheck_node(debug, target);
+  bool value_result = typecheck_node(job, value);
+  bool target_result = typecheck_node(job, target);
 
   node->flags |= (value->flags & NODE_CONTAINS_ERROR);
   node->flags |= (target->flags & NODE_CONTAINS_ERROR);
@@ -214,7 +214,7 @@ bool typecheck_assignment(FileDebugInfo* debug, AstNode* node) {
   }
 }
 
-bool typecheck_expression_identifier(FileDebugInfo* debug, AstNode* node) {
+bool typecheck_expression_identifier(Job* job, AstNode* node) {
   AstNode* decl = _find_identifier(node->scope, node->ident);
 
   if (decl == NULL) {
@@ -271,7 +271,7 @@ void _type_literal_number_value(AstNode* node) {
   }
 }
 
-bool typecheck_expression_literal_decimal(FileDebugInfo* debug, AstNode* node) {
+bool typecheck_expression_literal_decimal(Job* job, AstNode* node) {
   node->int_value = 0;
 
   for (int i = 0; i < node->source.length; i++) {
@@ -287,7 +287,7 @@ bool typecheck_expression_literal_decimal(FileDebugInfo* debug, AstNode* node) {
   return 1;
 }
 
-bool typecheck_expression_literal_hex(FileDebugInfo* debug, AstNode* node) {
+bool typecheck_expression_literal_hex(Job* job, AstNode* node) {
   node->int_value = 0;
 
   assert(node->source.data[0] == '0');
@@ -312,7 +312,7 @@ bool typecheck_expression_literal_hex(FileDebugInfo* debug, AstNode* node) {
   return 1;
 }
 
-bool typecheck_expression_literal_binary(FileDebugInfo* debug, AstNode* node) {
+bool typecheck_expression_literal_binary(Job* job, AstNode* node) {
   node->int_value = 0;
 
   assert(node->source.data[0] == '0');
@@ -331,7 +331,7 @@ bool typecheck_expression_literal_binary(FileDebugInfo* debug, AstNode* node) {
   return 1;
 }
 
-bool typecheck_expression_literal_fractional(FileDebugInfo* debug, AstNode* node) {
+bool typecheck_expression_literal_fractional(Job* job, AstNode* node) {
   node->double_value = strtod(to_zero_terminated_string(&node->source), NULL);
 
   node->typeclass = _get_type(STR_FLOAT);
@@ -340,7 +340,7 @@ bool typecheck_expression_literal_fractional(FileDebugInfo* debug, AstNode* node
   return 1;
 }
 
-bool typecheck_expression_literal_string(FileDebugInfo* debug, AstNode* node) {
+bool typecheck_expression_literal_string(Job* job, AstNode* node) {
   String* str = malloc(sizeof(String));
   str->data = malloc(node->source.length * sizeof(char));
 
@@ -386,17 +386,17 @@ bool typecheck_expression_literal_string(FileDebugInfo* debug, AstNode* node) {
   return 1;
 }
 
-bool typecheck_expression_literal(FileDebugInfo* debug, AstNode* node) {
+bool typecheck_expression_literal(Job* job, AstNode* node) {
   if (node->flags & IS_DECIMAL_LITERAL) {
-    return typecheck_expression_literal_decimal(debug, node);
+    return typecheck_expression_literal_decimal(job, node);
   } else if (node->flags & IS_HEX_LITERAL) {
-    return typecheck_expression_literal_hex(debug, node);
+    return typecheck_expression_literal_hex(job, node);
   } else if (node->flags & IS_BINARY_LITERAL) {
-    return typecheck_expression_literal_binary(debug, node);
+    return typecheck_expression_literal_binary(job, node);
   } else if (node->flags & IS_FRACTIONAL_LITERAL) {
-    return typecheck_expression_literal_fractional(debug, node);
+    return typecheck_expression_literal_fractional(job, node);
   } else if (node->flags & IS_STRING_LITERAL) {
-    return typecheck_expression_literal_string(debug, node);
+    return typecheck_expression_literal_string(job, node);
   } else {
     node->flags |= NODE_CONTAINS_ERROR;
     node->error = ERR_UNHANDLED_LITERAL_TYPE;
@@ -404,7 +404,7 @@ bool typecheck_expression_literal(FileDebugInfo* debug, AstNode* node) {
   }
 }
 
-bool typecheck_expression_procedure(FileDebugInfo* debug, AstNode* node) {
+bool typecheck_expression_procedure(Job* job, AstNode* node) {
   AstNode* arguments = node->lhs;
   AstNode* returns = node->rhs;
 
@@ -420,7 +420,7 @@ bool typecheck_expression_procedure(FileDebugInfo* debug, AstNode* node) {
   size_t typestring_length = 8;  // "() => ()"
 
   for (size_t i = 0; i < arguments->body_length; i++) {
-    success &= typecheck_node(debug, &arguments->body[i]);
+    success &= typecheck_node(job, &arguments->body[i]);
     arguments->flags |= (arguments->body[i].flags & NODE_CONTAINS_ERROR);
     node->flags |= (arguments->body[i].flags & NODE_CONTAINS_ERROR);
 
@@ -431,7 +431,7 @@ bool typecheck_expression_procedure(FileDebugInfo* debug, AstNode* node) {
     }
   }
   for (size_t i = 0; i < returns->body_length; i++) {
-    success &= typecheck_node(debug, &returns->body[i]);
+    success &= typecheck_node(job, &returns->body[i]);
     returns->flags |= (returns->body[i].flags & NODE_CONTAINS_ERROR);
     node->flags |= (returns->body[i].flags & NODE_CONTAINS_ERROR);
 
@@ -443,7 +443,7 @@ bool typecheck_expression_procedure(FileDebugInfo* debug, AstNode* node) {
   }
 
   if (success) {
-    pipeline_emit_typecheck_job(debug, node->body);
+    pipeline_emit_typecheck_job(job->ws, job->file, node->body);
 
     char* _name = malloc(typestring_length * sizeof(char));
     char* pos = _name + 1;
@@ -506,7 +506,7 @@ bool typecheck_expression_procedure(FileDebugInfo* debug, AstNode* node) {
   return success;
 }
 
-bool typecheck_expression_call(FileDebugInfo* debug, AstNode* node) {
+bool typecheck_expression_call(Job* job, AstNode* node) {
   AstNode* decl = _find_identifier(node->scope, node->ident);
 
   if (decl == NULL) {
@@ -528,7 +528,7 @@ bool typecheck_expression_call(FileDebugInfo* debug, AstNode* node) {
   for (size_t i = 0; i < node->rhs->body_length; i++) {
     AstNode* arg = &node->rhs->body[i];
 
-    success &= typecheck_node(debug, arg);
+    success &= typecheck_node(job, arg);
     node->rhs->flags |= (arg->flags & NODE_CONTAINS_ERROR);
   }
   node->flags |= (node->rhs->flags & NODE_CONTAINS_ERROR);
@@ -563,15 +563,15 @@ bool typecheck_expression_call(FileDebugInfo* debug, AstNode* node) {
   return 1;
 }
 
-bool typecheck_expression(FileDebugInfo* debug, AstNode* node) {
+bool typecheck_expression(Job* job, AstNode* node) {
   if (node->flags & EXPR_IDENT) {
-    return typecheck_expression_identifier(debug, node);
+    return typecheck_expression_identifier(job, node);
   } else if (node->flags & EXPR_LITERAL) {
-    return typecheck_expression_literal(debug, node);
+    return typecheck_expression_literal(job, node);
   } else if (node->flags & EXPR_PROCEDURE) {
-    return typecheck_expression_procedure(debug, node);
+    return typecheck_expression_procedure(job, node);
   } else if (node->flags & EXPR_CALL) {
-    return typecheck_expression_call(debug, node);
+    return typecheck_expression_call(job, node);
   } else {
     node->flags |= NODE_CONTAINS_ERROR;
     node->error = ERR_UNHANDLED_EXPRESSION_TYPE;
@@ -579,12 +579,12 @@ bool typecheck_expression(FileDebugInfo* debug, AstNode* node) {
   }
 }
 
-bool typecheck_compound(FileDebugInfo* debug, AstNode* node) {
+bool typecheck_compound(Job* job, AstNode* node) {
   bool result = 1;
 
   for (size_t i = 0; i < node->body_length; i++) {
     AstNode* child = &node->body[i];
-    result &= typecheck_node(debug, child);
+    result &= typecheck_node(job, child);
     node->flags |= (child->flags & NODE_CONTAINS_ERROR);
   }
 
@@ -595,7 +595,7 @@ bool typecheck_compound(FileDebugInfo* debug, AstNode* node) {
   return result;
 }
 
-bool typecheck_node(FileDebugInfo* debug, AstNode* node) {
+bool typecheck_node(Job* job, AstNode* node) {
   node->flags &= ~NODE_CONTAINS_ERROR;
   if (node->typeclass != NULL) return 1;
   bool result;
@@ -603,19 +603,19 @@ bool typecheck_node(FileDebugInfo* debug, AstNode* node) {
   // printf("typecheck_node -> "); inspect_ast_node(node); printf("\n");
   switch (node->type) {
     case NODE_TYPE:
-      result = typecheck_type(debug, node);
+      result = typecheck_type(job, node);
       break;
     case NODE_DECLARATION:
-      result = typecheck_declaration(debug, node);
+      result = typecheck_declaration(job, node);
       break;
     case NODE_ASSIGNMENT:
-      result = typecheck_assignment(debug, node);
+      result = typecheck_assignment(job, node);
       break;
     case NODE_EXPRESSION:
-      result = typecheck_expression(debug, node);
+      result = typecheck_expression(job, node);
       break;
     case NODE_COMPOUND:
-      result = typecheck_compound(debug, node);
+      result = typecheck_compound(job, node);
       break;
     default:
       node->flags |= NODE_CONTAINS_ERROR;
@@ -627,19 +627,18 @@ bool typecheck_node(FileDebugInfo* debug, AstNode* node) {
   return result;
 }
 
-bool perform_typecheck_job(TypecheckJob* job) {
-  bool result = typecheck_node(job->debug, job->node);
+bool perform_typecheck_job(Job* job) {
+  bool result = typecheck_node(job, job->node);
 
   // printf("«««««««»»»»»»»\n");
-  // TypecheckJob* x = (TypecheckJob*) job;
-  // print_ast_node_as_tree(x->debug->lines, x->node);
+  // print_ast_node_as_tree(job->file->lines, job->node);
   // printf("«««««««»»»»»»»\n");
 
   if (result) {
     if (job->node->flags & NODE_CONTAINS_ERROR) {
-      pipeline_emit_abort_job(job->debug, job->node);
+      pipeline_emit_abort_job(job->ws, job->file, job->node);
     } else {
-      pipeline_emit_optimize_job(job->debug, job->node);
+      pipeline_emit_optimize_job(job->ws, job->file, job->node);
     }
   }
 
