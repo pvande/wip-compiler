@@ -375,6 +375,42 @@ void print_ast_node_as_dot(String* lines, AstNode* node) {
   }
 }
 
+void print_ast_node_as_sexpr(String* lines, AstNode* node, int indent) {
+  for (int i = 0; i < indent; i++) printf("  ");
+  printf("(%s", _ast_node_type(node));
+  if (node->flags & NODE_CONTAINS_IDENT) {
+    printf(" ");
+    print_symbol(node->ident);
+  }
+  if (node->flags & NODE_CONTAINS_SOURCE) {
+    printf(" ");
+    print_string(&node->source);
+  }
+  if (node->flags & NODE_CONTAINS_LHS) {
+    printf("\n");
+    print_ast_node_as_sexpr(lines, node->lhs, indent + 1);
+  }
+  if (node->flags & NODE_CONTAINS_RHS) {
+    printf("\n");
+    print_ast_node_as_sexpr(lines, node->rhs, indent + 1);
+  }
+  if (node->body_length) {
+    printf("\n");
+    for (int i = 0; i < indent; i++) printf("  ");
+    printf("{");
+
+    for (size_t i = 0; i < node->body_length; i++) {
+      printf("\n");
+      print_ast_node_as_sexpr(lines, &node->body[i], indent + 1);
+    }
+
+    printf("\n");
+    for (int i = 0; i < indent; i++) printf("  ");
+    printf("}");
+  }
+  printf(")");
+}
+
 void print_declaration_list_as_tree(String* lines, List* nodes) {
   for (size_t i = 0; i < nodes->length; i++) {
     AstNode* node = list_get(nodes, i);
@@ -391,6 +427,16 @@ void print_declaration_list_as_dot(String* lines, List* nodes) {
     printf("\n");
   }
   printf("}\n");
+}
+
+void print_declaration_list_as_sexpr(String* lines, List* nodes) {
+  printf("(\n");
+  for (size_t i = 0; i < nodes->length; i++) {
+    AstNode* node = list_get(nodes, i);
+    print_ast_node_as_sexpr(lines, node, 1);
+    printf("\n");
+  }
+  printf(")\n");
 }
 
 void print_typeclass(Typeclass* type) {
