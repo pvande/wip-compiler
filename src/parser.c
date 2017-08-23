@@ -283,6 +283,7 @@ void parse_type_node(ParserState* state, AstNode* node) {
   node->from = token_start(TOKEN);
 
   if (accept(state, TOKEN_IDENTIFIER)) {
+    node->flags |= NODE_CONTAINS_SOURCE;
     node->source = ACCEPTED.source;
     node->to = token_end(ACCEPTED);
   } else {
@@ -352,9 +353,10 @@ void parse_declaration_node(ParserState* state, AstNode* node) {
 
   node->from = token_start(TOKEN);
 
-  // `test_nodearation` should be guaranteeing a usable identifier here.
+  // `test_declaration` should be guaranteeing a usable identifier here.
   assert(accept(state, TOKEN_IDENTIFIER));
   node->ident = symbol_get(&ACCEPTED.source);
+  node->flags |= NODE_CONTAINS_IDENT;
 
   if (accept_op(state, OP_DECLARE)) {
     node->rhs = parse_type(state);
@@ -376,7 +378,7 @@ void parse_expression_node(ParserState* state, AstNode* node) {
 
   if (accept(state, TOKEN_LITERAL)) {
     // @TODO Extract this?
-    node->flags = EXPR_LITERAL | ACCEPTED.literal_type;
+    node->flags = EXPR_LITERAL | ACCEPTED.literal_type | NODE_CONTAINS_SOURCE;
     node->from = token_start(ACCEPTED);
     node->to = token_end(ACCEPTED);
     node->source = ACCEPTED.source;
@@ -406,6 +408,7 @@ void parse_expression_node(ParserState* state, AstNode* node) {
       node->rhs = arguments;
       node->scope = state->scope;
       node->flags |= (node->rhs->flags & NODE_CONTAINS_ERROR);
+      node->flags |= NODE_CONTAINS_IDENT;
       node->flags |= NODE_CONTAINS_RHS;
 
     } else {
@@ -414,6 +417,7 @@ void parse_expression_node(ParserState* state, AstNode* node) {
       node->to = token_end(ACCEPTED);
       node->ident = name;
       node->scope = state->scope;
+      node->flags |= NODE_CONTAINS_IDENT;
     }
 
   } else if (test_procedure(state)) {
@@ -640,11 +644,13 @@ bool perform_parse_job(Job* job) {
         pipeline_emit_typecheck_job(job->ws, job->file, node);
       }
 
-      // print_ast_node_as_tree(job->debug->lines, node);
+      // print_ast_node_as_sexpr(job->file->lines, node, 0); printf("\n");
+      // print_ast_node_as_tree(job->file->lines, node);
     }
   }
 
-  // print_declaration_list_as_tree(state->data.lines, state->scope->declarations);
+  // print_declaration_list_as_sexpr(job->file->lines, state->scope->declarations);
+  // print_declaration_list_as_tree(job->file->lines, state->scope->declarations);
 
   return 1;
 }
