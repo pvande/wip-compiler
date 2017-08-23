@@ -17,7 +17,7 @@ Symbol symbol_get(String* text) {
     String* copy = malloc(sizeof(String));
     memcpy(copy, text, sizeof(String));
 
-    id = list_append(__symbol_lookup, copy);
+    id = list_append(__symbol_lookup, copy) + 1;
     table_add(__symbol_table, copy, (void*) id);
   }
 

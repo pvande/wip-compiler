@@ -62,7 +62,7 @@ size_t list_append(List* list, void* value) {
 
   list->length += 1;
   list->buckets[bucket][bucket_idx] = value;
-  return list->length;
+  return list->length - 1;
 }
 
 void free_list(List* list) {
