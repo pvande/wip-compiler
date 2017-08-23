@@ -257,7 +257,13 @@ bool begin_compilation(CompilationWorkspace* ws) {
       did_work |= perform_optimize_job(job);
 
     } else if (job->type == JOB_BYTECODE) {
-      did_work |= perform_bytecode_job(job);
+      bool result = perform_bytecode_job(job);
+      did_work |= result;
+
+      if (!result) {
+        pipeline_emit(ws, job);
+        continue;
+      }
 
     } else if (job->type == JOB_ABORT) {
       report_errors(job->file, job->node);
@@ -285,6 +291,13 @@ bool begin_compilation(CompilationWorkspace* ws) {
       // printf("«««««««»»»»»»»\n");
       // print_ast_node_as_tree(job->file->lines, job->node);
       // printf("«««««««»»»»»»»\n");
+      printf("\n\n");
+      report_errors(job->file, job->node);
+
+    } else if (job->type == JOB_BYTECODE) {
+      printf("«««««««»»»»»»»\n");
+      print_ast_node_as_tree(job->file->lines, job->node);
+      printf("«««««««»»»»»»»\n");
       printf("\n\n");
       report_errors(job->file, job->node);
 
@@ -337,8 +350,10 @@ int main(int argc, char** argv) {
 
   if (begin_compilation(&workspace)) {
     fprintf(stderr, "Compiled %s.\n", argv[1]);
+    return 0;
   } else {
     fprintf(stderr, "Unable to compile %s.\n", argv[1]);
+    return 1;
   }
 }
 
