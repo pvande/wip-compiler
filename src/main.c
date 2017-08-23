@@ -22,6 +22,8 @@
 
 // ** Constant Strings ** //
 
+DEFINE_STR(DEFAULT_ENTRY_POINT, "main");
+
 DEFINE_STR(STR_VOID,   "void");
 DEFINE_STR(STR_BOOL,   "bool");
 DEFINE_STR(STR_BYTE,   "byte");
@@ -90,6 +92,8 @@ typedef struct {
 
 typedef struct {
   Queue pipeline;
+  Pool preload;
+  List bytecode;
 } CompilationWorkspace;
 
 typedef struct Scope {
@@ -148,6 +152,7 @@ typedef struct AstNode {
   AstNodeType type;
   AstNodeFlags flags;         // 0
   size_t id;                  // Serial number
+  size_t bytecode_id;         // Serial number
 
   FileAddress from;           // ---
   FileAddress to;             // ---
@@ -188,11 +193,14 @@ typedef struct AstNode {
 DEFINE(Job, SENTINEL, { JOB_SENTINEL });
 void initialize_workspace(CompilationWorkspace* ws) {
   initialize_queue(&ws->pipeline, 16, 16);
+  initialize_pool(&ws->preload, sizeof(size_t), 16, 64);
+  initialize_list(&ws->bytecode, 16, 64);
 
   // Since we constantly re-enqueue incomplete work, particularly during
   // typechecking, this sentinel value will allow us to detect unsolvable cycles
   // and abort cleanly.
   pipeline_emit(ws, SENTINEL);
+
 }
 
 void report_errors(FileInfo* file, AstNode* node) {

@@ -189,6 +189,7 @@ void* init_node(AstNode* node, AstNodeType type) {
   node->type = type;
   node->flags = 0;
   node->id = serial++;
+  node->bytecode_id = -1;
   node->to.line = -1;
   node->to.pos = -1;
   node->body_length = 0;
