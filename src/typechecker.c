@@ -554,6 +554,7 @@ bool typecheck_expression_call(Job* job, AstNode* node) {
     }
   }
 
+  node->pointer_value = decl;
   if (decl->typeclass->to->length > 0) {
     node->typeclass = list_get(decl->typeclass->to, 0);
   } else {
