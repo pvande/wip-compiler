@@ -178,6 +178,16 @@ typedef struct AstNode {
   String* error;              // NULL
 } AstNode;
 
+
+enum BytecodeInstructions {
+  BC_EXIT,
+  BC_LOAD,
+  BC_STORE,
+  BC_PUSH,
+  BC_CALL,
+};
+
+
 #include "src/debug.c"
 
 #include "src/pipeline.c"

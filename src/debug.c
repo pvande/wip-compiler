@@ -450,3 +450,30 @@ void print_typeclass(Typeclass* type) {
   print_string(type->name);
   printf(">");
 }
+
+void print_bytecode(size_t* bytecode) {
+  switch (bytecode[0]) {
+    case BC_EXIT:
+      printf("EXIT\n");
+      break;
+    case BC_LOAD:
+      printf("LOAD %p\n", (void*) bytecode[1]);
+      print_bytecode(bytecode + 2);
+      break;
+    case BC_STORE:
+      printf("STORE %p\n", (void*) bytecode[1]);
+      print_bytecode(bytecode + 2);
+      break;
+    case BC_PUSH:
+      printf("PUSH %zu\n", (size_t) bytecode[1]);
+      print_bytecode(bytecode + 2);
+      break;
+    case BC_CALL:
+      printf("CALL %p\n", (void*) bytecode[1]);
+      print_bytecode(bytecode + 2);
+      break;
+    default:
+      printf("««%zu»»\n", bytecode[0]);
+      assert(0);
+  }
+}
