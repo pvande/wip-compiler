@@ -6,6 +6,7 @@ typedef enum {
   JOB_TYPECHECK,
   JOB_OPTIMIZE,
   JOB_BYTECODE,
+  JOB_EXECUTE,
   JOB_ABORT,
 } JobType;
 
@@ -17,6 +18,7 @@ typedef struct {
     TokenizedFile* tokens;
     AstNode* node;
     String* source;
+    VmState* vm_state;
   };
 } Job;
 
@@ -96,6 +98,16 @@ void pipeline_emit_bytecode_job(CompilationWorkspace* ws, FileInfo* file, AstNod
   job->ws = ws;
   job->file = file;
   job->node = node;
+
+  pipeline_emit(ws, job);
+}
+
+void pipeline_emit_execute_job(CompilationWorkspace* ws, VmState* state) {
+  // @Lazy We should use a pool allocator.
+  Job* job = malloc(sizeof(Job));
+  job->type = JOB_EXECUTE;
+  job->ws = ws;
+  job->vm_state = state;
 
   pipeline_emit(ws, job);
 }

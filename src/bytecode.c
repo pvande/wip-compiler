@@ -143,6 +143,21 @@ bool bytecode_handle_top_level_node(CompilationWorkspace* ws, AstNode* node) {
 
     bool result = bytecode_handle_node(instructions, node);
 
+    if (result) {
+      if (decl->ident == ws->entry) {
+        // @Lazy This assumes that the rhs is a procedure!
+        ws->entry_id = value->body[0].bytecode_id;
+
+        // @Hack Automatically running "main" in the interpreter.
+        VmState* state = malloc(sizeof(VmState));
+        state->id = ws->entry_id;
+        state->fp = -1;
+        state->sp = 0;
+        state->ip = 0;
+        pipeline_emit_execute_job(ws, state);
+      }
+    }
+
     return result;
 
   } else if (node->type == NODE_COMPOUND) {

@@ -92,6 +92,8 @@ typedef struct {
 
 typedef struct {
   Queue pipeline;
+  Symbol entry;
+  size_t entry_id;
   Pool preload;
   List bytecode;
 } CompilationWorkspace;
@@ -189,6 +191,16 @@ enum BytecodeInstructions {
 };
 
 
+
+typedef struct {
+  size_t id;
+  size_t ip;
+  size_t sp;
+  size_t fp;
+
+  size_t stack[512];
+} VmState;
+
 #include "src/debug.c"
 
 #include "src/pipeline.c"
@@ -200,6 +212,7 @@ enum BytecodeInstructions {
 #include "src/optimizer.c"
 #include "src/bytecode.c"
 #include "src/codegen.c"
+#include "src/interpreter.c"
 
 DEFINE(Job, SENTINEL, { JOB_SENTINEL });
 void initialize_workspace(CompilationWorkspace* ws) {
@@ -212,6 +225,7 @@ void initialize_workspace(CompilationWorkspace* ws) {
   // and abort cleanly.
   pipeline_emit(ws, SENTINEL);
 
+  ws->entry = symbol_get(DEFAULT_ENTRY_POINT);
 }
 
 void report_errors(FileInfo* file, AstNode* node) {
@@ -283,6 +297,9 @@ bool begin_compilation(CompilationWorkspace* ws) {
         pipeline_emit(ws, job);
         continue;
       }
+
+    } else if (job->type == JOB_EXECUTE) {
+      did_work |= perform_execute_job(job);
 
     } else if (job->type == JOB_ABORT) {
       report_errors(job->file, job->node);
