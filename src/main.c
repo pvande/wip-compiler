@@ -173,6 +173,7 @@ typedef struct AstNode {
     unsigned long long int_value;
     double double_value;
     void* pointer_value;
+    struct AstNode* declaration;
   };
 
   String* error;              // NULL

@@ -1,8 +1,8 @@
 #define EMIT(V)     (*((size_t*) pool_get(instructions)) = V)
-#define LOAD(A)     do { EMIT(BC_LOAD); EMIT((size_t) A); } while (0);
-#define STORE(A)    do { EMIT(BC_STORE); EMIT((size_t) A); } while (0);
+#define LOAD(DECL)  do { EMIT(BC_LOAD); EMIT(DECL->id); } while (0);
+#define STORE(DECL) do { EMIT(BC_STORE); EMIT(DECL->id); } while (0);
 #define PUSH(V)     do { EMIT(BC_PUSH); EMIT(V); } while (0);
-#define CALL(DECL)  do { EMIT(BC_CALL); EMIT((size_t) ((AstNode*) DECL)->pointer_value); } while (0);
+#define CALL(DECL)  do { EMIT(BC_CALL); EMIT(DECL->id); } while (0);
 
 bool bytecode_handle_node(Pool* instructions, AstNode* node);
 
@@ -12,15 +12,21 @@ bool bytecode_handle_declaration(Pool* instructions, AstNode* node) {
 }
 
 bool bytecode_handle_assignment(Pool* instructions, AstNode* node) {
-  bool result = bytecode_handle_node(instructions, node->rhs);
+  AstNode* decl = node->lhs;
+  AstNode* value = node->rhs;
 
-  if (result) STORE(node->lhs->pointer_value);
+  bool result = bytecode_handle_node(instructions, value);
+
+  if (result) STORE(decl);
 
   return result;
 }
 
 bool bytecode_handle_expression_identifier(Pool* instructions, AstNode* node) {
-  LOAD((size_t) node->pointer_value);
+  AstNode* decl = node->declaration;
+
+  LOAD(decl);
+
   return 1;
 }
 
@@ -58,14 +64,17 @@ bool bytecode_handle_expression_procedure(Pool* instructions, AstNode* node) {
 }
 
 bool bytecode_handle_expression_call(Pool* instructions, AstNode* node) {
+  AstNode* decl = node->declaration;
+  AstNode* args = node->rhs;
+
   bool result = 1;
 
-  for (size_t i = 0; i < node->rhs->body_length; i++) {
-    result &= bytecode_handle_node(instructions, &node->rhs->body[node->rhs->body_length - i - 1]);
+  for (size_t i = 0; i < args->body_length; i++) {
+    result &= bytecode_handle_node(instructions, &args->body[args->body_length - i - 1]);
     if (!result) break;
   }
 
-  if (result) CALL(node->pointer_value);
+  if (result) CALL(decl);
 
   return result;
 }
@@ -93,6 +102,7 @@ bool bytecode_handle_compound(Pool* instructions, AstNode* node) {
     if (!result) break;
   }
 
+  // @TODO This doesn't apply to every COMPOUND node.
   if (result) EMIT(BC_EXIT);
 
   return result;
@@ -126,12 +136,12 @@ bool bytecode_handle_node(Pool* instructions, AstNode* node) {
 
 bool bytecode_handle_top_level_node(CompilationWorkspace* ws, AstNode* node) {
   if (node->type == NODE_ASSIGNMENT) {
+    AstNode* decl = node->lhs;
+    AstNode* value = node->rhs;
+
     Pool* instructions = &ws->preload;
 
-    // @Leak If we re-process this node, we reallocate storage for it.
-    node->lhs->pointer_value = malloc(node->lhs->typeclass->size);
-
-    bool result =  bytecode_handle_node(instructions, node);
+    bool result = bytecode_handle_node(instructions, node);
 
     return result;
 

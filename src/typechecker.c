@@ -227,6 +227,7 @@ bool typecheck_expression_identifier(Job* job, AstNode* node) {
 
   if (decl->typeclass == NULL) return 0;
 
+  node->declaration = decl;
   node->typeclass = decl->typeclass;
   return 1;
 }
@@ -554,7 +555,7 @@ bool typecheck_expression_call(Job* job, AstNode* node) {
     }
   }
 
-  node->pointer_value = decl;
+  node->declaration = decl;
   if (decl->typeclass->to->length > 0) {
     node->typeclass = list_get(decl->typeclass->to, 0);
   } else {
