@@ -189,6 +189,8 @@ enum BytecodeInstructions {
   BC_STORE,
   BC_PUSH,
   BC_CALL,
+
+  BC_PRINT,
 };
 
 
@@ -215,6 +217,26 @@ typedef struct {
 #include "src/codegen.c"
 #include "src/interpreter.c"
 
+DEFINE_STR(TYPE_U8_TO_VOID, "(u8) => ()");
+DEFINE_STR(BI_PUTC, "putc");
+void populate_builtins(CompilationWorkspace* ws) {
+  AstNode* putc_node = calloc(1, sizeof(AstNode));
+  size_t* putc_bytecode = malloc(2 * sizeof(size_t));
+  putc_bytecode[0] = BC_PRINT;
+  putc_bytecode[1] = BC_EXIT;
+
+  putc_node->id = -1;
+  putc_node->bytecode_id = list_append(&ws->bytecode, putc_bytecode);
+  putc_node->type = NODE_DECLARATION;
+  putc_node->ident = symbol_get(BI_PUTC);
+  putc_node->typeclass = _new_type(TYPE_U8_TO_VOID, 64);
+  putc_node->typeclass->from = new_list(1, 1);
+  putc_node->typeclass->to = new_list(1, 0);
+
+  list_append(putc_node->typeclass->from, _get_type(STR_U8));
+  list_append(ws->global_scope.declarations, putc_node);
+}
+
 DEFINE(Job, SENTINEL, { JOB_SENTINEL });
 void initialize_workspace(CompilationWorkspace* ws) {
   initialize_queue(&ws->pipeline, 16, 16);
@@ -223,6 +245,8 @@ void initialize_workspace(CompilationWorkspace* ws) {
 
   ws->global_scope.parent = NULL;
   ws->global_scope.declarations = new_list(1, 16);
+
+  populate_builtins(ws);
 
   // Since we constantly re-enqueue incomplete work, particularly during
   // typechecking, this sentinel value will allow us to detect unsolvable cycles
@@ -265,8 +289,6 @@ void report_errors(FileInfo* file, AstNode* node) {
 }
 
 bool begin_compilation(CompilationWorkspace* ws) {
-  initialize_typechecker();  // @TODO Push this into the CompilationWorkspace.
-
   bool did_work = 1;
   int reported_errors = 0;
   while (pipeline_has_jobs(ws)) {
@@ -384,6 +406,7 @@ int main(int argc, char** argv) {
   sigaction(SIGSEGV, &action, NULL);
 
   CompilationWorkspace workspace;
+  initialize_typechecker();  // @TODO Push this into the CompilationWorkspace.
   initialize_workspace(&workspace);
 
   pipeline_emit_read_job(&workspace, &(String) { strlen(argv[1]), argv[1] });
