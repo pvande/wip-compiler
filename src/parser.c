@@ -38,13 +38,13 @@ void* new_parser_scope(Scope* parent) {
   return scope;
 }
 
-void* new_parser_state(TokenizedFile* file) {
+void* new_parser_state(TokenizedFile* file, Scope* global_scope) {
   ParserState* state = malloc(sizeof(ParserState));
   state->tokens = file->tokens;
   state->length = file->length;
   state->pos = 0;
   state->nodes = new_pool(sizeof(AstNode), 16, 64);
-  state->scope = new_parser_scope(NULL);
+  state->scope = new_parser_scope(global_scope);
   return state;
 }
 
@@ -630,7 +630,7 @@ AstNode* parse_top_level(ParserState* state) {
 }
 
 bool perform_parse_job(Job* job) {
-  ParserState* state = new_parser_state(job->tokens);
+  ParserState* state = new_parser_state(job->tokens, &job->ws->global_scope);
 
   while (tokens_remain(state)) {
     if (accept_op(state, OP_NEWLINE)) {

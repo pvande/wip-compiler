@@ -90,18 +90,19 @@ typedef struct {
 } TokenizedFile;
 
 
+typedef struct Scope {
+  struct Scope* parent;
+  List* declarations;
+} Scope;
+
 typedef struct {
   Queue pipeline;
   Symbol entry;
   size_t entry_id;
   Pool preload;
   List bytecode;
+  Scope global_scope;
 } CompilationWorkspace;
-
-typedef struct Scope {
-  struct Scope* parent;
-  List* declarations;
-} Scope;
 
 // Update docs/parser/node-usage.md when this changes.
 typedef enum {
@@ -219,6 +220,9 @@ void initialize_workspace(CompilationWorkspace* ws) {
   initialize_queue(&ws->pipeline, 16, 16);
   initialize_pool(&ws->preload, sizeof(size_t), 16, 64);
   initialize_list(&ws->bytecode, 16, 64);
+
+  ws->global_scope.parent = NULL;
+  ws->global_scope.declarations = new_list(1, 16);
 
   // Since we constantly re-enqueue incomplete work, particularly during
   // typechecking, this sentinel value will allow us to detect unsolvable cycles
