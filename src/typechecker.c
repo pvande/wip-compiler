@@ -227,8 +227,12 @@ bool typecheck_expression_identifier(Job* job, AstNode* node) {
 
   if (decl->typeclass == NULL) return 0;
 
+  // @TODO Type concretization should back propagate through intermediate
+  //       variables.
   node->declaration = decl;
   node->typeclass = decl->typeclass;
+  node->typekind = decl->typekind;
+
   return 1;
 }
 
@@ -236,6 +240,7 @@ void _type_literal_number_value(AstNode* node) {
   // @TODO Describe all possible types.
   node->typeclass = &TYPECLASS_LITERAL;
   node->typekind = KIND_NUMBER;
+
   if (node->int_value < OVERFLOW_U8) {
     node->typekind |= KIND_CAN_BE_U8;
     node->typekind |= KIND_CAN_BE_U16;
