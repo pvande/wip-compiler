@@ -62,8 +62,8 @@ DEFINE_STR(ERR_UNHANDLED_NODE_TYPE, "Internal Compiler Error: Unhandled node typ
 // ** Helpers ** //
 
 AstNode* _find_identifier(Scope* scope, Symbol ident) {
-  for (size_t i = 0; i < scope->declarations->length; i++) {
-    AstNode* decl = list_get(scope->declarations, i);
+  for (size_t i = 0; i < scope->declarations.length; i++) {
+    AstNode* decl = list_get(&scope->declarations, i);
     if (decl->ident == ident) return decl;
   }
 

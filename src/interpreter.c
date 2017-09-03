@@ -1,53 +1,95 @@
 bool perform_execute_job(Job* job) {
   VmState* state = job->vm_state;
-
-  if (state->id == -1) return 0;
-
-  // @Lazy Let's get some real memory in here at some point.
-  size_t mem[512];
-
-  // Pool* preload = &job->ws->preload;
-  // *((size_t*) pool_get(preload)) = BC_EXIT;
-  // print_bytecode(pool_to_array(preload));
+  List* initializers = &job->ws->initializers;
 
   size_t* bytecode = list_get(&job->ws->bytecode, state->id);
-  print_bytecode(bytecode); printf("\n");
+
+  if (state->waiting_on) {
+    if (state->waiting_on->flags & NODE_INITIALIZED) {
+      state->waiting_on = NULL;
+    } else {
+      if (!(state->waiting_on->flags & NODE_INITIALIZING)) {
+        for (size_t i = 0; i < initializers->length; i++) {
+          AstNode* init = list_get(initializers, i);
+          if (init->rhs != state->waiting_on) continue;
+
+          assert(init->bytecode_id != -1);
+
+          VmState* init_vm = malloc(sizeof(VmState));
+          init_vm->fp = -1;
+          init_vm->sp = -1;
+          init_vm->ip = 0;
+          init_vm->id = init->bytecode_id;
+          init_vm->waiting_on = NULL;
+          pipeline_emit_execute_job(job->ws, init_vm);
+
+          state->waiting_on->flags |= NODE_INITIALIZING;
+        }
+      }
+
+      return 0;
+    }
+  }
 
   while (1) {
+    inspect_vm_state(state, bytecode);
+
     switch (bytecode[state->ip++]) {
       case BC_EXIT: {
-        if (state->fp == -1) return 1;
+        if (state->fp == -1) {
+          for (size_t i = 0; i < initializers->length; i++) {
+            AstNode* node = list_get(initializers, i);
+            if (node->bytecode_id != state->id) continue;
+
+            node->rhs->flags &= ~NODE_INITIALIZING;
+            node->rhs->flags |= NODE_INITIALIZED;
+            break;
+          }
+
+          return 1;
+        }
 
         // @TODO Return from the current function.
 
         break;
       }
       case BC_LOAD: {
-        printf("LOAD %p\n", (void*) bytecode[state->ip]);
-        state->stack[++state->sp] = mem[bytecode[state->ip++]];
+        AstNode* decl = (void*) bytecode[state->ip++];
+
+        state->stack[++state->sp] = (size_t) decl->pointer_value;
         break;
       }
       case BC_STORE: {
-        printf("STORE %p\n", (void*) bytecode[state->ip]);
-        mem[bytecode[state->ip++]] = state->stack[state->sp--];
+        AstNode* decl = (void*) bytecode[state->ip++];
+
+        decl->pointer_value = (void*) state->stack[state->sp--];
         break;
       }
       case BC_PUSH: {
-        printf("PUSH %zu\n", bytecode[state->ip]);
-        state->stack[++state->sp] = bytecode[state->ip++];
+        size_t value = bytecode[state->ip++];
+
+        state->stack[++state->sp] = value;
         break;
       }
       case BC_CALL: {
-        printf("CALL %p\n", (void*) bytecode[state->ip]);
-        size_t fn = mem[bytecode[state->ip++]];
+        AstNode* decl = (void*) bytecode[state->ip++];
 
-        size_t n = bytecode[state->ip++];
-        for (int i = 0; i < n; i++) state->ip++;
-        exit(1);
+        if (!(decl->flags & NODE_INITIALIZED)) {
+          state->ip -= 2;
+          return 0;
+        }
+
+        // size_t n = bytecode[state->ip++];
+        // for (int i = 0; i < n; i++) state->ip++;
+        // exit(1);
         break;
       }
-      default : {
-        printf("%zu\n", bytecode[state->ip - 1]);
+      case BC_PRINT: {
+        putc(state->stack[state->sp--], stdout);
+        break;
+      }
+      default: {
+        printf("??? %zu ???\n", bytecode[state->ip - 1]);
         assert(0);
         return 0;
       }

@@ -92,15 +92,15 @@ typedef struct {
 
 typedef struct Scope {
   struct Scope* parent;
-  List* declarations;
+  List declarations;
 } Scope;
 
 typedef struct {
   Queue pipeline;
   Symbol entry;
   size_t entry_id;
-  Pool preload;
   List bytecode;
+  List initializers;
   Scope global_scope;
 } CompilationWorkspace;
 
@@ -126,6 +126,8 @@ typedef enum {
   EXPR_CALL            = (1 << 3),
   // EXPR_UNARY_OP  = (1 << 4),
   // EXPR_BINARY_OP = (1 << 5),
+  NODE_INITIALIZING    = (1 << 25),
+  NODE_INITIALIZED     = (1 << 26),
   NODE_CONTAINS_IDENT  = (1 << 27),
   NODE_CONTAINS_SOURCE = (1 << 28),
   NODE_CONTAINS_LHS    = (1 << 29),
@@ -202,6 +204,8 @@ typedef struct {
   size_t fp;
 
   size_t stack[512];
+
+  AstNode* waiting_on;
 } VmState;
 
 #include "src/debug.c"
@@ -217,34 +221,45 @@ typedef struct {
 #include "src/codegen.c"
 #include "src/interpreter.c"
 
-DEFINE_STR(TYPE_U8_TO_VOID, "(u8) => ()");
-DEFINE_STR(BI_PUTC, "putc");
+DEFINE_STR(TYPE_PROC_U8_TO_VOID, "(u8) => ()");
+DEFINE_STR(BUILTIN_PUTC, "putc");
 void populate_builtins(CompilationWorkspace* ws) {
-  AstNode* putc_node = calloc(1, sizeof(AstNode));
-  size_t* putc_bytecode = malloc(2 * sizeof(size_t));
-  putc_bytecode[0] = BC_PRINT;
-  putc_bytecode[1] = BC_EXIT;
+  size_t builtin_node_id = 511; // @Lazy This should be -1...
 
-  putc_node->id = -1;
-  putc_node->bytecode_id = list_append(&ws->bytecode, putc_bytecode);
-  putc_node->type = NODE_DECLARATION;
-  putc_node->ident = symbol_get(BI_PUTC);
-  putc_node->typeclass = _new_type(TYPE_U8_TO_VOID, 64);
-  putc_node->typeclass->from = new_list(1, 1);
-  putc_node->typeclass->to = new_list(1, 0);
+  {
+    // @Hack Automatic interpretation of the `main` method.
+    size_t* main_bytecode = malloc(3 * sizeof(size_t));
+    main_bytecode[0] = BC_CALL;
+    main_bytecode[1] = 0;  // Filled in later!
+    main_bytecode[2] = BC_EXIT;
+    list_append(&ws->bytecode, main_bytecode);
+  }
 
-  list_append(putc_node->typeclass->from, _get_type(STR_U8));
-  list_append(ws->global_scope.declarations, putc_node);
+  {
+    AstNode* putc_node = calloc(1, sizeof(AstNode));
+    size_t* putc_bytecode = malloc(2 * sizeof(size_t));
+    putc_bytecode[0] = BC_PRINT;
+    putc_bytecode[1] = BC_EXIT;
+
+    putc_node->id = builtin_node_id--;
+    putc_node->bytecode_id = list_append(&ws->bytecode, putc_bytecode);
+    putc_node->type = NODE_DECLARATION;
+    putc_node->ident = symbol_get(BUILTIN_PUTC);
+    putc_node->typeclass = _new_type(TYPE_PROC_U8_TO_VOID, 64);
+    putc_node->typeclass->from = new_list(1, 1);
+    putc_node->typeclass->to = new_list(1, 0);
+
+    list_append(putc_node->typeclass->from, _get_type(STR_U8));
+    list_append(&ws->global_scope.declarations, putc_node);
+  }
 }
 
 DEFINE(Job, SENTINEL, { JOB_SENTINEL });
 void initialize_workspace(CompilationWorkspace* ws) {
   initialize_queue(&ws->pipeline, 16, 16);
-  initialize_pool(&ws->preload, sizeof(size_t), 16, 64);
   initialize_list(&ws->bytecode, 16, 64);
-
-  ws->global_scope.parent = NULL;
-  ws->global_scope.declarations = new_list(1, 16);
+  initialize_list(&ws->initializers, 16, 512);
+  initialize_list(&ws->global_scope.declarations, 16, 512);
 
   populate_builtins(ws);
 
@@ -307,7 +322,23 @@ bool begin_compilation(CompilationWorkspace* ws) {
       bool result = perform_typecheck_job(job);
       did_work |= result;
 
-      if (!result) {
+      if (result) {
+        if (job->node->type == NODE_ASSIGNMENT && job->node->lhs->ident == job->ws->entry) {
+          // @Lazy This assumes that the rhs is a procedure!
+          job->ws->entry_id = job->node->rhs->id;
+          size_t* bootstrap_bytecode = list_get(&job->ws->bytecode, 0);
+          *(bootstrap_bytecode + 1) = (size_t) job->node->rhs;
+
+          // @Hack Automatically running "main" in the interpreter.
+          VmState* state = malloc(sizeof(VmState));
+          state->fp = -1;
+          state->sp = -1;
+          state->ip = 0;
+          state->id = 0;
+          state->waiting_on = job->node->rhs;
+          pipeline_emit_execute_job(job->ws, state);
+        }
+      } else {
         pipeline_emit(ws, job);
         continue;
       }
@@ -325,7 +356,13 @@ bool begin_compilation(CompilationWorkspace* ws) {
       }
 
     } else if (job->type == JOB_EXECUTE) {
-      did_work |= perform_execute_job(job);
+      bool result = perform_execute_job(job);
+      did_work |= result;
+
+      if (!result) {
+        pipeline_emit(ws, job);
+        continue;
+      }
 
     } else if (job->type == JOB_ABORT) {
       report_errors(job->file, job->node);
@@ -405,7 +442,7 @@ int main(int argc, char** argv) {
   action.sa_sigaction = crashbar;
   sigaction(SIGSEGV, &action, NULL);
 
-  CompilationWorkspace workspace;
+  CompilationWorkspace workspace = {};
   initialize_typechecker();  // @TODO Push this into the CompilationWorkspace.
   initialize_workspace(&workspace);
 

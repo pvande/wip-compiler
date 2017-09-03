@@ -33,7 +33,7 @@ typedef struct {
 
 void* new_parser_scope(Scope* parent) {
   Scope* scope = malloc(sizeof(Scope));
-  scope->declarations = new_list(1, 32);
+  initialize_list(&scope->declarations, 1, 32);
   scope->parent = parent;
   return scope;
 }
@@ -499,7 +499,7 @@ AstNode* parse_argument_declaration_tuple(ParserState* state) {
   for (size_t i = 0; i < tuple->body_length; i++) {
     AstNode* node = &tuple->body[i];
     if (node->type == NODE_ASSIGNMENT) node = node->lhs;
-    if (node->type == NODE_DECLARATION) list_append(state->scope->declarations, node);
+    if (node->type == NODE_DECLARATION) list_append(&state->scope->declarations, node);
   }
 
   return tuple;
@@ -539,7 +539,7 @@ AstNode* parse_code_block(ParserState* state) {
   for (size_t i = 0; i < block->body_length; i++) {
     AstNode* node = &block->body[i];
     if (node->type == NODE_ASSIGNMENT) node = node->lhs;
-    if (node->type == NODE_DECLARATION) list_append(state->scope->declarations, node);
+    if (node->type == NODE_DECLARATION) list_append(&state->scope->declarations, node);
   }
 
   return block;
@@ -597,10 +597,10 @@ AstNode* parse_top_level(ParserState* state) {
 
     AstNode* decl = node;
     if (decl->type == NODE_ASSIGNMENT) decl = decl->lhs;
-    if (decl->type == NODE_DECLARATION) list_append(state->scope->declarations, decl);
+    if (decl->type == NODE_DECLARATION) list_append(&state->scope->declarations, decl);
   } else if (test_declaration(state)) {
     node = parse_declaration(state);
-    list_append(state->scope->declarations, node);
+    list_append(&state->scope->declarations, node);
   } else {
     printf("Invalid top-level expression on line %zu!", TOKEN.line);
     assert(0);
@@ -650,8 +650,8 @@ bool perform_parse_job(Job* job) {
     }
   }
 
-  // print_declaration_list_as_sexpr(job->file->lines, state->scope->declarations);
-  // print_declaration_list_as_tree(job->file->lines, state->scope->declarations);
+  // print_declaration_list_as_sexpr(job->file->lines, &state->scope.declarations);
+  // print_declaration_list_as_tree(job->file->lines, &state->scope.declarations);
 
   return 1;
 }

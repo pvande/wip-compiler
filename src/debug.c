@@ -162,7 +162,7 @@ void inspect_ast_node(AstNode* node) {
   //
   // String* error;              // NULL
 
-  printf("«AstNode 0x%X type=%s flags=%d id=%zu from=%zu,%zu to=%zu,%zu ident=%d type=%x»", (unsigned int) node, _ast_node_type(node), node->flags, node->id, node->from.line + 1, node->from.pos + 1, node->to.line + 1, node->to.pos + 1, (int) node->ident, (unsigned int) node->typeclass);
+  printf("«AstNode 0x%X type=%s flags=%x id=%zu from=%zu,%zu to=%zu,%zu ident=%d type=%x bytecode_id=%zx»", (unsigned int) node, _ast_node_type(node), node->flags, node->id, node->from.line + 1, node->from.pos + 1, node->to.line + 1, node->to.pos + 1, (int) node->ident, (unsigned int) node->typeclass, node->bytecode_id);
 }
 
 void print_tokenized_file(TokenizedFile* list){
@@ -265,8 +265,8 @@ void print_ast_node_type(AstNode* node) {
 
 void print_scope(Scope* scope) {
   printf("[");
-  for (size_t i = 0; i < scope->declarations->length; i++) {
-    AstNode* node = list_get(scope->declarations, i);
+  for (size_t i = 0; i < scope->declarations.length; i++) {
+    AstNode* node = list_get(&scope->declarations, i);
 
     if (i > 0) printf(", ");
     print_string(symbol_lookup(node->ident));
@@ -451,29 +451,76 @@ void print_typeclass(Typeclass* type) {
   printf(">");
 }
 
-void print_bytecode(size_t* bytecode) {
+int _print_bytecode(size_t* bytecode) {
   switch (bytecode[0]) {
     case BC_EXIT:
       printf("EXIT\n");
-      break;
+      return -1;
     case BC_LOAD:
       printf("LOAD %p\n", (void*) bytecode[1]);
-      print_bytecode(bytecode + 2);
-      break;
+      return 2;
     case BC_STORE:
       printf("STORE %p\n", (void*) bytecode[1]);
-      print_bytecode(bytecode + 2);
-      break;
+      return 2;
     case BC_PUSH:
       printf("PUSH %zu\n", (size_t) bytecode[1]);
-      print_bytecode(bytecode + 2);
-      break;
+      return 2;
     case BC_CALL:
       printf("CALL %p\n", (void*) bytecode[1]);
-      print_bytecode(bytecode + 2);
-      break;
+      return 2;
+    case BC_PRINT:
+      printf("PRINT\n");
+      return 1;
     default:
       printf("««%zu»»\n", bytecode[0]);
       assert(0);
   }
+}
+
+void print_bytecode(size_t* bytecode) {
+  while (1) {
+    int advance_by = _print_bytecode(bytecode);
+    if (advance_by == -1) break;
+
+    bytecode += advance_by;
+  }
+}
+
+void print_bytecode_and_pointer(size_t* bytecode, size_t ip) {
+  size_t offset = 0;
+  while (1) {
+    printf(ip == offset ? "==> " : "    ");
+    int advance_by = _print_bytecode(bytecode + offset);
+    if (advance_by == -1) break;
+
+    offset += advance_by;
+  }
+}
+
+void inspect_stack(VmState* state) {
+  for (size_t i = state->sp; i != -1; i--) {
+    printf("0x%zX\n", state->stack[i]);
+  }
+}
+
+void inspect_vm_state(VmState* state, size_t* bytecode) {
+  printf("--- VM State ---\n");
+  printf("Executing Bytecode ID: %zu\n", state->id);
+  printf("Frame pointer:         0x%zX\n", state->fp);
+  printf("Stack pointer:         0x%zX\n", state->sp);
+  printf("Instruction pointer:   0x%zX\n", state->ip);
+  printf("Waiting on node:       %p\n", state->waiting_on);
+  printf("\nBytecode:\n");
+  print_bytecode_and_pointer(bytecode, state->ip);
+  printf("\nStack:\n");
+  inspect_stack(state);
+  printf("\n\n");
+  // typedef struct {
+  //   size_t id;
+  //   size_t ip;
+  //   size_t sp;
+  //   size_t fp;
+  //
+  //   size_t stack[512];
+  // } VmState;
 }
