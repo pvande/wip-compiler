@@ -1,8 +1,8 @@
-#define EMIT(V)     (*((size_t*) pool_get(instructions)) = V)
-#define LOAD(DECL)  do { EMIT(BC_LOAD); EMIT((size_t) DECL); } while (0);
-#define STORE(DECL) do { EMIT(BC_STORE); EMIT((size_t) DECL); } while (0);
-#define PUSH(V)     do { EMIT(BC_PUSH); EMIT(V); } while (0);
-#define CALL(DECL)  do { EMIT(BC_CALL); EMIT((size_t) DECL); } while (0);
+#define EMIT(V)          (*((size_t*) pool_get(instructions)) = V)
+#define LOAD(DECL)       do { EMIT(BC_LOAD); EMIT((size_t) DECL); } while (0);
+#define STORE(DECL)      do { EMIT(BC_STORE); EMIT((size_t) DECL); } while (0);
+#define PUSH(V)          do { EMIT(BC_PUSH); EMIT(V); } while (0);
+#define CALL(DECL, LEN)  do { EMIT(BC_CALL); EMIT((size_t) DECL); EMIT((size_t) LEN); } while (0);
 
 bool bytecode_handle_node(Pool* instructions, AstNode* node);
 
@@ -76,7 +76,7 @@ bool bytecode_handle_expression_call(Pool* instructions, AstNode* node) {
     if (!result) break;
   }
 
-  if (result) CALL(decl);
+  if (result) CALL(decl, args->body_length);
 
   return result;
 }

@@ -189,6 +189,7 @@ enum BytecodeInstructions {
   BC_EXIT,
   BC_LOAD,
   BC_STORE,
+  BC_LOAD_ARG,
   BC_PUSH,
   BC_CALL,
 
@@ -224,7 +225,7 @@ typedef struct {
 DEFINE_STR(TYPE_PROC_U8_TO_VOID, "(u8) => ()");
 DEFINE_STR(BUILTIN_PUTC, "putc");
 void populate_builtins(CompilationWorkspace* ws) {
-  size_t builtin_node_id = 511; // @Lazy This should be -1...
+  size_t builtin_node_id = -1;
 
   {
     // @Hack Automatic interpretation of the `main` method.
@@ -236,21 +237,30 @@ void populate_builtins(CompilationWorkspace* ws) {
   }
 
   {
-    AstNode* putc_node = calloc(1, sizeof(AstNode));
-    size_t* putc_bytecode = malloc(2 * sizeof(size_t));
-    putc_bytecode[0] = BC_PRINT;
-    putc_bytecode[1] = BC_EXIT;
+    AstNode* putc_decl = calloc(1, sizeof(AstNode));
+    AstNode* putc_expr = calloc(1, sizeof(AstNode));
+    size_t* putc_bytecode = malloc(4 * sizeof(size_t));
+    putc_bytecode[0] = BC_LOAD_ARG;
+    putc_bytecode[1] = 0;
+    putc_bytecode[2] = BC_PRINT;
+    putc_bytecode[3] = BC_EXIT;
 
-    putc_node->id = builtin_node_id--;
-    putc_node->bytecode_id = list_append(&ws->bytecode, putc_bytecode);
-    putc_node->type = NODE_DECLARATION;
-    putc_node->ident = symbol_get(BUILTIN_PUTC);
-    putc_node->typeclass = _new_type(TYPE_PROC_U8_TO_VOID, 64);
-    putc_node->typeclass->from = new_list(1, 1);
-    putc_node->typeclass->to = new_list(1, 0);
+    putc_expr->id = builtin_node_id--;
+    putc_expr->type = NODE_EXPRESSION;
+    putc_expr->flags = EXPR_PROCEDURE;
+    putc_expr->bytecode_id = list_append(&ws->bytecode, putc_bytecode);
 
-    list_append(putc_node->typeclass->from, _get_type(STR_U8));
-    list_append(&ws->global_scope.declarations, putc_node);
+    putc_decl->id = builtin_node_id--;
+    putc_decl->type = NODE_DECLARATION;
+    putc_decl->flags = NODE_INITIALIZED;
+    putc_decl->ident = symbol_get(BUILTIN_PUTC);
+    putc_decl->typeclass = _new_type(TYPE_PROC_U8_TO_VOID, 64);
+    putc_decl->typeclass->from = new_list(1, 1);
+    putc_decl->typeclass->to = new_list(1, 0);
+    putc_decl->pointer_value = putc_expr;
+
+    list_append(putc_decl->typeclass->from, _get_type(STR_U8));
+    list_append(&ws->global_scope.declarations, putc_decl);
   }
 }
 
@@ -325,9 +335,9 @@ bool begin_compilation(CompilationWorkspace* ws) {
       if (result) {
         if (job->node->type == NODE_ASSIGNMENT && job->node->lhs->ident == job->ws->entry) {
           // @Lazy This assumes that the rhs is a procedure!
-          job->ws->entry_id = job->node->rhs->id;
+          // job->ws->entry_id = job->node->rhs->id;
           size_t* bootstrap_bytecode = list_get(&job->ws->bytecode, 0);
-          *(bootstrap_bytecode + 1) = (size_t) job->node->rhs;
+          *(bootstrap_bytecode + 1) = (size_t) job->node->lhs;
 
           // @Hack Automatically running "main" in the interpreter.
           VmState* state = malloc(sizeof(VmState));
@@ -335,7 +345,7 @@ bool begin_compilation(CompilationWorkspace* ws) {
           state->sp = -1;
           state->ip = 0;
           state->id = 0;
-          state->waiting_on = job->node->rhs;
+          state->waiting_on = job->node->lhs;
           pipeline_emit_execute_job(job->ws, state);
         }
       } else {

@@ -11,7 +11,7 @@ bool perform_execute_job(Job* job) {
       if (!(state->waiting_on->flags & NODE_INITIALIZING)) {
         for (size_t i = 0; i < initializers->length; i++) {
           AstNode* init = list_get(initializers, i);
-          if (init->rhs != state->waiting_on) continue;
+          if (init->lhs != state->waiting_on) continue;
 
           assert(init->bytecode_id != -1);
 
@@ -32,7 +32,7 @@ bool perform_execute_job(Job* job) {
   }
 
   while (1) {
-    inspect_vm_state(state, bytecode);
+    // inspect_vm_state(state, bytecode);
 
     switch (bytecode[state->ip++]) {
       case BC_EXIT: {
@@ -41,36 +41,55 @@ bool perform_execute_job(Job* job) {
             AstNode* node = list_get(initializers, i);
             if (node->bytecode_id != state->id) continue;
 
-            node->rhs->flags &= ~NODE_INITIALIZING;
-            node->rhs->flags |= NODE_INITIALIZED;
+            node->lhs->flags &= ~NODE_INITIALIZING;
+            node->lhs->flags |= NODE_INITIALIZED;
             break;
           }
 
           return 1;
         }
 
-        // @TODO Return from the current function.
+        state->id = state->stack[state->sp--];
+        state->ip = state->stack[state->sp--];
+        state->fp = state->stack[state->sp--];
+
+        size_t arg_count = state->stack[state->sp--];
+        for (size_t i = 0; i < arg_count; i++) state->sp--;
+
+        bytecode = list_get(&job->ws->bytecode, state->id);
 
         break;
       }
+
       case BC_LOAD: {
         AstNode* decl = (void*) bytecode[state->ip++];
 
         state->stack[++state->sp] = (size_t) decl->pointer_value;
         break;
       }
+
       case BC_STORE: {
         AstNode* decl = (void*) bytecode[state->ip++];
 
         decl->pointer_value = (void*) state->stack[state->sp--];
         break;
       }
+
+      case BC_LOAD_ARG: {
+        size_t offset = bytecode[state->ip++];
+        size_t value = state->stack[state->fp - 4 - offset];
+
+        state->stack[++state->sp] = value;
+        break;
+      }
+
       case BC_PUSH: {
         size_t value = bytecode[state->ip++];
 
         state->stack[++state->sp] = value;
         break;
       }
+
       case BC_CALL: {
         AstNode* decl = (void*) bytecode[state->ip++];
 
@@ -79,15 +98,29 @@ bool perform_execute_job(Job* job) {
           return 0;
         }
 
-        // size_t n = bytecode[state->ip++];
-        // for (int i = 0; i < n; i++) state->ip++;
-        // exit(1);
+        AstNode* proc = decl->pointer_value;
+
+        assert(proc != NULL);
+        assert(proc->bytecode_id != -1);
+
+        state->stack[++state->sp] = bytecode[state->ip++];  // Number of arguments.
+        state->stack[++state->sp] = state->fp;
+        state->stack[++state->sp] = state->ip;
+        state->stack[++state->sp] = state->id;
+
+        bytecode = list_get(&job->ws->bytecode, proc->bytecode_id);
+        state->id = proc->bytecode_id;
+        state->fp = state->sp;
+        state->ip = 0;
+
         break;
       }
+
       case BC_PRINT: {
         putc(state->stack[state->sp--], stdout);
         break;
       }
+
       default: {
         printf("??? %zu ???\n", bytecode[state->ip - 1]);
         assert(0);
