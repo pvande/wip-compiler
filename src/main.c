@@ -229,10 +229,11 @@ void populate_builtins(CompilationWorkspace* ws) {
 
   {
     // @Hack Automatic interpretation of the `main` method.
-    size_t* main_bytecode = malloc(3 * sizeof(size_t));
+    size_t* main_bytecode = malloc(4 * sizeof(size_t));
     main_bytecode[0] = BC_CALL;
     main_bytecode[1] = 0;  // Filled in later!
-    main_bytecode[2] = BC_EXIT;
+    main_bytecode[2] = 0;
+    main_bytecode[3] = BC_EXIT;
     list_append(&ws->bytecode, main_bytecode);
   }
 
