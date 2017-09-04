@@ -7,8 +7,7 @@
 bool bytecode_handle_node(Pool* instructions, AstNode* node);
 
 bool bytecode_handle_declaration(Pool* instructions, AstNode* node) {
-  assert(0);
-  return 0;
+  return 1;
 }
 
 bool bytecode_handle_assignment(Pool* instructions, AstNode* node) {
@@ -134,6 +133,8 @@ bool bytecode_handle_node(Pool* instructions, AstNode* node) {
 }
 
 bool bytecode_handle_top_level_node(CompilationWorkspace* ws, AstNode* node) {
+  if (node->type == NODE_DECLARATION) return 1;
+
   Pool bytecode;  // @Leak The contained structures are never released.
   initialize_pool(&bytecode, sizeof(size_t), 16, 64);
 

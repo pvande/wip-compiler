@@ -404,10 +404,10 @@ bool begin_compilation(CompilationWorkspace* ws) {
       report_errors(job->file, job->node);
 
     } else if (job->type == JOB_BYTECODE) {
-      printf("«««««««»»»»»»»\n");
-      print_ast_node_as_tree(job->file->lines, job->node);
-      printf("«««««««»»»»»»»\n");
-      printf("\n\n");
+      // printf("«««««««»»»»»»»\n");
+      // print_ast_node_as_tree(job->file->lines, job->node);
+      // printf("«««««««»»»»»»»\n");
+      // printf("\n\n");
       report_errors(job->file, job->node);
 
     } else {
