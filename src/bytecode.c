@@ -1,5 +1,6 @@
 #define EMIT(V)          (*((size_t*) pool_get(instructions)) = V)
 #define LOAD(DECL)       do { EMIT(BC_LOAD); EMIT((size_t) DECL); } while (0);
+#define LOAD_ARG(N)      do { EMIT(BC_ARG_LOAD); EMIT((size_t) N); } while (0);
 #define STORE(DECL)      do { EMIT(BC_STORE); EMIT((size_t) DECL); } while (0);
 #define PUSH(V)          do { EMIT(BC_PUSH); EMIT(V); } while (0);
 #define CALL(DECL, LEN)  do { EMIT(BC_CALL); EMIT((size_t) DECL); EMIT((size_t) LEN); } while (0);
@@ -24,7 +25,11 @@ bool bytecode_handle_assignment(Pool* instructions, AstNode* node) {
 bool bytecode_handle_expression_identifier(Pool* instructions, AstNode* node) {
   AstNode* decl = node->declaration;
 
-  LOAD(decl);
+  if (decl->flags & DECL_ARGUMENT) {
+    LOAD_ARG(decl->int_value);
+  } else {
+    LOAD(decl);
+  }
 
   return 1;
 }

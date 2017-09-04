@@ -45,6 +45,9 @@ bool perform_execute_job(Job* job) {
     }
   }
 
+  #define ARG_COUNT (state->stack[state->fp - 3])
+  #define ARG(N)    (state->stack[state->fp - 4 - N])
+
   while (1) {
     // inspect_vm_state(state, bytecode);
 
@@ -83,16 +86,15 @@ bool perform_execute_job(Job* job) {
 
       case BC_ARG_LOAD: {
         size_t offset = bytecode[state->ip++];
-        size_t value = state->stack[state->fp - 4 - offset];
 
-        state->stack[++state->sp] = value;
+        state->stack[++state->sp] = ARG(offset);
         break;
       }
 
       case BC_ARG_ADDR: {
         size_t offset = bytecode[state->ip++];
 
-        state->stack[++state->sp] = (size_t) (state->stack + (state->fp - 4 - offset));
+        state->stack[++state->sp] = (size_t) &ARG(offset);
         break;
       }
 
@@ -141,11 +143,10 @@ bool perform_execute_job(Job* job) {
         //       generic (and make it take arguments off the stack), or we
         //       should do away with the `syscall` function itself – the
         //       weirdness of having both interact like this is unfortunate.
-        int arg_count = state->stack[state->sp - 3];
+        int arg_count = ARG_COUNT;
 
         for (int i = 0; i < arg_count; i++) {
-          args[i] = state->stack[state->sp - 4 - i];
-          // printf("«%zu»\n", args[i]);
+          args[i] = ARG(i);
         }
 
         if (arg_count == 1) {
@@ -176,6 +177,9 @@ bool perform_execute_job(Job* job) {
       }
     }
   }
+
+  #undef ARG_COUNT
+  #undef ARG
 
   return 1;
 }

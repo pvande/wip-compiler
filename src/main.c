@@ -128,6 +128,7 @@ typedef enum {
   EXPR_CALL            = (1 << 3),
   // EXPR_UNARY_OP  = (1 << 4),
   // EXPR_BINARY_OP = (1 << 5),
+  DECL_ARGUMENT        = (1 << 0),
   NODE_INITIALIZING    = (1 << 25),
   NODE_INITIALIZED     = (1 << 26),
   NODE_CONTAINS_IDENT  = (1 << 27),

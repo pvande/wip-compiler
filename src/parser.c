@@ -473,6 +473,8 @@ void parse_argument_declaration_node(ParserState* state, AstNode* node) {
   } else {
     parse_declaration_node(state, node);
   }
+
+  node->flags |= DECL_ARGUMENT;
 }
 
 // TYPE = Identifier
@@ -499,6 +501,7 @@ AstNode* parse_argument_declaration_tuple(ParserState* state) {
   // tuple's pool-allocated node pointers being stable.
   for (size_t i = 0; i < tuple->body_length; i++) {
     AstNode* node = &tuple->body[i];
+    node->int_value = i;
     if (node->type == NODE_ASSIGNMENT) node = node->lhs;
     if (node->type == NODE_DECLARATION) list_append(&state->scope->declarations, node);
   }
