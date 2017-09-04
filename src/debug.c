@@ -462,8 +462,11 @@ int _print_bytecode(size_t* bytecode) {
     case BC_STORE:
       printf("STORE %p\n", (void*) bytecode[1]);
       return 2;
-    case BC_LOAD_ARG:
-      printf("LOAD_ARG %zu\n", (size_t) bytecode[1]);
+    case BC_ARG_LOAD:
+      printf("ARG_LOAD %zu\n", (size_t) bytecode[1]);
+      return 2;
+    case BC_ARG_ADDR:
+      printf("ARG_ADDR %zu\n", (size_t) bytecode[1]);
       return 2;
     case BC_PUSH:
       printf("PUSH %zu\n", (size_t) bytecode[1]);
@@ -471,8 +474,8 @@ int _print_bytecode(size_t* bytecode) {
     case BC_CALL:
       printf("CALL %p %zu\n", (void*) bytecode[1], bytecode[2]);
       return 3;
-    case BC_PRINT:
-      printf("PRINT\n");
+    case BC_SYSCALL:
+      printf("SYSCALL\n");
       return 1;
     default:
       printf("««%zu»»\n", bytecode[0]);

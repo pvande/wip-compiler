@@ -81,11 +81,18 @@ bool perform_execute_job(Job* job) {
         break;
       }
 
-      case BC_LOAD_ARG: {
+      case BC_ARG_LOAD: {
         size_t offset = bytecode[state->ip++];
         size_t value = state->stack[state->fp - 4 - offset];
 
         state->stack[++state->sp] = value;
+        break;
+      }
+
+      case BC_ARG_ADDR: {
+        size_t offset = bytecode[state->ip++];
+
+        state->stack[++state->sp] = (size_t) (state->stack + (state->fp - 4 - offset));
         break;
       }
 
@@ -125,8 +132,40 @@ bool perform_execute_job(Job* job) {
         break;
       }
 
-      case BC_PRINT: {
-        putc(state->stack[state->sp--], stdout);
+      case BC_SYSCALL: {
+        size_t args[8] = {};
+
+        // @TODO This is entangled directly with the function it's embedded
+        //       within; that implies that this should only ever be invoked in
+        //       certain functions.  We should either make the syscall more
+        //       generic (and make it take arguments off the stack), or we
+        //       should do away with the `syscall` function itself – the
+        //       weirdness of having both interact like this is unfortunate.
+        int arg_count = state->stack[state->sp - 3];
+
+        for (int i = 0; i < arg_count; i++) {
+          args[i] = state->stack[state->sp - 4 - i];
+          // printf("«%zu»\n", args[i]);
+        }
+
+        if (arg_count == 1) {
+          syscall(args[0]);
+        } else if (arg_count == 2) {
+          syscall(args[0], args[1]);
+        } else if (arg_count == 3) {
+          syscall(args[0], args[1], args[2]);
+        } else if (arg_count == 4) {
+          syscall(args[0], args[1], args[2], args[3]);
+        } else if (arg_count == 5) {
+          syscall(args[0], args[1], args[2], args[3], args[4]);
+        } else if (arg_count == 6) {
+          syscall(args[0], args[1], args[2], args[3], args[4], args[5]);
+        } else if (arg_count == 7) {
+          syscall(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+        } else if (arg_count == 8) {
+          syscall(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
+        }
+
         break;
       }
 

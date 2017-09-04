@@ -9,7 +9,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/syscall.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "src/string.c"
 #include "src/file.c"
@@ -189,11 +191,12 @@ enum BytecodeInstructions {
   BC_EXIT,
   BC_LOAD,
   BC_STORE,
-  BC_LOAD_ARG,
+  BC_ARG_LOAD,
+  BC_ARG_ADDR,
   BC_PUSH,
   BC_CALL,
 
-  BC_PRINT,
+  BC_SYSCALL
 };
 
 
@@ -222,8 +225,10 @@ typedef struct {
 #include "src/codegen.c"
 #include "src/interpreter.c"
 
+DEFINE_STR(TYPE_PROC_VOID_TO_VOID, "() => ()");
 DEFINE_STR(TYPE_PROC_U8_TO_VOID, "(u8) => ()");
 DEFINE_STR(BUILTIN_PUTC, "putc");
+DEFINE_STR(BUILTIN_SYSCALL, "syscall");
 void populate_builtins(CompilationWorkspace* ws) {
   size_t builtin_node_id = -1;
 
@@ -237,20 +242,55 @@ void populate_builtins(CompilationWorkspace* ws) {
     list_append(&ws->bytecode, main_bytecode);
   }
 
+  AstNode* syscall_decl;
   {
-    AstNode* putc_decl = calloc(1, sizeof(AstNode));
-    AstNode* putc_expr = calloc(1, sizeof(AstNode));
-    size_t* putc_bytecode = malloc(4 * sizeof(size_t));
-    putc_bytecode[0] = BC_LOAD_ARG;
-    putc_bytecode[1] = 0;
-    putc_bytecode[2] = BC_PRINT;
-    putc_bytecode[3] = BC_EXIT;
+    // @TODO We need variable length calls before we can actually call this.
+    size_t* syscall_bytecode = malloc(2 * sizeof(size_t));
+    syscall_bytecode[0] = BC_SYSCALL;
+    syscall_bytecode[1] = BC_EXIT;
 
+    AstNode* syscall_expr = calloc(1, sizeof(AstNode));
+    syscall_expr->id = builtin_node_id--;
+    syscall_expr->type = NODE_EXPRESSION;
+    syscall_expr->flags = EXPR_PROCEDURE;
+    syscall_expr->bytecode_id = list_append(&ws->bytecode, syscall_bytecode);
+
+    syscall_decl = calloc(1, sizeof(AstNode));
+    syscall_decl->id = builtin_node_id--;
+    syscall_decl->type = NODE_DECLARATION;
+    syscall_decl->flags = NODE_INITIALIZED;
+    syscall_decl->ident = symbol_get(BUILTIN_SYSCALL);
+    syscall_decl->typeclass = _new_type(TYPE_PROC_VOID_TO_VOID, 64);
+    syscall_decl->typeclass->from = new_list(1, 0);
+    syscall_decl->typeclass->to = new_list(1, 0);
+    syscall_decl->pointer_value = syscall_expr;
+
+    list_append(&ws->global_scope.declarations, syscall_decl);
+  }
+
+  AstNode* putc_decl;
+  {
+    size_t* putc_bytecode = malloc(12 * sizeof(size_t));
+    putc_bytecode[0] = BC_PUSH;
+    putc_bytecode[1] = 1;
+    putc_bytecode[2] = BC_ARG_ADDR;
+    putc_bytecode[3] = 0;
+    putc_bytecode[4] = BC_PUSH;
+    putc_bytecode[5] = 1;
+    putc_bytecode[6] = BC_PUSH;
+    putc_bytecode[7] = SYS_write;
+    putc_bytecode[8] = BC_CALL;
+    putc_bytecode[9] = (size_t) syscall_decl;
+    putc_bytecode[10] = 4;
+    putc_bytecode[11] = BC_EXIT;
+
+    AstNode* putc_expr = calloc(1, sizeof(AstNode));
     putc_expr->id = builtin_node_id--;
     putc_expr->type = NODE_EXPRESSION;
     putc_expr->flags = EXPR_PROCEDURE;
     putc_expr->bytecode_id = list_append(&ws->bytecode, putc_bytecode);
 
+    putc_decl = calloc(1, sizeof(AstNode));
     putc_decl->id = builtin_node_id--;
     putc_decl->type = NODE_DECLARATION;
     putc_decl->flags = NODE_INITIALIZED;
