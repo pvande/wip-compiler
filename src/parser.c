@@ -353,6 +353,7 @@ void parse_declaration_node(ParserState* state, AstNode* node) {
   init_node(node, NODE_DECLARATION);
 
   node->from = token_start(TOKEN);
+  node->rhs = NULL;
 
   // `test_declaration` should be guaranteeing a usable identifier here.
   assert(accept(state, TOKEN_IDENTIFIER));
