@@ -66,6 +66,7 @@ void tokenize_string(FileInfo* file, TokenizedFile* result) {
     switch (THIS) {
       case '@':
         ADVANCE('@');
+        token_start = file_pos;
         SLURP_IDENT();
         *((Token*) pool_get(tokens)) = (Token) { TOKEN_DIRECTIVE, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
         break;

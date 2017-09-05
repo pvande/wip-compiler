@@ -11,6 +11,10 @@ DEFINE_STR(OP_CLOSE_BRACE, "}");
 DEFINE_STR(OP_COMMA, ",");
 DEFINE_STR(OP_NEWLINE, "\n");
 
+// ** Constant Directives ** //
+
+DEFINE_STR(DIRECTIVE_LOAD, "load");
+
 // ** Constant Errors ** //
 
 DEFINE_STR(ERR_EXPECTED_TYPE, "Expected a type");
@@ -87,6 +91,10 @@ int peek_op(ParserState* state, String* op) {
   return peek_syntax_op(state, op) || peek_nonsyntax_op(state, op);
 }
 
+int peek_directive(ParserState* state, String* directive) {
+  return (TOKEN.type == TOKEN_DIRECTIVE) && string_equals(&TOKEN.source, directive);
+}
+
 int accept(ParserState* state, TokenType type) {
   if (!peek(state, type)) return 0;
 
@@ -110,6 +118,13 @@ int accept_nonsyntax_op(ParserState* state, String* op) {
 
 int accept_op(ParserState* state, String* op) {
   if (!peek_op(state, op)) return 0;
+
+  state->pos += 1;
+  return 1;
+}
+
+int accept_directive(ParserState* state, String* directive) {
+  if (!peek_directive(state, directive)) return 0;
 
   state->pos += 1;
   return 1;
@@ -179,6 +194,10 @@ bool test_procedure(ParserState* state) {
   state->pos = mark;
 
   return result;
+}
+
+bool test_top_level_directive(ParserState* state) {
+  return peek_directive(state, DIRECTIVE_LOAD);
 }
 
 
@@ -590,11 +609,32 @@ AstNode* parse_assignment(ParserState* state) {
   return assignment;
 }
 
+// TOP_LEVEL_DIRECTIVE = "@load(" FILENAME ")"
+AstNode* parse_top_level_directive(CompilationWorkspace* ws, ParserState* state) {
+  if (accept_directive(state, DIRECTIVE_LOAD)) {
+    AstNode* args = parse_expression_tuple(state);
+    if (args->error) return args;
+
+    if (args->body_length != 1) {
+      // @TODO Report error – wrong number of arguments.
+    }
+
+    AstNode* file = &args->body[0];
+    if (!(file->type == NODE_EXPRESSION && file->flags & EXPR_LITERAL && file->flags & IS_STRING_LITERAL)) {
+      // @TODO Report error - wrong argument type.
+    }
+
+    String* filename = unescape_string_literal(&file->source);
+    pipeline_emit_read_job(ws, filename);
+  }
+  return NULL;
+}
+
 //  TOP_LEVEL = DECLARATION
 //            | ASSIGNMENT
-//            | TOP_LEVEL_DIRECTIVE    @TODO
-AstNode* parse_top_level(ParserState* state) {
-  AstNode* node;
+//            | TOP_LEVEL_DIRECTIVE
+AstNode* parse_top_level(CompilationWorkspace* ws, ParserState* state) {
+  AstNode* node = NULL;
 
   if (test_assignment(state)) {
     node = parse_assignment(state);
@@ -605,6 +645,8 @@ AstNode* parse_top_level(ParserState* state) {
   } else if (test_declaration(state)) {
     node = parse_declaration(state);
     list_append(&state->scope->declarations, node);
+  } else if (test_top_level_directive(state)) {
+    parse_top_level_directive(ws, state);
   } else {
     printf("Invalid top-level expression on line %zu!", TOKEN.line);
     assert(0);
@@ -641,7 +683,8 @@ bool perform_parse_job(Job* job) {
       // Move on, nothing to see here.
 
     } else {
-      AstNode* node = parse_top_level(state);
+      AstNode* node = parse_top_level(job->ws, state);
+      if (node == NULL) continue;
 
       if (node->flags & NODE_CONTAINS_ERROR) {
         pipeline_emit_abort_job(job->ws, job->file, node);
