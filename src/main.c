@@ -214,6 +214,7 @@ typedef struct {
 } VmState;
 
 #include "src/debug.c"
+#include "src/utility.c"
 
 #include "src/pipeline.c"
 

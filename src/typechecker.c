@@ -347,46 +347,7 @@ bool typecheck_expression_literal_fractional(Job* job, AstNode* node) {
 }
 
 bool typecheck_expression_literal_string(Job* job, AstNode* node) {
-  String* str = malloc(sizeof(String));
-  str->data = malloc(node->source.length * sizeof(char));
-
-  assert(node->source.data[0] == '"');
-  assert(node->source.data[node->source.length - 1] == '"');
-
-  size_t idx = 0;
-  for (size_t i = 0; i < node->source.length - 2; i++) {
-    char c = node->source.data[i + 1];
-
-    if (c == '\\') {
-      i += 1;
-      switch (node->source.data[i + 1]) {
-        case '0': str->data[idx++] = '\0'; break;
-        case 'a': str->data[idx++] = '\a'; break;
-        case 'b': str->data[idx++] = '\b'; break;
-        case 't': str->data[idx++] = '\t'; break;
-        case 'n': str->data[idx++] = '\n'; break;
-        case 'v': str->data[idx++] = '\v'; break;
-        case 'f': str->data[idx++] = '\f'; break;
-        case 'r': str->data[idx++] = '\r'; break;
-        case 'e': str->data[idx++] = '\e'; break;
-        case '"': str->data[idx++] = '\"'; break;
-        case '\\': str->data[idx++] = '\\'; break;
-        default: {
-          char* err = malloc(32 * sizeof(char));
-          sprintf(err, "Unknown escape sequence: '\\%c'\n", node->source.data[i + 1]);
-
-          node->flags |= NODE_CONTAINS_ERROR;
-          node->error = new_string(err);
-          return 1;
-        }
-      }
-    } else {
-      str->data[idx++] = c;
-    }
-  }
-  str->length = idx;
-
-  node->pointer_value = str;
+  node->pointer_value = unescape_string_literal(&node->source);
   node->typeclass = _get_type(STR_STRING);
 
   return 1;
