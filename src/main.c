@@ -231,6 +231,16 @@ DEFINE_STR(TYPE_PROC_VOID_TO_VOID, "() => ()");
 DEFINE_STR(TYPE_PROC_U8_TO_VOID, "(u8) => ()");
 DEFINE_STR(BUILTIN_PUTC, "putc");
 DEFINE_STR(BUILTIN_SYSCALL, "syscall");
+
+static size_t putc_bytecode[11] = {
+  BC_PUSH, 1,
+  BC_ARG_ADDR, 0,
+  BC_PUSH, 1,
+  BC_PUSH, SYS_write,
+  BC_SYSCALL, 4,
+  BC_EXIT,
+};
+
 void populate_builtins(CompilationWorkspace* ws) {
   size_t builtin_node_id = -1;
 
@@ -244,28 +254,14 @@ void populate_builtins(CompilationWorkspace* ws) {
     list_append(&ws->bytecode, main_bytecode);
   }
 
-  AstNode* putc_decl;
   {
-    size_t* putc_bytecode = malloc(12 * sizeof(size_t));
-    putc_bytecode[0] = BC_PUSH;
-    putc_bytecode[1] = 1;
-    putc_bytecode[2] = BC_ARG_ADDR;
-    putc_bytecode[3] = 0;
-    putc_bytecode[4] = BC_PUSH;
-    putc_bytecode[5] = 1;
-    putc_bytecode[6] = BC_PUSH;
-    putc_bytecode[7] = SYS_write;
-    putc_bytecode[8] = BC_SYSCALL;
-    putc_bytecode[9] = 4;
-    putc_bytecode[10] = BC_EXIT;
-
     AstNode* putc_expr = calloc(1, sizeof(AstNode));
     putc_expr->id = builtin_node_id--;
     putc_expr->type = NODE_EXPRESSION;
     putc_expr->flags = EXPR_PROCEDURE;
     putc_expr->bytecode_id = list_append(&ws->bytecode, putc_bytecode);
 
-    putc_decl = calloc(1, sizeof(AstNode));
+    AstNode* putc_decl = calloc(1, sizeof(AstNode));
     putc_decl->id = builtin_node_id--;
     putc_decl->type = NODE_DECLARATION;
     putc_decl->flags = NODE_INITIALIZED;
