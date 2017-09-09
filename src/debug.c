@@ -1,4 +1,4 @@
-const char* ESCAPED[256] = {
+static char* ESCAPED[256] = {
   "\\x00", "\\x01", "\\x02", "\\x03", "\\x04", "\\x05", "\\x06", "\\a",
   "\\b",   "\\t",   "\\n",   "\\v",   "\\f",   "\\r",   "\\x0E", "\\x0F",
   "\\x10", "\\x11", "\\x12", "\\x13", "\\x14", "\\x15", "\\x16", "\\x17",
@@ -135,33 +135,6 @@ void inspect_token(Token t) {
 }
 
 void inspect_ast_node(AstNode* node) {
-  // AstNodeType type;
-  // AstNodeFlags flags;         // 0
-  // size_t id;                  // Serial number
-  //
-  // FileAddress from;           // ---
-  // FileAddress to;             // ---
-  //
-  // Symbol ident;               // ---
-  // String source;              // ---
-  // struct AstNode* lhs;        // ---
-  // struct AstNode* rhs;        // ---
-  //
-  // size_t body_length;         // ---
-  // struct AstNode* body;       // ---
-  //
-  // Scope* scope;               // ---
-  //
-  // Typeclass* typeclass;       // NULL
-  // Typekind typekind;          // 0
-  // union {
-  //   unsigned long long int_value;
-  //   double double_value;
-  //   void* pointer_value;
-  // };
-  //
-  // String* error;              // NULL
-
   printf("«AstNode 0x%X type=%s flags=%x id=%zu from=%zu,%zu to=%zu,%zu ident=%d type=%x bytecode_id=%zx»", (unsigned int) node, _ast_node_type(node), node->flags, node->id, node->from.line + 1, node->from.pos + 1, node->to.line + 1, node->to.pos + 1, (int) node->ident, (unsigned int) node->typeclass, node->bytecode_id);
 }
 
