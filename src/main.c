@@ -244,32 +244,6 @@ void populate_builtins(CompilationWorkspace* ws) {
     list_append(&ws->bytecode, main_bytecode);
   }
 
-  AstNode* syscall_decl;
-  {
-    // @TODO We need variable length calls before we can actually call this.
-    size_t* syscall_bytecode = malloc(2 * sizeof(size_t));
-    syscall_bytecode[0] = BC_SYSCALL;
-    syscall_bytecode[1] = BC_EXIT;
-
-    AstNode* syscall_expr = calloc(1, sizeof(AstNode));
-    syscall_expr->id = builtin_node_id--;
-    syscall_expr->type = NODE_EXPRESSION;
-    syscall_expr->flags = EXPR_PROCEDURE;
-    syscall_expr->bytecode_id = list_append(&ws->bytecode, syscall_bytecode);
-
-    syscall_decl = calloc(1, sizeof(AstNode));
-    syscall_decl->id = builtin_node_id--;
-    syscall_decl->type = NODE_DECLARATION;
-    syscall_decl->flags = NODE_INITIALIZED;
-    syscall_decl->ident = symbol_get(BUILTIN_SYSCALL);
-    syscall_decl->typeclass = _new_type(TYPE_PROC_VOID_TO_VOID, 64);
-    syscall_decl->typeclass->from = new_list(1, 0);
-    syscall_decl->typeclass->to = new_list(1, 0);
-    syscall_decl->pointer_value = syscall_expr;
-
-    list_append(&ws->global_scope.declarations, syscall_decl);
-  }
-
   AstNode* putc_decl;
   {
     size_t* putc_bytecode = malloc(12 * sizeof(size_t));
@@ -281,10 +255,9 @@ void populate_builtins(CompilationWorkspace* ws) {
     putc_bytecode[5] = 1;
     putc_bytecode[6] = BC_PUSH;
     putc_bytecode[7] = SYS_write;
-    putc_bytecode[8] = BC_CALL;
-    putc_bytecode[9] = (size_t) syscall_decl;
-    putc_bytecode[10] = 4;
-    putc_bytecode[11] = BC_EXIT;
+    putc_bytecode[8] = BC_SYSCALL;
+    putc_bytecode[9] = 4;
+    putc_bytecode[10] = BC_EXIT;
 
     AstNode* putc_expr = calloc(1, sizeof(AstNode));
     putc_expr->id = builtin_node_id--;

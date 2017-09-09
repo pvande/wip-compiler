@@ -137,16 +137,10 @@ bool perform_execute_job(Job* job) {
       case BC_SYSCALL: {
         size_t args[8] = {};
 
-        // @TODO This is entangled directly with the function it's embedded
-        //       within; that implies that this should only ever be invoked in
-        //       certain functions.  We should either make the syscall more
-        //       generic (and make it take arguments off the stack), or we
-        //       should do away with the `syscall` function itself – the
-        //       weirdness of having both interact like this is unfortunate.
-        int arg_count = ARG_COUNT;
+        size_t arg_count = bytecode[state->ip++];
 
         for (int i = 0; i < arg_count; i++) {
-          args[i] = ARG(i);
+          args[i] = state->stack[state->sp--];
         }
 
         if (arg_count == 1) {
