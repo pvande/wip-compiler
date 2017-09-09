@@ -13,6 +13,8 @@ const char OPERATORS[256 - 32] = {
   0, 0, 0, 2, 1, 2, 1, 0,  // xyz{|}~
 };
 
+DEFINE_STR(KEYWORD_IF, "if");
+
 // @Precondition: file data is never freed.
 // @Precondition: input data is never freed.
 void tokenize_string(FileInfo* file, TokenizedFile* result) {
@@ -33,7 +35,7 @@ void tokenize_string(FileInfo* file, TokenizedFile* result) {
   #define LAST  (input->data[file_pos - 1])
   #define NEXT  (file_pos + 1 < input->length ? input->data[file_pos + 1] : '\0')
   #define LENGTH  (file_pos - token_start)
-  #define SOURCE  (*substring(input, token_start, LENGTH))
+  #define SOURCE  (substring(input, token_start, LENGTH))
 
   #define IS_WHITESPACE(T)    (T == ' ' || T == '\t')
   #define IS_NEWLINE(T)       (T == '\n')
@@ -177,7 +179,13 @@ void tokenize_string(FileInfo* file, TokenizedFile* result) {
         break;
       default:
         SLURP_IDENT();
-        *((Token*) pool_get(tokens)) = (Token) { TOKEN_IDENTIFIER, line_no, line_pos - LENGTH, SOURCE, NONLITERAL, 1 };
+        TokenType type = TOKEN_IDENTIFIER;
+        String source = SOURCE;
+        if (string_equals(&source, KEYWORD_IF)) {
+          type = TOKEN_KEYWORD;
+        }
+
+        *((Token*) pool_get(tokens)) = (Token) { type, line_no, line_pos - LENGTH, source, NONLITERAL, 1 };
     }
   }
 

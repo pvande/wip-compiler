@@ -164,6 +164,18 @@ bool perform_execute_job(Job* job) {
         break;
       }
 
+      case BC_JUMP: {
+        size_t distance = bytecode[state->ip++];
+
+        size_t test = state->stack[state->sp--];
+
+        if (test == 0) {
+          state->ip += distance;
+        }
+
+        break;
+      }
+
       default: {
         printf("??? %zu ???\n", bytecode[state->ip - 1]);
         assert(0);

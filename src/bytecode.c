@@ -4,6 +4,7 @@
 #define STORE(DECL)      do { EMIT(BC_STORE); EMIT((size_t) DECL); } while (0);
 #define PUSH(V)          do { EMIT(BC_PUSH); EMIT(V); } while (0);
 #define CALL(DECL, LEN)  do { EMIT(BC_CALL); EMIT((size_t) DECL); EMIT((size_t) LEN); } while (0);
+#define JUMP_IF_ZERO(TO) do { EMIT(BC_JUMP); EMIT((size_t) TO); } while (0);
 
 bool bytecode_handle_node(Pool* instructions, AstNode* node);
 
@@ -111,6 +112,31 @@ bool bytecode_handle_compound(Pool* instructions, AstNode* node) {
   return result;
 }
 
+bool bytecode_handle_conditional(Pool* instructions, AstNode* node) {
+  bool result = 1;
+  AstNode* cond = node->lhs;
+  AstNode* branch = node->body;
+
+  result = bytecode_handle_node(instructions, cond);
+  if (!result) return result;
+
+  Pool bytecode;  // @Leak The contained structures are never released.
+  initialize_pool(&bytecode, sizeof(size_t), 16, 64);
+
+  result = bytecode_handle_node(&bytecode, branch);
+  if (!result) return result;
+
+  JUMP_IF_ZERO(bytecode.length);
+
+  size_t* code = pool_to_array(&bytecode);  // @Leak This never gets released.
+  for (size_t i = 0; i < bytecode.length; i++) {
+    EMIT(*code);
+    code++;
+  }
+
+  return result;
+}
+
 bool bytecode_handle_node(Pool* instructions, AstNode* node) {
   if (node->typeclass == NULL) return 0;
 
@@ -128,6 +154,9 @@ bool bytecode_handle_node(Pool* instructions, AstNode* node) {
       break;
     case NODE_COMPOUND:
       result = bytecode_handle_compound(instructions, node);
+      break;
+    case NODE_CONDITIONAL:
+      result = bytecode_handle_conditional(instructions, node);
       break;
     default:
       assert(0);
@@ -168,6 +197,7 @@ bool bytecode_handle_top_level_node(CompilationWorkspace* ws, AstNode* node) {
 
 bool perform_bytecode_job(Job* job) {
   CompilationWorkspace* ws = job->ws;
+
   bool result = bytecode_handle_top_level_node(ws, job->node);
 
   return result;

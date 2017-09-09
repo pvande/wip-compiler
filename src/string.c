@@ -23,12 +23,8 @@ char* to_zero_terminated_string(String* str) {
   return buffer;
 }
 
-String* substring(String* str, size_t pos, size_t length) {
-  String* substr = malloc(sizeof(String));
-
-  substr->length = length;
-  substr->data = str->data + pos;
-
+String substring(String* str, size_t pos, size_t length) {
+  String substr = { length, str->data + pos };
   return substr;
 }
 

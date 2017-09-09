@@ -91,6 +91,11 @@ int peek_op(ParserState* state, String* op) {
   return peek_syntax_op(state, op) || peek_nonsyntax_op(state, op);
 }
 
+int peek_keyword(ParserState* state, String* keyword) {
+  if (TOKEN.type != TOKEN_KEYWORD) return 0;
+  return string_equals(keyword, &TOKEN.source);
+}
+
 int peek_directive(ParserState* state, String* directive) {
   return (TOKEN.type == TOKEN_DIRECTIVE) && string_equals(&TOKEN.source, directive);
 }
@@ -118,6 +123,13 @@ int accept_nonsyntax_op(ParserState* state, String* op) {
 
 int accept_op(ParserState* state, String* op) {
   if (!peek_op(state, op)) return 0;
+
+  state->pos += 1;
+  return 1;
+}
+
+int accept_keyword(ParserState* state, String* keyword) {
+  if (!peek_keyword(state, keyword)) return 0;
 
   state->pos += 1;
   return 1;
@@ -297,6 +309,20 @@ AstNode* parse_declaration(ParserState* state);
 AstNode* parse_assignment(ParserState* state);
 
 
+void populate_conditional_node(AstNode* node, AstNode* cond, AstNode* branch) {
+  init_node(node, NODE_CONDITIONAL);
+
+  // @TODO Error handling
+  node->flags |= NODE_CONTAINS_LHS;
+  node->body_length = 1;
+  node->lhs = cond;
+  node->body = branch;
+
+  // node->from is populated by the caller
+  node->to = node->body->to;
+  node->flags |= (node->lhs->flags | node->body->flags) & NODE_CONTAINS_ERROR;
+}
+
 void parse_type_node(ParserState* state, AstNode* node) {
   init_node(node, NODE_TYPE);
 
@@ -366,6 +392,20 @@ void parse_procedure_node(ParserState* state, AstNode* node) {
 
   // "Pop" the scope off the stack.
   state->scope = state->scope->parent;
+}
+
+// CONDITIONAL = "if" EXPRESSION CODE_BLOCK
+void parse_conditional_node(ParserState* state, AstNode* node) {
+  // @TODO Node initialization is deferred to `populate_conditional_node`, which
+  //       feels uncomfortable.
+
+  node->from = token_start(TOKEN);
+  accept_keyword(state, KEYWORD_IF);
+
+  AstNode* cond = parse_expression(state);
+  AstNode* branch = parse_code_block(state);
+
+  populate_conditional_node(node, cond, branch);
 }
 
 void parse_declaration_node(ParserState* state, AstNode* node) {
@@ -535,7 +575,10 @@ AstNode* parse_expression_tuple(ParserState* state) {
 }
 
 // STATEMENT = DECLARATION
+//           | ASSIGNMENT
+//           | CONDITIONAL
 //           | EXPRESSION
+//           | EXPRESSION POSTFIX_CONDITIONAL?
 void parse_statement_node(ParserState* state, AstNode* node) {
   if (accept_op(state, OP_NEWLINE)) {
     assert(0);  // This should always be managed by the _parse_list method.
@@ -546,14 +589,31 @@ void parse_statement_node(ParserState* state, AstNode* node) {
   } else if (test_declaration(state)) {
     parse_declaration_node(state, node);
 
+  } else if (peek_keyword(state, KEYWORD_IF)) {
+    parse_conditional_node(state, node);
+
   } else {
     parse_expression_node(state, node);
+
+    // @TODO Postfix conditionals (and others?) should be pulled out into a
+    //       separate function, probably.
+    if (peek_keyword(state, KEYWORD_IF)) {
+      AstNode* branch = pool_get(state->nodes);
+      *branch = *node;
+
+      accept_keyword(state, KEYWORD_IF);
+
+      AstNode* test = pool_get(state->nodes);
+      parse_expression_node(state, test);
+
+      populate_conditional_node(node, test, branch);
+    }
   }
 }
 
 // @Precondition A block-local scope has been pushed onto the scope stack.
 // CODE_BLOCK = "{" "}"
-//            | "(" STATEMENT ("," STATEMENT)* ")"
+//            | "{" STATEMENT ("," STATEMENT)* "}"
 AstNode* parse_code_block(ParserState* state) {
   AstNode* block = _parse_list(state, OP_OPEN_BRACE, OP_CLOSE_BRACE, OP_NEWLINE, test_not_end_of_block, parse_statement_node);
 

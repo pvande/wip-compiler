@@ -80,6 +80,10 @@ bool typecheck_can_coerce(Typeclass* from, Typekind kind, Typeclass* to) {
   if (from == to) return 1;
 
   if (from == &TYPECLASS_LITERAL) {
+    if (to->name == STR_BOOL) {
+      return kind & KIND_NUMBER;
+    }
+
     if (to->name == STR_INT)
       return kind & (KIND_CAN_BE_U64 | KIND_CAN_BE_SIGNED);
 
@@ -563,6 +567,28 @@ bool typecheck_compound(Job* job, AstNode* node) {
   return result;
 }
 
+bool typecheck_conditional(Job* job, AstNode* node) {
+  bool result = 1;
+  AstNode* condition = node->lhs;
+  AstNode* body = node->body;
+
+  result = typecheck_node(job, condition);
+  if (!result) return result;
+
+  if (!typecheck_can_coerce(condition->typeclass, condition->typekind, _get_type(STR_BOOL))) {
+    node->flags |= NODE_CONTAINS_ERROR;
+    node->lhs->flags |= NODE_CONTAINS_ERROR;
+    condition->flags |= NODE_CONTAINS_ERROR;
+    condition->error = ERR_INCOMPATIBLE_TYPES;
+    return 0;
+  }
+
+  result = typecheck_node(job, body);
+  node->typeclass = _get_type(STR_VOID);
+
+  return result;
+}
+
 bool typecheck_node(Job* job, AstNode* node) {
   node->flags &= ~NODE_CONTAINS_ERROR;
   if (node->typeclass != NULL) return 1;
@@ -584,6 +610,9 @@ bool typecheck_node(Job* job, AstNode* node) {
       break;
     case NODE_COMPOUND:
       result = typecheck_compound(job, node);
+      break;
+    case NODE_CONDITIONAL:
+      result = typecheck_conditional(job, node);
       break;
     default:
       node->flags |= NODE_CONTAINS_ERROR;

@@ -51,6 +51,7 @@ typedef enum {
   TOKEN_SYNTAX_OPERATOR,
   TOKEN_OPERATOR,
   TOKEN_IDENTIFIER,
+  TOKEN_KEYWORD,
 } TokenType;
 
 typedef enum {
@@ -109,7 +110,7 @@ typedef struct {
 // Update docs/parser/node-usage.md when this changes.
 typedef enum {
   NODE_ASSIGNMENT,
-  // NODE_BRANCH,
+  NODE_CONDITIONAL,
   NODE_COMPOUND,
   NODE_DECLARATION,
   NODE_EXPRESSION,
@@ -196,8 +197,8 @@ enum BytecodeInstructions {
   BC_ARG_ADDR,
   BC_PUSH,
   BC_CALL,
-
-  BC_SYSCALL
+  BC_SYSCALL,
+  BC_JUMP,
 };
 
 

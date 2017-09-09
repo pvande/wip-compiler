@@ -105,8 +105,8 @@ char* _ast_node_type(AstNode* node) {
   switch (node->type) {
     case NODE_ASSIGNMENT:
       return "ASSIGNMENT";
-    // case NODE_BRANCH:
-    //   return "BRANCH";
+    case NODE_CONDITIONAL:
+      return "CONDITIONAL";
     case NODE_COMPOUND:
       return "COMPOUND";
     case NODE_DECLARATION:
@@ -206,9 +206,9 @@ void print_ast_node_type(AstNode* node) {
     case NODE_ASSIGNMENT:
       printf("ASSIGNMENT");
       break;
-    // case NODE_BRANCH:
-    //   printf("BRANCH");
-    //   break;
+    case NODE_CONDITIONAL:
+      printf("CONDITIONAL");
+      break;
     case NODE_COMPOUND:
       printf("COMPOUND(%zu)", node->body_length);
       break;
@@ -448,8 +448,11 @@ int _print_bytecode(size_t* bytecode) {
       printf("CALL %p %zu\n", (void*) bytecode[1], bytecode[2]);
       return 3;
     case BC_SYSCALL:
-      printf("SYSCALL\n");
-      return 1;
+      printf("SYSCALL %zu\n", bytecode[1]);
+      return 2;
+    case BC_JUMP:
+      printf("JUMP %zu\n", bytecode[1]);
+      return 2;
     default:
       printf("««%zu»»\n", bytecode[0]);
       assert(0);
