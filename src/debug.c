@@ -453,6 +453,9 @@ int _print_bytecode(size_t* bytecode) {
     case BC_JUMP:
       printf("JUMP %zu\n", bytecode[1]);
       return 2;
+    case BC_JUMP_ZERO:
+      printf("JUMP_ZERO %zu\n", bytecode[1]);
+      return 2;
     default:
       printf("««%zu»»\n", bytecode[0]);
       assert(0);

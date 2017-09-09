@@ -4,7 +4,7 @@
 #define STORE(DECL)      do { EMIT(BC_STORE); EMIT((size_t) DECL); } while (0);
 #define PUSH(V)          do { EMIT(BC_PUSH); EMIT(V); } while (0);
 #define CALL(DECL, LEN)  do { EMIT(BC_CALL); EMIT((size_t) DECL); EMIT((size_t) LEN); } while (0);
-#define JUMP_IF_ZERO(TO) do { EMIT(BC_JUMP); EMIT((size_t) TO); } while (0);
+#define JUMP_ZERO(TO)    do { EMIT(BC_JUMP_ZERO); EMIT((size_t) TO); } while (0);
 
 bool bytecode_handle_node(Pool* instructions, AstNode* node);
 
@@ -126,7 +126,7 @@ bool bytecode_handle_conditional(Pool* instructions, AstNode* node) {
   result = bytecode_handle_node(&bytecode, branch);
   if (!result) return result;
 
-  JUMP_IF_ZERO(bytecode.length);
+  JUMP_ZERO(bytecode.length);
 
   size_t* code = pool_to_array(&bytecode);  // @Leak This never gets released.
   for (size_t i = 0; i < bytecode.length; i++) {

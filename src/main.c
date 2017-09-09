@@ -199,6 +199,7 @@ enum BytecodeInstructions {
   BC_CALL,
   BC_SYSCALL,
   BC_JUMP,
+  BC_JUMP_ZERO,
 };
 
 
