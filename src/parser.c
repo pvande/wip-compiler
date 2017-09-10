@@ -13,7 +13,8 @@ DEFINE_STR(OP_NEWLINE, "\n");
 
 // ** Constant Directives ** //
 
-DEFINE_STR(DIRECTIVE_LOAD, "load");
+DEFINE_STR(DIRECTIVE_LOAD, "@load");
+DEFINE_STR(DIRECTIVE_CHAR, "@char");
 
 // ** Constant Errors ** //
 
@@ -22,6 +23,7 @@ DEFINE_STR(ERR_EXPECTED_EXPRESSION, "Expected an expression");
 DEFINE_STR(ERR_EXPECTED_EOL, "Unexpected code following statement");
 DEFINE_STR(ERR_EXPECTED_CLOSE, "Unexpected code in argument list");
 DEFINE_STR(ERR_UNCLOSED_STRING, "String literal is unterminated");
+DEFINE_STR(ERR_UNDESCRIBED, "Error here");
 
 // ** Local Data Structures ** //
 
@@ -434,6 +436,7 @@ void parse_declaration_node(ParserState* state, AstNode* node) {
   node->to = token_end(ACCEPTED);
 }
 
+void* _get_type(String* name);
 void parse_expression_node(ParserState* state, AstNode* node) {
   init_node(node, NODE_EXPRESSION);
 
@@ -483,6 +486,53 @@ void parse_expression_node(ParserState* state, AstNode* node) {
 
   } else if (test_procedure(state)) {
     parse_procedure_node(state, node);
+
+  } else if (accept_directive(state, DIRECTIVE_CHAR)) {
+    node->from = token_start(ACCEPTED);
+
+    if (!peek_op(state, OP_OPEN_PAREN)) {
+      // @TODO Report error - expected arguments.
+      node->flags |= NODE_CONTAINS_ERROR;
+      node->error = ERR_UNDESCRIBED;
+      node->to = token_end(ACCEPTED);
+      return;
+    }
+
+    AstNode* arguments = parse_expression_tuple(state);
+    if (arguments->body_length != 1) {
+      // @TODO Report error - expected one argument.
+      node->flags |= NODE_CONTAINS_ERROR;
+      node->error = ERR_UNDESCRIBED;
+      node->to = token_end(ACCEPTED);
+      return;
+    }
+
+    AstNode* expr = arguments->body;
+    if (!(expr->flags & (EXPR_LITERAL | IS_STRING_LITERAL))) {
+      // @TODO Report error - expected a string literal.
+      node->flags |= NODE_CONTAINS_ERROR;
+      node->error = ERR_UNDESCRIBED;
+      node->to = token_end(ACCEPTED);
+      return;
+    }
+
+    String* str = unescape_string_literal(&expr->source);
+    if (str->length != 1) {
+      // @TODO Report error - expected a single byte string.
+      node->flags |= NODE_CONTAINS_ERROR;
+      node->error = ERR_UNDESCRIBED;
+      node->to = token_end(ACCEPTED);
+      return;
+    }
+
+    node->flags |= EXPR_LITERAL;
+    node->flags |= IS_DECIMAL_LITERAL;
+    node->int_value = str->data[0];
+    node->to = token_end(ACCEPTED);
+
+    // @TODO I'm not sure I like eagerly typing this...
+    node->typeclass = _get_type(STR_BYTE);
+    node->typekind = KIND_NUMBER;
 
   } else {
     node->from = token_start(TOKEN);
