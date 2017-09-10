@@ -1,0 +1,58 @@
+Hello := () => {
+  H := @char("H")
+  e := @char("e")
+  l := @char("l")
+  o := @char("o")
+
+  putc(H)
+  putc(e)
+  putc(l)
+  putc(l)
+  putc(o)
+}
+
+Goodbye := () => {
+  G := @char("G")
+  o := @char("o")
+  d := @char("d")
+  b := @char("b")
+  y := @char("y")
+  e := @char("e")
+
+  putc(G)
+  putc(o)
+  putc(o)
+  putc(d)
+  putc(b)
+  putc(y)
+  putc(e)
+}
+
+main := () => {
+  space := @char(" ")
+  newline := () => { putc(@char("\n")) }
+
+  if 1 {
+    Hello()
+  }
+
+  if 0 { Goodbye() }
+  putc(space)
+  World(@char("!")) if 1
+  newline()
+}
+
+World := (bang : u8) => {
+  W := 87
+  o := 111
+  r := 114
+  l := 108
+  d := 100
+
+  putc(W)
+  putc(o)
+  putc(r)
+  putc(l)
+  putc(d)
+  putc(bang)
+}
