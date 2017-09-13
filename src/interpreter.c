@@ -81,6 +81,7 @@ bool perform_execute_job(Job* job) {
         AstNode* decl = (void*) bytecode[state->ip++];
 
         decl->pointer_value = (void*) state->stack[state->sp--];
+        decl->flags |= NODE_INITIALIZED;
         break;
       }
 
