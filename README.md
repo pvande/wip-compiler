@@ -132,6 +132,11 @@ a := () => { c() }
 b := () => { }
 c := () => { b() }
 
+// Iteration
+loop {
+  break
+}
+
 // The `@load` directive
 @load("other")  // Loads "other.xxx" into the global namespace.
 @load("other")  // Duplicated loads are properly handled.
