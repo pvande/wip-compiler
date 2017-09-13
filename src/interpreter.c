@@ -183,6 +183,10 @@ bool perform_execute_job(Job* job) {
         break;
       }
 
+      case BC_BREAK: {
+        assert("Internal Compiler Error: Interpreting BC_BREAK");
+      }
+
       default: {
         printf("??? %zu ???\n", bytecode[state->ip - 1]);
         assert(0);

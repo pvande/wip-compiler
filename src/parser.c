@@ -586,6 +586,68 @@ void parse_argument_declaration_node(ParserState* state, AstNode* node) {
   node->flags |= DECL_ARGUMENT;
 }
 
+
+// LOOP = "loop" CODE_BLOCK
+void parse_loop_node(ParserState* state, AstNode* node) {
+  init_node(node, NODE_LOOP);
+  node->from = token_start(TOKEN);
+  accept_keyword(state, KEYWORD_LOOP);
+
+  AstNode* block = parse_code_block(state);
+  node->body_length = 1;
+  node->body = block;
+  node->flags |= (block->flags) & NODE_CONTAINS_ERROR;
+  node->to = block->to;
+}
+
+// STATEMENT = DECLARATION
+//           | ASSIGNMENT
+//           | CONDITIONAL
+//           | LOOP
+//           | EXPRESSION
+//           | EXPRESSION POSTFIX_CONDITIONAL?
+void parse_statement_node(ParserState* state, AstNode* node) {
+  if (accept_op(state, OP_NEWLINE)) {
+    assert(0);  // This should always be managed by the _parse_list method.
+
+  } else if (test_assignment(state)) {
+    parse_assignment_node(state, node);
+
+  } else if (test_declaration(state)) {
+    parse_declaration_node(state, node);
+
+  } else if (peek_keyword(state, KEYWORD_IF)) {
+    parse_conditional_node(state, node);
+
+  } else if (peek_keyword(state, KEYWORD_LOOP)) {
+    parse_loop_node(state, node);
+
+  } else if (peek_keyword(state, KEYWORD_BREAK)) {
+    init_node(node, NODE_BREAK);
+
+    node->from = token_start(TOKEN);
+    accept_keyword(state, KEYWORD_BREAK);
+    node->to = token_start(TOKEN);
+
+  } else {
+    parse_expression_node(state, node);
+
+    // @TODO Postfix conditionals (and others?) should be pulled out into a
+    //       separate function, probably.
+    if (peek_keyword(state, KEYWORD_IF)) {
+      AstNode* branch = pool_get(state->nodes);
+      *branch = *node;
+
+      accept_keyword(state, KEYWORD_IF);
+
+      AstNode* test = pool_get(state->nodes);
+      parse_expression_node(state, test);
+
+      populate_conditional_node(node, test, branch);
+    }
+  }
+}
+
 // TYPE = Identifier
 //      | TYPE_TUPLE "=>" TYPE          @TODO
 //      | TYPE_TUPLE "=>" TYPE_TUPLE    @TODO
@@ -622,43 +684,6 @@ AstNode* parse_argument_declaration_tuple(ParserState* state) {
 //                  | "(" EXPRESSION ("," EXPRESSION)* ")"
 AstNode* parse_expression_tuple(ParserState* state) {
   return _parse_list(state, OP_OPEN_PAREN, OP_CLOSE_PAREN, OP_COMMA, test_not_end_of_tuple, parse_expression_node);
-}
-
-// STATEMENT = DECLARATION
-//           | ASSIGNMENT
-//           | CONDITIONAL
-//           | EXPRESSION
-//           | EXPRESSION POSTFIX_CONDITIONAL?
-void parse_statement_node(ParserState* state, AstNode* node) {
-  if (accept_op(state, OP_NEWLINE)) {
-    assert(0);  // This should always be managed by the _parse_list method.
-
-  } else if (test_assignment(state)) {
-    parse_assignment_node(state, node);
-
-  } else if (test_declaration(state)) {
-    parse_declaration_node(state, node);
-
-  } else if (peek_keyword(state, KEYWORD_IF)) {
-    parse_conditional_node(state, node);
-
-  } else {
-    parse_expression_node(state, node);
-
-    // @TODO Postfix conditionals (and others?) should be pulled out into a
-    //       separate function, probably.
-    if (peek_keyword(state, KEYWORD_IF)) {
-      AstNode* branch = pool_get(state->nodes);
-      *branch = *node;
-
-      accept_keyword(state, KEYWORD_IF);
-
-      AstNode* test = pool_get(state->nodes);
-      parse_expression_node(state, test);
-
-      populate_conditional_node(node, test, branch);
-    }
-  }
 }
 
 // @Precondition A block-local scope has been pushed onto the scope stack.

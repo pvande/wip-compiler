@@ -4,7 +4,9 @@
 #define STORE(DECL)      do { EMIT(BC_STORE); EMIT((size_t) DECL); } while (0);
 #define PUSH(V)          do { EMIT(BC_PUSH); EMIT(V); } while (0);
 #define CALL(DECL, LEN)  do { EMIT(BC_CALL); EMIT((size_t) DECL); EMIT((size_t) LEN); } while (0);
+#define JUMP(TO)         do { EMIT(BC_JUMP); EMIT((size_t) TO); } while (0);
 #define JUMP_ZERO(TO)    do { EMIT(BC_JUMP_ZERO); EMIT((size_t) TO); } while (0);
+#define BREAK()          do { EMIT(BC_BREAK); EMIT(BC_BREAK); } while (0);
 
 bool bytecode_handle_node(Pool* instructions, AstNode* node);
 
@@ -137,6 +139,49 @@ bool bytecode_handle_conditional(Pool* instructions, AstNode* node) {
   return result;
 }
 
+bool bytecode_handle_loop(Pool* instructions, AstNode* node) {
+  bool result = 1;
+  AstNode* block = node->body;
+
+  Pool bytecode;  // @Leak The contained structures are never released.
+  initialize_pool(&bytecode, sizeof(size_t), 16, 64);
+
+  result = bytecode_handle_node(&bytecode, block);
+  if (!result) return result;
+
+  size_t block_length = bytecode.length;
+
+  size_t* code = pool_to_array(&bytecode);  // @Leak This never gets released.
+  size_t* end_of_code = code + block_length;
+  while (code < end_of_code) {
+    int count = BytecodeSizes[*code];
+
+    if (*code == BC_BREAK) {
+      code[0] = BC_JUMP;
+      code[1] = end_of_code - code;
+    }
+
+    // @MAYBE BC_RETRY?
+
+    for (int i = 0; i < count; i++) {
+      EMIT(*code);
+      code++;
+    }
+  }
+
+  JUMP(0 - block_length);
+
+  return result;
+}
+
+bool bytecode_handle_break(Pool* instructions, AstNode* node) {
+  bool result = 1;
+
+  BREAK();
+
+  return result;
+}
+
 bool bytecode_handle_node(Pool* instructions, AstNode* node) {
   if (node->typeclass == NULL) return 0;
 
@@ -157,6 +202,12 @@ bool bytecode_handle_node(Pool* instructions, AstNode* node) {
       break;
     case NODE_CONDITIONAL:
       result = bytecode_handle_conditional(instructions, node);
+      break;
+    case NODE_LOOP:
+      result = bytecode_handle_loop(instructions, node);
+      break;
+    case NODE_BREAK:
+      result = bytecode_handle_break(instructions, node);
       break;
     default:
       assert(0);

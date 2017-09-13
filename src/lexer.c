@@ -14,6 +14,8 @@ const char OPERATORS[256 - 32] = {
 };
 
 DEFINE_STR(KEYWORD_IF, "if");
+DEFINE_STR(KEYWORD_LOOP, "loop");
+DEFINE_STR(KEYWORD_BREAK, "break");
 
 // @Precondition: file data is never freed.
 // @Precondition: input data is never freed.
@@ -180,7 +182,12 @@ void tokenize_string(FileInfo* file, TokenizedFile* result) {
         SLURP_IDENT();
         TokenType type = TOKEN_IDENTIFIER;
         String source = SOURCE;
-        if (string_equals(&source, KEYWORD_IF)) {
+
+        bool is_keyword = string_equals(&source, KEYWORD_IF) ||
+                          string_equals(&source, KEYWORD_LOOP) ||
+                          string_equals(&source, KEYWORD_BREAK);
+
+        if (is_keyword) {
           type = TOKEN_KEYWORD;
         }
 

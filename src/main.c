@@ -110,11 +110,12 @@ typedef struct {
 // Update docs/parser/node-usage.md when this changes.
 typedef enum {
   NODE_ASSIGNMENT,
+  NODE_BREAK,
   NODE_CONDITIONAL,
   NODE_COMPOUND,
   NODE_DECLARATION,
   NODE_EXPRESSION,
-  // NODE_LOOP,
+  NODE_LOOP,
   NODE_RECOVERY,
   NODE_TYPE,
 } AstNodeType;
@@ -200,8 +201,23 @@ enum BytecodeInstructions {
   BC_SYSCALL,
   BC_JUMP,
   BC_JUMP_ZERO,
+
+  BC_BREAK,
 };
 
+char BytecodeSizes[11] = {
+  1,  // BC_EXIT
+  2,  // BC_LOAD
+  2,  // BC_STORE
+  2,  // BC_ARG_LOAD
+  2,  // BC_ARG_ADDR
+  2,  // BC_PUSH
+  3,  // BC_CALL
+  2,  // BC_SYSCALL
+  2,  // BC_JUMP
+  2,  // BC_JUMP_ZERO
+  2,  // BC_BREAK
+};
 
 
 typedef struct {

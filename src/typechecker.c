@@ -589,6 +589,16 @@ bool typecheck_conditional(Job* job, AstNode* node) {
   return result;
 }
 
+bool typecheck_loop(Job* job, AstNode* node) {
+  bool result = 1;
+  AstNode* block = node->body;
+
+  result = typecheck_node(job, block);
+  node->typeclass = _get_type(STR_VOID);
+
+  return result;
+}
+
 bool typecheck_node(Job* job, AstNode* node) {
   node->flags &= ~NODE_CONTAINS_ERROR;
   if (node->typeclass != NULL) return 1;
@@ -613,6 +623,13 @@ bool typecheck_node(Job* job, AstNode* node) {
       break;
     case NODE_CONDITIONAL:
       result = typecheck_conditional(job, node);
+      break;
+    case NODE_LOOP:
+      result = typecheck_loop(job, node);
+      break;
+    case NODE_BREAK:
+      node->typeclass = _get_type(STR_VOID);
+      result = 1;
       break;
     default:
       node->flags |= NODE_CONTAINS_ERROR;
