@@ -53,6 +53,7 @@ bool perform_execute_job(Job* job) {
 
     switch (bytecode[state->ip++]) {
       case BC_EXIT: {
+        // fprintf(stderr, "BC_EXIT\n");
         if (state->fp == -1) {
           interpreter_finish_dependency_initialization(ws, state->id);
           return 1;
@@ -71,6 +72,7 @@ bool perform_execute_job(Job* job) {
       }
 
       case BC_LOAD: {
+        // fprintf(stderr, "BC_LOAD %p\n", bytecode[state->ip]);
         AstNode* decl = (void*) bytecode[state->ip++];
 
         state->stack[++state->sp] = (size_t) decl->pointer_value;
@@ -78,6 +80,7 @@ bool perform_execute_job(Job* job) {
       }
 
       case BC_STORE: {
+        // fprintf(stderr, "BC_STORE (%p) %p\n", state->stack[state->sp], bytecode[state->ip]);
         AstNode* decl = (void*) bytecode[state->ip++];
 
         decl->pointer_value = (void*) state->stack[state->sp--];
@@ -86,6 +89,7 @@ bool perform_execute_job(Job* job) {
       }
 
       case BC_ARG_LOAD: {
+        // fprintf(stderr, "BC_ARG_LOAD %zu\n", bytecode[state->ip]);
         size_t offset = bytecode[state->ip++];
 
         state->stack[++state->sp] = ARG(offset);
@@ -93,6 +97,7 @@ bool perform_execute_job(Job* job) {
       }
 
       case BC_ARG_ADDR: {
+        // fprintf(stderr, "BC_ARG_ADDR %zu\n", bytecode[state->ip]);
         size_t offset = bytecode[state->ip++];
 
         state->stack[++state->sp] = (size_t) &ARG(offset);
@@ -100,6 +105,7 @@ bool perform_execute_job(Job* job) {
       }
 
       case BC_PUSH: {
+        // fprintf(stderr, "BC_PUSH %zu\n", bytecode[state->ip]);
         size_t value = bytecode[state->ip++];
 
         state->stack[++state->sp] = value;
@@ -107,6 +113,7 @@ bool perform_execute_job(Job* job) {
       }
 
       case BC_CALL: {
+        // fprintf(stderr, "BC_CALL %p %zu\n", bytecode[state->ip], bytecode[state->ip + 1]);
         AstNode* decl = (void*) bytecode[state->ip++];
 
         if (!(decl->flags & NODE_INITIALIZED)) {
@@ -136,6 +143,7 @@ bool perform_execute_job(Job* job) {
       }
 
       case BC_SYSCALL: {
+        // fprintf(stderr, "BC_SYSCALL %zu\n", bytecode[state->ip]);
         size_t args[8] = {};
 
         size_t arg_count = bytecode[state->ip++];
@@ -166,12 +174,14 @@ bool perform_execute_job(Job* job) {
       }
 
       case BC_JUMP: {
+        // fprintf(stderr, "BC_JUMP %lld\n", bytecode[state->ip]);
         size_t distance = bytecode[state->ip++];
         state->ip += distance;
         break;
       }
 
       case BC_JUMP_ZERO: {
+        // fprintf(stderr, "BC_JUMP_ZERO (%zu) %lld\n", state->stack[state->sp], bytecode[state->ip]);
         size_t distance = bytecode[state->ip++];
 
         size_t test = state->stack[state->sp--];

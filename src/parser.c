@@ -405,7 +405,15 @@ void parse_conditional_node(ParserState* state, AstNode* node) {
   accept_keyword(state, KEYWORD_IF);
 
   AstNode* cond = parse_expression(state);
+
+  // "Push" a new scope onto the stack.
+  state->scope = new_parser_scope(state->scope);
+
   AstNode* branch = parse_code_block(state);
+  branch->scope = state->scope;
+
+  // "Pop" the scope off the stack.
+  state->scope = state->scope->parent;
 
   populate_conditional_node(node, cond, branch);
 }
@@ -552,6 +560,7 @@ void parse_assignment_node(ParserState* state, AstNode* node) {
     AstNode* value = parse_expression(state);
 
     node->from = decl->from;
+    node->scope = state->scope;
     node->to = token_end(ACCEPTED);
     node->lhs = decl;
     node->rhs = value;
@@ -566,6 +575,7 @@ void parse_assignment_node(ParserState* state, AstNode* node) {
     AstNode* value = parse_expression(state);
 
     node->from = expr->from;
+    node->scope = state->scope;
     node->to = token_end(ACCEPTED);
     node->lhs = expr;
     node->rhs = value;
@@ -593,7 +603,15 @@ void parse_loop_node(ParserState* state, AstNode* node) {
   node->from = token_start(TOKEN);
   accept_keyword(state, KEYWORD_LOOP);
 
+  // "Push" a new scope onto the stack.
+  state->scope = new_parser_scope(state->scope);
+
   AstNode* block = parse_code_block(state);
+  block->scope = state->scope;
+
+  // "Pop" the scope off the stack.
+  state->scope = state->scope->parent;
+
   node->body_length = 1;
   node->body = block;
   node->flags |= (block->flags) & NODE_CONTAINS_ERROR;

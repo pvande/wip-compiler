@@ -130,11 +130,9 @@ bool bytecode_handle_conditional(Pool* instructions, AstNode* node) {
 
   JUMP_ZERO(bytecode.length);
 
-  size_t* code = pool_to_array(&bytecode);  // @Leak This never gets released.
-  for (size_t i = 0; i < bytecode.length; i++) {
-    EMIT(*code);
-    code++;
-  }
+  size_t* code = pool_to_array(&bytecode);
+  for (size_t i = 0; i < bytecode.length; i++) EMIT(code[i]);
+  free(code);
 
   return result;
 }
@@ -151,25 +149,25 @@ bool bytecode_handle_loop(Pool* instructions, AstNode* node) {
 
   size_t block_length = bytecode.length;
 
-  size_t* code = pool_to_array(&bytecode);  // @Leak This never gets released.
+  size_t* code = pool_to_array(&bytecode);
+  size_t* ptr = code;
   size_t* end_of_code = code + block_length;
-  while (code < end_of_code) {
-    int count = BytecodeSizes[*code];
-
-    if (*code == BC_BREAK) {
-      code[0] = BC_JUMP;
-      code[1] = end_of_code - code;
+  size_t offset = 0;
+  while (ptr < end_of_code) {
+    if (*ptr == BC_BREAK) {
+      ptr[0] = BC_JUMP;
+      ptr[1] = end_of_code - code;
     }
 
     // @MAYBE BC_RETRY?
 
-    for (int i = 0; i < count; i++) {
-      EMIT(*code);
-      code++;
-    }
+    int count = BytecodeSizes[*ptr];
+    for (int i = 0; i < count; i++) EMIT(ptr[i]);
+    ptr += count;
   }
+  free(code);
 
-  JUMP(0 - block_length);
+  JUMP(0 - (block_length + BytecodeSizes[BC_JUMP]));
 
   return result;
 }

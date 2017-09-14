@@ -113,8 +113,8 @@ char* _ast_node_type(AstNode* node) {
       return "DECLARATION";
     case NODE_EXPRESSION:
       return "EXPRESSION";
-    // case NODE_LOOP:
-    //   return "LOOP";
+    case NODE_LOOP:
+      return "LOOP";
     case NODE_RECOVERY:
       return "RECOVERY";
     case NODE_TYPE:
@@ -220,9 +220,9 @@ void print_ast_node_type(AstNode* node) {
     case NODE_EXPRESSION:
       printf("EXPRESSION");
       break;
-    // case NODE_LOOP:
-    //   printf("LOOP");
-    //   break;
+    case NODE_LOOP:
+      printf("LOOP");
+      break;
     case NODE_RECOVERY:
       printf("RECOVERY");
       break;
