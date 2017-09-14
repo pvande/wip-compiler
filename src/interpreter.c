@@ -75,6 +75,14 @@ bool perform_execute_job(Job* job) {
         // fprintf(stderr, "BC_LOAD %p\n", bytecode[state->ip]);
         AstNode* decl = (void*) bytecode[state->ip++];
 
+        if (!(decl->flags & NODE_INITIALIZED)) {
+          state->ip -= BytecodeSizes[BC_LOAD];
+          state->waiting_on = decl;
+
+          interpreter_begin_dependency_initialization(ws, state->waiting_on);
+          return 0;
+        }
+
         state->stack[++state->sp] = (size_t) decl->pointer_value;
         break;
       }
@@ -115,9 +123,10 @@ bool perform_execute_job(Job* job) {
       case BC_CALL: {
         // fprintf(stderr, "BC_CALL %p %zu\n", bytecode[state->ip], bytecode[state->ip + 1]);
         AstNode* decl = (void*) bytecode[state->ip++];
+        size_t arg_count = bytecode[state->ip++];
 
         if (!(decl->flags & NODE_INITIALIZED)) {
-          state->ip -= 2;
+          state->ip -= BytecodeSizes[BC_CALL];
           state->waiting_on = decl;
 
           interpreter_begin_dependency_initialization(ws, state->waiting_on);
@@ -129,7 +138,7 @@ bool perform_execute_job(Job* job) {
         assert(proc != NULL);
         assert(proc->bytecode_id != -1);
 
-        state->stack[++state->sp] = bytecode[state->ip++];  // Number of arguments.
+        state->stack[++state->sp] = arg_count;
         state->stack[++state->sp] = state->fp;
         state->stack[++state->sp] = state->ip;
         state->stack[++state->sp] = state->id;
