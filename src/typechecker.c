@@ -170,8 +170,10 @@ bool typecheck_declaration(Job* job, AstNode* node) {
 }
 
 bool typecheck_assignment(Job* job, AstNode* node) {
-  AstNode* target = node->lhs;
+  AstNode* target = _find_identifier(node->scope, node->lhs->ident);
   AstNode* value = node->rhs;
+
+  node->lhs = target;
 
   assert(target != NULL);
   assert(value != NULL);
