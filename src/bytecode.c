@@ -223,7 +223,7 @@ bool bytecode_handle_top_level_node(CompilationWorkspace* ws, AstNode* node) {
 
   assert(node->type == NODE_ASSIGNMENT || node->type == NODE_COMPOUND);
   bool result = bytecode_handle_node(&bytecode, node);
-  if (result) *((size_t*) pool_get(&bytecode)) = BC_EXIT;
+  if (result) *((size_t*) pool_get(&bytecode)) = BC_RETURN;
 
   if (result) {
     size_t bytecode_id = list_append(&ws->bytecode, pool_to_array(&bytecode));

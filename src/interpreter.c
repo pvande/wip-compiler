@@ -52,8 +52,8 @@ bool perform_execute_job(Job* job) {
     // inspect_vm_state(state, bytecode);
 
     switch (bytecode[state->ip++]) {
-      case BC_EXIT: {
-        // fprintf(stderr, "BC_EXIT\n");
+      case BC_RETURN: {
+        // fprintf(stderr, "BC_RETURN\n");
         if (state->fp == -1) {
           interpreter_finish_dependency_initialization(ws, state->id);
           return 1;

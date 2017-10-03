@@ -191,7 +191,7 @@ typedef struct AstNode {
 
 
 enum BytecodeInstructions {
-  BC_EXIT,
+  BC_RETURN,
   BC_LOAD,
   BC_STORE,
   BC_ARG_LOAD,
@@ -206,7 +206,7 @@ enum BytecodeInstructions {
 };
 
 char BytecodeSizes[11] = {
-  1,  // BC_EXIT
+  1,  // BC_RETURN
   2,  // BC_LOAD
   2,  // BC_STORE
   2,  // BC_ARG_LOAD
@@ -256,7 +256,7 @@ static size_t putc_bytecode[11] = {
   BC_PUSH, 1,
   BC_PUSH, SYS_write,
   BC_SYSCALL, 4,
-  BC_EXIT,
+  BC_RETURN,
 };
 
 void populate_builtins(CompilationWorkspace* ws) {
@@ -268,7 +268,7 @@ void populate_builtins(CompilationWorkspace* ws) {
     main_bytecode[0] = BC_CALL;
     main_bytecode[1] = 0;  // Filled in later!
     main_bytecode[2] = 0;
-    main_bytecode[3] = BC_EXIT;
+    main_bytecode[3] = BC_RETURN;
     list_append(&ws->bytecode, main_bytecode);
   }
 

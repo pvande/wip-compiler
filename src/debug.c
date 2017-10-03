@@ -426,7 +426,7 @@ void print_typeclass(Typeclass* type) {
 
 int _print_bytecode(size_t* bytecode) {
   switch (bytecode[0]) {
-    case BC_EXIT:
+    case BC_RETURN:
       printf("EXIT\n");
       return -1;
     case BC_LOAD:
