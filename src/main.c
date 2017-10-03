@@ -442,6 +442,10 @@ bool begin_compilation(CompilationWorkspace* ws) {
       // printf("\n\n");
       report_errors(job->file, job->node);
 
+    } else if (job->type == JOB_EXECUTE) {
+      // @TODO Handle this?
+      printf("Execution aborted.\n");
+
     } else {
       printf("Unknown job error type: %d\n", job->type);
       assert(0);
