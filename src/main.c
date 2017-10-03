@@ -207,7 +207,7 @@ enum BytecodeInstructions {
 };
 
 char BytecodeSizes[11] = {
-  1,  // BC_RETURN
+  2,  // BC_RETURN
   2,  // BC_LOAD
   2,  // BC_STORE
   2,  // BC_ARG_LOAD
@@ -251,13 +251,13 @@ DEFINE_STR(TYPE_PROC_U8_TO_VOID, "(u8) => ()");
 DEFINE_STR(BUILTIN_PUTC, "putc");
 DEFINE_STR(BUILTIN_SYSCALL, "syscall");
 
-static size_t putc_bytecode[11] = {
+static size_t putc_bytecode[12] = {
   BC_PUSH, 1,
   BC_ARG_ADDR, 0,
   BC_PUSH, 1,
   BC_PUSH, SYS_write,
   BC_SYSCALL, 4,
-  BC_RETURN,
+  BC_RETURN, 0,
 };
 
 void populate_builtins(CompilationWorkspace* ws) {
@@ -265,11 +265,12 @@ void populate_builtins(CompilationWorkspace* ws) {
 
   {
     // @Hack Automatic interpretation of the `main` method.
-    size_t* main_bytecode = malloc(4 * sizeof(size_t));
+    size_t* main_bytecode = malloc(5 * sizeof(size_t));
     main_bytecode[0] = BC_CALL;
     main_bytecode[1] = 0;  // Filled in later!
     main_bytecode[2] = 0;
     main_bytecode[3] = BC_RETURN;
+    main_bytecode[4] = 0;
     list_append(&ws->bytecode, main_bytecode);
   }
 

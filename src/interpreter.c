@@ -59,12 +59,23 @@ bool perform_execute_job(Job* job) {
           return 1;
         }
 
+        bool has_retval = bytecode[state->ip++];
+        size_t retval;
+        if (has_retval) {
+          retval = state->stack[state->sp--];
+        }
+
         state->id = state->stack[state->sp--];
         state->ip = state->stack[state->sp--];
         state->fp = state->stack[state->sp--];
 
         size_t arg_count = state->stack[state->sp--];
         for (size_t i = 0; i < arg_count; i++) state->sp--;
+
+        if (has_retval) {
+          // @TODO Inline this above to reduce branches.
+          state->stack[++state->sp] = retval;
+        }
 
         bytecode = list_get(&job->ws->bytecode, state->id);
 

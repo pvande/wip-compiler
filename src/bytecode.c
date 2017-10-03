@@ -114,6 +114,22 @@ bool bytecode_handle_compound(Pool* instructions, AstNode* node) {
   return result;
 }
 
+bool bytecode_handle_return(Pool* instructions, AstNode* node) {
+  bool result = 1;
+  AstNode* retval = node->rhs;
+
+  if (node->flags & NODE_CONTAINS_RHS) {
+    result = bytecode_handle_node(instructions, retval);
+    EMIT(BC_RETURN);
+    EMIT(1);
+  } else {
+    EMIT(BC_RETURN);
+    EMIT(0);
+  }
+
+  return result;
+}
+
 bool bytecode_handle_conditional(Pool* instructions, AstNode* node) {
   bool result = 1;
   AstNode* cond = node->lhs;
@@ -198,6 +214,9 @@ bool bytecode_handle_node(Pool* instructions, AstNode* node) {
     case NODE_COMPOUND:
       result = bytecode_handle_compound(instructions, node);
       break;
+    case NODE_RETURN:
+      result = bytecode_handle_return(instructions, node);
+      break;
     case NODE_CONDITIONAL:
       result = bytecode_handle_conditional(instructions, node);
       break;
@@ -223,7 +242,10 @@ bool bytecode_handle_top_level_node(CompilationWorkspace* ws, AstNode* node) {
 
   assert(node->type == NODE_ASSIGNMENT || node->type == NODE_COMPOUND);
   bool result = bytecode_handle_node(&bytecode, node);
-  if (result) *((size_t*) pool_get(&bytecode)) = BC_RETURN;
+  if (result) {
+    *((size_t*) pool_get(&bytecode)) = BC_RETURN;
+    *((size_t*) pool_get(&bytecode)) = 0;
+  }
 
   if (result) {
     size_t bytecode_id = list_append(&ws->bytecode, pool_to_array(&bytecode));

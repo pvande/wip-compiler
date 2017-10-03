@@ -537,6 +537,25 @@ bool typecheck_expression_call(Job* job, AstNode* node) {
   return 1;
 }
 
+bool typecheck_return(Job* job, AstNode* node) {
+  // @TODO We need to know what function we're returning from in order to make
+  //       sure that the return type matches the function's type.
+  bool result = 1;
+
+  if (node->flags & NODE_CONTAINS_RHS) {
+    result = typecheck_node(job, node->rhs);
+
+    if (result) {
+      node->typeclass = node->rhs->typeclass;
+      node->typekind = node->rhs->typekind;
+    }
+  } else {
+    node->typeclass = _get_type(STR_VOID);
+  }
+
+  return result;
+}
+
 bool typecheck_expression(Job* job, AstNode* node) {
   if (node->flags & EXPR_IDENT) {
     return typecheck_expression_identifier(job, node);
@@ -622,6 +641,9 @@ bool typecheck_node(Job* job, AstNode* node) {
       break;
     case NODE_COMPOUND:
       result = typecheck_compound(job, node);
+      break;
+    case NODE_RETURN:
+      result = typecheck_return(job, node);
       break;
     case NODE_CONDITIONAL:
       result = typecheck_conditional(job, node);
