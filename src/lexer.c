@@ -13,6 +13,7 @@ const char OPERATORS[256 - 32] = {
   0, 0, 0, 2, 1, 2, 1, 0,  // xyz{|}~
 };
 
+DEFINE_STR(KEYWORD_RETURN, "return");
 DEFINE_STR(KEYWORD_IF, "if");
 DEFINE_STR(KEYWORD_LOOP, "loop");
 DEFINE_STR(KEYWORD_BREAK, "break");
@@ -183,7 +184,8 @@ void tokenize_string(FileInfo* file, TokenizedFile* result) {
         TokenType type = TOKEN_IDENTIFIER;
         String source = SOURCE;
 
-        bool is_keyword = string_equals(&source, KEYWORD_IF) ||
+        bool is_keyword = string_equals(&source, KEYWORD_RETURN) ||
+                          string_equals(&source, KEYWORD_IF) ||
                           string_equals(&source, KEYWORD_LOOP) ||
                           string_equals(&source, KEYWORD_BREAK);
 

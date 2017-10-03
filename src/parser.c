@@ -444,6 +444,21 @@ void parse_declaration_node(ParserState* state, AstNode* node) {
   node->to = token_end(ACCEPTED);
 }
 
+void parse_return_node(ParserState* state, AstNode* node) {
+  init_node(node, NODE_RETURN);
+
+  node->from = token_start(TOKEN);
+  assert(accept_keyword(state, KEYWORD_RETURN));
+
+  if (!peek_op(state, OP_NEWLINE)) {
+    node->rhs = parse_expression(state);
+    node->flags |= (node->rhs->flags & NODE_CONTAINS_ERROR);
+    node->flags |= NODE_CONTAINS_RHS;
+  }
+
+  node->to = token_end(ACCEPTED);
+}
+
 void* _get_type(String* name);
 void parse_expression_node(ParserState* state, AstNode* node) {
   init_node(node, NODE_EXPRESSION);
@@ -620,6 +635,7 @@ void parse_loop_node(ParserState* state, AstNode* node) {
 
 // STATEMENT = DECLARATION
 //           | ASSIGNMENT
+//           | RETURN
 //           | CONDITIONAL
 //           | LOOP
 //           | EXPRESSION
@@ -633,6 +649,9 @@ void parse_statement_node(ParserState* state, AstNode* node) {
 
   } else if (test_declaration(state)) {
     parse_declaration_node(state, node);
+
+  } else if (peek_keyword(state, KEYWORD_RETURN)) {
+    parse_return_node(state, node);
 
   } else if (peek_keyword(state, KEYWORD_IF)) {
     parse_conditional_node(state, node);

@@ -117,6 +117,7 @@ typedef enum {
   NODE_EXPRESSION,
   NODE_LOOP,
   NODE_RECOVERY,
+  NODE_RETURN,
   NODE_TYPE,
 } AstNodeType;
 
