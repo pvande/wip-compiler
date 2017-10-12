@@ -509,3 +509,33 @@ void inspect_vm_state(VmState* state, size_t* bytecode) {
   //   size_t stack[512];
   // } VmState;
 }
+
+
+#ifdef DEBUG_VIZ
+#import <stdargs.h>
+
+static debug_context_count = 0;
+
+void debug_info(char* msg, ...) {
+  va_list args;
+  va_start(args, msg);
+  for (char i = 0; i < debug_context_count; i++) fprintf(stderr, "  ");
+  vfprintf(stderr, msg, args);
+  va_end(args);
+}
+
+void debug_push_context() {
+  debug_context_count += 1;
+}
+
+void debug_pop_context() {
+  debug_context_count -= 1;
+}
+
+#else
+
+void debug_info(char* msg, ...) {}
+void debug_push_context() {}
+void debug_pop_context() {}
+
+#endif

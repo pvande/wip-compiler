@@ -1,8 +1,3 @@
-Pool TYPECLASS_POOL;
-Table TYPECLASS_TABLE;
-
-Typeclass TYPECLASS_LITERAL = { -1, 0, &(String) { 11, "«LITERAL»" }, NULL, NULL };
-
 const long long OVERFLOW_S8  = (1 << 7);
 const long long OVERFLOW_U8  = (1 << 8);
 const long long OVERFLOW_S16 = (1 << 15);
@@ -10,42 +5,6 @@ const long long OVERFLOW_U16 = (1 << 16);
 const long long OVERFLOW_S32 = ((unsigned long long) 1 << 31);
 const long long OVERFLOW_U32 = ((unsigned long long) 1 << 32);
 const long long OVERFLOW_S64 = ((unsigned long long) 1 << 63);
-
-void* _get_type(String* name) {
-  return table_find(&TYPECLASS_TABLE, name);
-}
-
-void* _new_type(String* name, size_t size) {
-  static size_t serial = 0;
-
-  Typeclass* type = pool_get(&TYPECLASS_POOL);
-  type->id = serial++;
-  type->size = size;
-  type->name = name;
-  type->from = NULL;
-  type->to = NULL;
-
-  table_add(&TYPECLASS_TABLE, name, type);
-
-  return type;
-}
-
-void* _find_or_create_type(String* name, size_t size) {
-  // @Concurrency This is not atomic!
-  Typeclass* type = _get_type(name);
-
-  if (type == NULL) {
-    // @TODO Clone the name string?
-    type = _new_type(name, size);
-  } else {
-    if (type->size != size) {
-      fprintf(stderr, "Internal Compiler Error: Attempted to create type '%s' with different sizes (%zu & %zu)!", to_zero_terminated_string(name), size, type->size);
-      exit(1);
-    }
-  }
-
-  return type;
-}
 
 // ** Constant Errors ** //
 
@@ -74,69 +33,13 @@ AstNode* _find_identifier(Scope* scope, Symbol ident) {
   }
 }
 
-// @TODO Implement (lossless) type compatibility.
-//       For example, a u8 can always "fit" into a u16.
-bool typecheck_can_coerce(Typeclass* from, Typekind kind, Typeclass* to) {
-  if (from == to) return 1;
-
-  if (from == &TYPECLASS_LITERAL) {
-    if (to->name == STR_BOOL) {
-      return kind & KIND_NUMBER;
-    }
-
-    if (to->name == STR_INT)
-      return kind & (KIND_CAN_BE_U64 | KIND_CAN_BE_SIGNED);
-
-    if (to->name == STR_S64)
-      return kind & (KIND_CAN_BE_U64 | KIND_CAN_BE_SIGNED);
-
-    if (to->name == STR_S32)
-      return kind & (KIND_CAN_BE_U32 | KIND_CAN_BE_SIGNED);
-
-    if (to->name == STR_S16)
-      return kind & (KIND_CAN_BE_U16 | KIND_CAN_BE_SIGNED);
-
-    if (to->name == STR_S8)
-      return kind & (KIND_CAN_BE_U8 | KIND_CAN_BE_SIGNED);
-
-    if (to->name == STR_U64)
-      return kind & KIND_CAN_BE_U64;
-
-    if (to->name == STR_U32)
-      return kind & KIND_CAN_BE_U32;
-
-    if (to->name == STR_U16)
-      return kind & KIND_CAN_BE_U16;
-
-    if (to->name == STR_U8)
-      return kind & KIND_CAN_BE_U8;
-
-    if (to->name == STR_BYTE) {
-      return kind & KIND_CAN_BE_U8;
-    }
-
-    return 0;
-  }
-
-  // "int" is an alias for "s64"
-  if (from->name == STR_INT && to->name == STR_S64) return 1;
-  if (from->name == STR_S64 && to->name == STR_INT) return 1;
-
-  // "byte" is an alias for "u8"
-  if (from->name == STR_BYTE && to->name == STR_U8) return 1;
-  if (from->name == STR_U8 && to->name == STR_BYTE) return 1;
-
-  return 0;
-}
-
 
 // ** Typechecking ** //
 
 bool typecheck_node(Job* job, AstNode* node);
 
-
 bool typecheck_type(Job* job, AstNode* node) {
-  Typeclass* type = _get_type(&node->source);
+  Typeclass* type = type_find(job->ws, &node->source);
 
   if (type == NULL) {
     node->flags |= NODE_CONTAINS_ERROR;
@@ -193,16 +96,14 @@ bool typecheck_assignment(Job* job, AstNode* node) {
 
   if (target->typeclass == NULL) {
     target->typeclass = value->typeclass;
-    target->typekind = value->typekind;
     target->flags &= ~NODE_CONTAINS_ERROR;
     target->error = NULL;
 
     node->typeclass = target->typeclass;
-    node->typekind = target->typekind;
     node->flags &= (value->flags & NODE_CONTAINS_ERROR);
     return 1;
   } else {
-    bool result = typecheck_can_coerce(value->typeclass, value->typekind, target->typeclass);
+    bool result = value->typeclass == target->typeclass;
 
     if (!result) {
       node->flags |= NODE_CONTAINS_ERROR;
@@ -210,12 +111,11 @@ bool typecheck_assignment(Job* job, AstNode* node) {
       return 1;
     }
 
-    if (value->typeclass == &TYPECLASS_LITERAL) {
+    if (value->typeclass->kind & KIND_LITERAL) {
       value->typeclass = target->typeclass;
     }
 
     node->typeclass = target->typeclass;
-    node->typekind = target->typekind;
     return 1;
   }
 }
@@ -237,50 +137,15 @@ bool typecheck_expression_identifier(Job* job, AstNode* node) {
   //       variables.
   node->declaration = decl;
   node->typeclass = decl->typeclass;
-  node->typekind = decl->typekind;
 
   return 1;
 }
 
+DEFINE_STR(STR_LITERAL, "<literal>");
 void _type_literal_number_value(AstNode* node) {
   // @TODO Describe all possible types.
-  node->typeclass = &TYPECLASS_LITERAL;
-  node->typekind = KIND_NUMBER;
-
-  if (node->int_value < OVERFLOW_U8) {
-    node->typekind |= KIND_CAN_BE_U8;
-    node->typekind |= KIND_CAN_BE_U16;
-    node->typekind |= KIND_CAN_BE_U32;
-    node->typekind |= KIND_CAN_BE_U64;
-
-    if (node->int_value < OVERFLOW_S8) {
-      node->typekind |= KIND_CAN_BE_SIGNED;
-    }
-
-  } else if (node->int_value < OVERFLOW_U16) {
-    node->typekind |= KIND_CAN_BE_U16;
-    node->typekind |= KIND_CAN_BE_U32;
-    node->typekind |= KIND_CAN_BE_U64;
-
-    if (node->int_value < OVERFLOW_S16) {
-      node->typekind |= KIND_CAN_BE_SIGNED;
-    }
-
-  } else if (node->int_value < OVERFLOW_U32) {
-    node->typekind |= KIND_CAN_BE_U32;
-    node->typekind |= KIND_CAN_BE_U64;
-
-    if (node->int_value < OVERFLOW_S32) {
-      node->typekind |= KIND_CAN_BE_SIGNED;
-    }
-
-  } else {
-    node->typekind |= KIND_CAN_BE_U64;
-
-    if (node->int_value < OVERFLOW_S64) {
-      node->typekind |= KIND_CAN_BE_SIGNED;
-    }
-  }
+  node->typeclass = type_create_untracked(STR_LITERAL, 0);
+  node->typeclass->kind = KIND_LITERAL | KIND_NUMERIC;
 }
 
 bool typecheck_expression_literal_decimal(Job* job, AstNode* node) {
@@ -346,15 +211,14 @@ bool typecheck_expression_literal_binary(Job* job, AstNode* node) {
 bool typecheck_expression_literal_fractional(Job* job, AstNode* node) {
   node->double_value = strtod(to_zero_terminated_string(&node->source), NULL);
 
-  node->typeclass = _get_type(STR_FLOAT);
-  node->typekind = KIND_NUMBER;
+  node->typeclass = type_find(job->ws, STR_FLOAT);
 
   return 1;
 }
 
 bool typecheck_expression_literal_string(Job* job, AstNode* node) {
   node->pointer_value = unescape_string_literal(&node->source);
-  node->typeclass = _get_type(STR_STRING);
+  node->typeclass = type_find(job->ws, STR_STRING);
 
   return 1;
 }
@@ -462,15 +326,17 @@ bool typecheck_expression_procedure(Job* job, AstNode* node) {
     name->length = typestring_length;
     name->data = _name;
 
-    node->typeclass = _find_or_create_type(name, 64);
-    if (node->typeclass->from == NULL) {
+    node->typeclass = type_find(job->ws, name);
+
+    if (node->typeclass == NULL) {
+      node->typeclass = type_create(job->ws, name, 64);
       node->typeclass->from = argument_types;
       node->typeclass->to = return_types;
-    } else {
-      // @TODO Maybe don't allocate these unless they're necessary?
-      free_list(argument_types);
-      free_list(return_types);
     }
+
+    // @TODO Maybe don't allocate these unless they're necessary?
+    free_list(argument_types);
+    free_list(return_types);
 
     // @Leak: String data is never reclaimed.
     // @Leak: String container is never reclaimed.
@@ -518,7 +384,7 @@ bool typecheck_expression_call(Job* job, AstNode* node) {
     AstNode* arg = &node->rhs->body[i];
     Typeclass* arg_type = list_get(arg_types, i);
 
-    if (!typecheck_can_coerce(arg->typeclass, arg->typekind, arg_type)) {
+    if (arg->typeclass != arg_type) {
       node->flags |= NODE_CONTAINS_ERROR;
       node->rhs->flags |= NODE_CONTAINS_ERROR;
       arg->flags |= NODE_CONTAINS_ERROR;
@@ -531,7 +397,7 @@ bool typecheck_expression_call(Job* job, AstNode* node) {
   if (decl->typeclass->to->length > 0) {
     node->typeclass = list_get(decl->typeclass->to, 0);
   } else {
-    node->typeclass = _get_type(STR_VOID);
+    node->typeclass = type_find(job->ws, STR_VOID);
   }
 
   return 1;
@@ -547,10 +413,9 @@ bool typecheck_return(Job* job, AstNode* node) {
 
     if (result) {
       node->typeclass = node->rhs->typeclass;
-      node->typekind = node->rhs->typekind;
     }
   } else {
-    node->typeclass = _get_type(STR_VOID);
+    node->typeclass = type_find(job->ws, STR_VOID);
   }
 
   return result;
@@ -582,7 +447,7 @@ bool typecheck_compound(Job* job, AstNode* node) {
   }
 
   if (result) {
-    node->typeclass = _get_type(STR_VOID);
+    node->typeclass = type_find(job->ws, STR_VOID);
   }
 
   return result;
@@ -596,7 +461,7 @@ bool typecheck_conditional(Job* job, AstNode* node) {
   result = typecheck_node(job, condition);
   if (!result) return result;
 
-  if (!typecheck_can_coerce(condition->typeclass, condition->typekind, _get_type(STR_BOOL))) {
+  if (condition->typeclass != type_find(job->ws, STR_BOOL)) {
     node->flags |= NODE_CONTAINS_ERROR;
     node->lhs->flags |= NODE_CONTAINS_ERROR;
     condition->flags |= NODE_CONTAINS_ERROR;
@@ -605,7 +470,7 @@ bool typecheck_conditional(Job* job, AstNode* node) {
   }
 
   result = typecheck_node(job, body);
-  node->typeclass = _get_type(STR_VOID);
+  node->typeclass = type_find(job->ws, STR_VOID);
 
   return result;
 }
@@ -615,7 +480,7 @@ bool typecheck_loop(Job* job, AstNode* node) {
   AstNode* block = node->body;
 
   result = typecheck_node(job, block);
-  node->typeclass = _get_type(STR_VOID);
+  node->typeclass = type_find(job->ws, STR_VOID);
 
   return result;
 }
@@ -652,7 +517,7 @@ bool typecheck_node(Job* job, AstNode* node) {
       result = typecheck_loop(job, node);
       break;
     case NODE_BREAK:
-      node->typeclass = _get_type(STR_VOID);
+      node->typeclass = type_find(job->ws, STR_VOID);
       result = 1;
       break;
     default:
@@ -681,25 +546,4 @@ bool perform_typecheck_job(Job* job) {
   }
 
   return result;
-}
-
-
-void initialize_typechecker() {
-  initialize_pool(&TYPECLASS_POOL, sizeof(Typeclass), 8, 32);
-  initialize_table(&TYPECLASS_TABLE, 256);
-
-  _new_type(STR_VOID, 0);
-  _new_type(STR_BOOL, 8);
-  _new_type(STR_BYTE, 8);
-  _new_type(STR_U8,   8);
-  _new_type(STR_U16,  16);
-  _new_type(STR_U32,  32);
-  _new_type(STR_U64,  64);
-  _new_type(STR_S8,   8);
-  _new_type(STR_S16,  16);
-  _new_type(STR_S32,  32);
-  _new_type(STR_S64,  64);
-  _new_type(STR_INT,  64);
-  _new_type(STR_FLOAT, 64);
-  _new_type(STR_STRING, 64);
 }

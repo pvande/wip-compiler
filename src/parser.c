@@ -28,6 +28,8 @@ DEFINE_STR(ERR_UNDESCRIBED, "Error here");
 // ** Local Data Structures ** //
 
 typedef struct {
+  CompilationWorkspace* ws;
+
   Token* tokens;
   size_t length;
   size_t pos;
@@ -42,16 +44,6 @@ void* new_parser_scope(Scope* parent) {
   initialize_list(&scope->declarations, 1, 32);
   scope->parent = parent;
   return scope;
-}
-
-void* new_parser_state(TokenizedFile* file, Scope* global_scope) {
-  ParserState* state = malloc(sizeof(ParserState));
-  state->tokens = file->tokens;
-  state->length = file->length;
-  state->pos = 0;
-  state->nodes = new_pool(sizeof(AstNode), 16, 64);
-  state->scope = new_parser_scope(global_scope);
-  return state;
 }
 
 
@@ -227,7 +219,6 @@ void* init_node(AstNode* node, AstNodeType type) {
   node->to.pos = -1;
   node->body_length = 0;
   node->typeclass = NULL;
-  node->typekind = 0;
   node->error = NULL;
 
   return node;
@@ -459,7 +450,6 @@ void parse_return_node(ParserState* state, AstNode* node) {
   node->to = token_end(ACCEPTED);
 }
 
-void* _get_type(String* name);
 void parse_expression_node(ParserState* state, AstNode* node) {
   init_node(node, NODE_EXPRESSION);
 
@@ -554,8 +544,7 @@ void parse_expression_node(ParserState* state, AstNode* node) {
     node->to = token_end(ACCEPTED);
 
     // @TODO I'm not sure I like eagerly typing this...
-    node->typeclass = _get_type(STR_BYTE);
-    node->typekind = KIND_NUMBER;
+    node->typeclass = type_find(state->ws, STR_BYTE);
 
   } else {
     node->from = token_start(TOKEN);
@@ -805,7 +794,7 @@ AstNode* parse_top_level_directive(CompilationWorkspace* ws, ParserState* state)
 //  TOP_LEVEL = DECLARATION
 //            | ASSIGNMENT
 //            | TOP_LEVEL_DIRECTIVE
-AstNode* parse_top_level(CompilationWorkspace* ws, ParserState* state) {
+AstNode* parse_top_level(ParserState* state) {
   AstNode* node = NULL;
 
   if (test_assignment(state)) {
@@ -818,7 +807,7 @@ AstNode* parse_top_level(CompilationWorkspace* ws, ParserState* state) {
     node = parse_declaration(state);
     list_append(&state->scope->declarations, node);
   } else if (test_top_level_directive(state)) {
-    parse_top_level_directive(ws, state);
+    parse_top_level_directive(state->ws, state);
   } else {
     printf("Invalid top-level expression on line %zu!", TOKEN.line);
     assert(0);
@@ -848,14 +837,19 @@ AstNode* parse_top_level(CompilationWorkspace* ws, ParserState* state) {
 }
 
 bool perform_parse_job(Job* job) {
-  ParserState* state = new_parser_state(job->tokens, &job->ws->global_scope);
+  ParserState state = {0};
+  state.ws = job->ws;
+  state.tokens = job->tokens->tokens;
+  state.length = job->tokens->length;
+  state.nodes = new_pool(sizeof(AstNode), 16, 64);
+  state.scope = new_parser_scope(&job->ws->global_scope);
 
-  while (tokens_remain(state)) {
-    if (accept_op(state, OP_NEWLINE)) {
+  while (tokens_remain(&state)) {
+    if (accept_op(&state, OP_NEWLINE)) {
       // Move on, nothing to see here.
 
     } else {
-      AstNode* node = parse_top_level(job->ws, state);
+      AstNode* node = parse_top_level(&state);
       if (node == NULL) continue;
 
       if (node->flags & NODE_CONTAINS_ERROR) {

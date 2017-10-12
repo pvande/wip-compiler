@@ -53,7 +53,7 @@ bool bytecode_handle_expression_string(Pool* instructions, AstNode* node) {
 }
 
 bool bytecode_handle_expression_literal(Pool* instructions, AstNode* node) {
-  if (node->typekind & KIND_NUMBER) {
+  if (node->typeclass->kind & KIND_NUMERIC) {
     return bytecode_handle_expression_integer(instructions, node);
   } else if (node->typeclass->name == STR_FLOAT) {
     return bytecode_handle_expression_float(instructions, node);

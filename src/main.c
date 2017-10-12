@@ -105,6 +105,7 @@ typedef struct {
   List bytecode;
   List initializers;
   Scope global_scope;
+  Table typeclasses;
 } CompilationWorkspace;
 
 // Update docs/parser/node-usage.md when this changes.
@@ -141,22 +142,23 @@ typedef enum {
   NODE_CONTAINS_ERROR  = (1 << 31),
 } AstNodeFlags;
 
+typedef enum {
+  KIND_PROC          = (1 << 0),
+  KIND_LITERAL       = (1 << 1),
+  KIND_NUMERIC       = (1 << 2),
+  KIND_DECIMAL       = (1 << 3),
+  KIND_FRACTIONAL    = (1 << 4),
+} Typekind;
+
 typedef struct {
   size_t id;
   size_t size;
+  Typekind kind;
+
   String* name;
   List* from;
   List* to;
 } Typeclass;
-
-typedef enum {
-  KIND_NUMBER        = (1 << 0),
-  KIND_CAN_BE_SIGNED = (1 << 1),
-  KIND_CAN_BE_U8     = (1 << 2),
-  KIND_CAN_BE_U16    = (1 << 3),
-  KIND_CAN_BE_U32    = (1 << 4),
-  KIND_CAN_BE_U64    = (1 << 5),
-} Typekind;
 
 // Update docs/parser/node-usage.md when this changes.
 typedef struct AstNode {
@@ -179,7 +181,6 @@ typedef struct AstNode {
   Scope* scope;               // ---
 
   Typeclass* typeclass;       // NULL
-  Typekind typekind;          // 0
   union {
     unsigned long long int_value;
     double double_value;
@@ -235,6 +236,8 @@ typedef struct {
 #include "src/debug.c"
 #include "src/utility.c"
 
+#include "src/type.c"
+
 #include "src/pipeline.c"
 
 #include "src/reader.c"
@@ -261,6 +264,30 @@ static size_t putc_bytecode[12] = {
 };
 
 void populate_builtins(CompilationWorkspace* ws) {
+  {
+    // Typeclasses
+
+    Typeclass* type_void   = type_create(ws, STR_VOID, 0);
+    Typeclass* type_u8     = type_create(ws, STR_U8,   8);
+    Typeclass* type_u16    = type_create(ws, STR_U16,  16);
+    Typeclass* type_u32    = type_create(ws, STR_U32,  32);
+    Typeclass* type_u64    = type_create(ws, STR_U64,  64);
+    Typeclass* type_s8     = type_create(ws, STR_S8,   8);
+    Typeclass* type_s16    = type_create(ws, STR_S16,  16);
+    Typeclass* type_s32    = type_create(ws, STR_S32,  32);
+    Typeclass* type_s64    = type_create(ws, STR_S64,  64);
+    Typeclass* type_float  = type_create(ws, STR_FLOAT, 32);
+    Typeclass* type_string = type_create(ws, STR_STRING, 64);
+
+    type_alias(ws, STR_BOOL, type_find(ws, STR_U8));
+    type_alias(ws, STR_BYTE, type_find(ws, STR_U8));
+    type_alias(ws, STR_INT, type_find(ws, STR_S64));
+
+    type_create(ws, TYPE_PROC_VOID_TO_VOID, 64);
+    type_create(ws, TYPE_PROC_U8_TO_VOID, 64);
+  }
+
+
   size_t builtin_node_id = -1;
 
   {
@@ -286,12 +313,12 @@ void populate_builtins(CompilationWorkspace* ws) {
     putc_decl->type = NODE_DECLARATION;
     putc_decl->flags = NODE_INITIALIZED;
     putc_decl->ident = symbol_get(BUILTIN_PUTC);
-    putc_decl->typeclass = _new_type(TYPE_PROC_U8_TO_VOID, 64);
+    putc_decl->typeclass = type_find(ws, TYPE_PROC_U8_TO_VOID);
     putc_decl->typeclass->from = new_list(1, 1);
     putc_decl->typeclass->to = new_list(1, 0);
     putc_decl->pointer_value = putc_expr;
 
-    list_append(putc_decl->typeclass->from, _get_type(STR_U8));
+    list_append(putc_decl->typeclass->from, type_find(ws, STR_U8));
     list_append(&ws->global_scope.declarations, putc_decl);
   }
 }
@@ -302,6 +329,7 @@ void initialize_workspace(CompilationWorkspace* ws) {
   initialize_list(&ws->bytecode, 16, 64);
   initialize_list(&ws->initializers, 16, 512);
   initialize_list(&ws->global_scope.declarations, 16, 512);
+  initialize_table(&ws->typeclasses, 256);
 
   populate_builtins(ws);
 
@@ -489,7 +517,7 @@ int main(int argc, char** argv) {
   sigaction(SIGSEGV, &action, NULL);
 
   CompilationWorkspace workspace = {};
-  initialize_typechecker();  // @TODO Push this into the CompilationWorkspace.
+  // initialize_typechecker();  // @TODO Push this into the CompilationWorkspace.
   initialize_workspace(&workspace);
 
   pipeline_emit_read_job(&workspace, &(String) { strlen(argv[1]), argv[1] });
